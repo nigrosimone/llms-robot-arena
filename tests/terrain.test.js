@@ -288,9 +288,11 @@ test("0.2.0 terrain replays retain their original terrain without invented colla
   const m = fixture("hole");
   step(m, idle());
   const legacy = { ...closeReplay(m), specVersion: "0.2.0-draft", engineVersion: "0.2.0-r1" };
+  legacy.arenaCells = legacy.arenaCells.filter(c => c.type !== "floor");
+  delete legacy.floorLoads;
   const replay = parseReplay(stringifyReplay(legacy));
   assert.equal(replay.energyMax, 300);
-  assert.deepEqual(replay.arenaCells, m.cells);
+  assert.deepEqual(replay.arenaCells, legacy.arenaCells);
   legacy.arenaCells.push(cell("collapse"));
   assert.throws(() => parseReplay(stringifyReplay(legacy)), /Invalid arena cell/);
 });

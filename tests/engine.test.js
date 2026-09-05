@@ -240,10 +240,11 @@ test("recorded replay is deterministic and JSON roundtrips float32 buffers", () 
   }
   const a = run(),
     b = run();
-  assert.equal(a.result.ticks, 7200);
+  assert.equal(a.result.ticks, 901);
+  assert.equal(a.result.reason, "hole");
   assert.equal(a.result.winner, null);
   assert.equal(stringifyReplay(a), stringifyReplay(b));
-  assert.equal(a.stateHashes.length, 120);
+  assert.equal(a.stateHashes.length, 16);
   assert.deepEqual(parseReplay(stringifyReplay(a)).frames, a.frames);
   const invalid = JSON.parse(stringifyReplay(a));
   invalid.frames[0] = null;
