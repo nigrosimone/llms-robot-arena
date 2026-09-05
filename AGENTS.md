@@ -500,6 +500,8 @@ A test such as "the bot must aim at the opponent" would be a tactical suggestion
 
 p99 is measured after warmup using two calls for each of the 200 snapshots. The inert scenario requires 600 ticks without violations and memory within the 64 KiB cap. Purity checks also detect mutation of frozen inputs. These checks award no tactical credit.
 
+Full conformity (`pass`) requires all eight checks, including timing. Tournament admission (`eligible`) follows the requested match budget: `fuel` requires every functional and instruction-budget check, while the separately measured p99 is advisory; `wall` also requires p99 below 2 ms. The standalone gate CLI requests `wall`. Reports retain both verdicts and the measured timing, so fuel admission never claims wall-clock conformity.
+
 ---
 
 ## Complete engine constants
@@ -658,6 +660,8 @@ Use `--mode one-shot --budget wall` only for a declared one-shot benchmark requi
 - **`wall`:** a 2 ms tick budget and 50 ms initialization budget, subject to operating-system scheduling and machine load.
 
 Compare results only under matching rules, runtime and budget conditions. The conformity gate uses bounded fuel for functional checks and separately measures execution time. Wall-clock results also depend on identical timeout decisions.
+
+Browser exhibitions and CLI tournaments with `--budget fuel` use fuel admission. A timing-only failure does not block them. Functional failures, invalid actions or memory, exceptions, impurity and instruction-budget violations still block admission for every controller. Browser Tournament shows each gate's checks in place, including the reasons for rejection.
 
 Replays retain their recorded rules, energy limit, arena dimensions, cell layout, flame schedules, collapse schedules and cumulative floor loads. Recharge events record when each cell becomes ready again. Compare results only when the recorded rules, engine versions and runtime budgets match. Replay hashes diagnose simulation differences and do not authenticate imported files.
 

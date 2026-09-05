@@ -110,12 +110,14 @@ export function renderReport(report) {
       "",
       "## Conformity",
       "",
-      "| Controller | Gate | p99 (ms) |",
-      "|---|---|---|",
+      `Admission uses the ${cell(budgetMode)} budget. Full conformity includes the 2 ms timing check; fuel admission treats that measurement as advisory.`,
+      "",
+      "| Controller | Admission | Full conformity | p99 (ms) |",
+      "|---|---|---|---|",
     );
     report.gates.forEach((g) =>
       lines.push(
-        `| ${cell(botName(bots.find(b => b.id === g.id) ?? g))} | ${g.pass ? "PASS" : "FAIL"} | ${fmt(g.p99, 3)} |`,
+        `| ${cell(botName(bots.find(b => b.id === g.id) ?? g))} | ${(g.eligible ?? g.pass) ? "PASS" : "FAIL"} | ${g.pass ? "PASS" : "FAIL"} | ${fmt(g.p99, 3)} |`,
       ),
     );
   }

@@ -111,6 +111,7 @@ document.querySelector("#app").innerHTML = `
   <div class="page-heading"><div><div class="eyebrow">TOURNAMENT <span>/ 03</span></div><h1>Earn your ranking<span>.</span></h1></div><div class="heading-actions"><button id="export-report" class="button quiet" disabled>${icon("download")}.md report</button><button id="export-ranking" class="button outline" disabled>${icon("download")}Export results</button></div></div>
   <div class="tournament-setup"><div><span class="eyebrow">EXHIBITION TOURNAMENT</span><h2>More action. Fewer matches.</h2><label class="field-label" for="tournament-format">FORMAT</label><select id="tournament-format"><option value="quick">Quick rounds (up to 3 rounds)</option><option value="round-robin">Full round robin (20 matches per pair)</option></select><p id="tournament-description"></p><div id="tournament-bots" class="bot-checks"></div></div><button id="run-tournament" class="button accent">${icon("trophy")}Start tournament</button></div>
   <div id="tournament-progress" class="tournament-progress" hidden><div><strong id="tournament-status">Checking controllers…</strong><button id="cancel-tournament" class="button quiet">Cancel</button></div><progress max="1" value="0"></progress></div>
+  <div id="tournament-gates" aria-label="Tournament controller checks" hidden></div>
   <div id="ranking-surface" class="ranking-surface"><div class="empty-ranking"><span>${icon("trophy", 44)}</span><h2>No verdict yet.</h2><p>Select at least two controllers and start the tournament.<br>Results and provisional rankings update after every match.</p></div></div>
   <div id="tournament-matches" class="tournament-matches"></div>
   <p class="tournament-note">Regularized Bradley–Terry: mean strength = 100. Quick rounds sample different opponents with one seed and both spawns per pairing; they do not estimate confidence intervals. Full round robin adds 95% seed-bootstrap intervals when complete. Results remain provisional while running or after cancellation. Completed replays stay available until the next tournament or page reload. Browser results are exhibitions; the standard evaluation protocol is available through the CLI.</p>
@@ -370,6 +371,10 @@ function startOperation(type, data) {
       }
       return;
     }
+    if (data.type === "tournament-gate") {
+      renderTournamentGate(data.bot, data.gate);
+      return;
+    }
     if (data.type === "tournament-update") {
       report = data.report;
       if (data.replay) tournamentReplays.set(report.records.length - 1, data.replay);
@@ -566,9 +571,24 @@ $("#run-gate").onclick = () => {
     '<p class="gate-running"><span class="loader"></span>Checking 200 snapshots and 600 ticks…</p>';
   startOperation("gate", { source: $("#code-editor").value });
 };
+function gateLabel(gate) {
+  return gate.pass ? "Passed" : gate.eligible ? "Ready for exhibition" : "Check failed";
+}
+function gateMarkup(gate) {
+  const eligible = gate.eligible ?? gate.pass;
+  const status = gate.pass ? "pass" : eligible ? "advisory" : "fail";
+  return `<div class="gate-verdict ${status}">${icon(eligible ? "check" : "close")} ${gateLabel(gate)}</div>${eligible && !gate.pass ? '<p class="gate-advisory">The 2 ms timing check failed on this device. This exhibition uses a deterministic instruction budget, so timing is advisory.</p>' : ""}${gate.checks.map(c => `<div class="gate-check ${c.pass ? "pass" : c.required === false ? "advisory" : "fail"}">${!c.pass && c.required === false ? '<span aria-hidden="true">!</span>' : icon(c.pass ? "check" : "close", 14)}<span>${esc(c.name)}${c.detail ? `<small>${esc(c.detail)}${c.required === false ? " · timing advisory" : ""}</small>` : ""}</span></div>`).join("")}`;
+}
 function renderGate(gate) {
-  $("#gate-results").innerHTML =
-    `<div class="gate-verdict ${gate.pass ? "pass" : "fail"}">${icon(gate.pass ? "check" : "close")} ${gate.pass ? "Passed" : "Check failed"}</div>${gate.checks.map((c) => `<div class="gate-check ${c.pass ? "pass" : "fail"}">${icon(c.pass ? "check" : "close", 14)}<span>${esc(c.name)}${c.detail ? `<small>${esc(c.detail)}</small>` : ""}</span></div>`).join("")}`;
+  $("#gate-results").innerHTML = gateMarkup(gate);
+}
+function renderTournamentGate(bot, gate) {
+  const result = document.createElement("details");
+  result.className = "tournament-gate";
+  result.open = !(gate.eligible ?? gate.pass);
+  result.innerHTML = `<summary>${esc(botName(bot))} · ${gateLabel(gate)}</summary>${gateMarkup(gate)}`;
+  $("#tournament-gates").appendChild(result);
+  $("#tournament-gates").hidden = false;
 }
 loadEditor(0);
 function updateTournamentFormat() {
@@ -592,6 +612,8 @@ $("#run-tournament").onclick = () => {
     return toast("Select at least two controllers.", true);
   report = null;
   tournamentReplays.clear();
+  $("#tournament-gates").innerHTML = "";
+  $("#tournament-gates").hidden = true;
   $("#export-ranking").disabled = true;
   $("#export-report").disabled = true;
   $("#ranking-surface").innerHTML = '<div class="empty-ranking"><h2>Checking controllers…</h2><p>The provisional ranking updates after every completed match.</p></div>';

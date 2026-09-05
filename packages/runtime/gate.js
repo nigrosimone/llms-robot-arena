@@ -1,6 +1,15 @@
 import { fixtures } from "./fixtures.js";
 import { createMatch, sensorsFor } from "../sim/index.js";
 export async function gateBot(client, source, budgetMode = "fuel") {
+  if (!["fuel", "wall"].includes(budgetMode)) throw new Error("Invalid gate budget.");
+  const verdict = checks => ({
+    // Full conformity always includes timing. Admission follows the match budget.
+    pass: checks.every(c => c.pass),
+    eligible: checks.every(c => c.pass || c.required === false),
+    checks,
+    budgetMode: "fuel",
+    requestedMatchBudget: budgetMode,
+  });
   const checks = [];
   // Functional checks must not mislabel an OS scheduling spike as impurity.
   // Deterministic bounded execution is used here; p99 wall time is assessed separately.
@@ -11,12 +20,9 @@ export async function gateBot(client, source, budgetMode = "fuel") {
       { name: "Static analysis and isolated scope", pass: true },
     );
   } catch (e) {
-    return {
-      pass: false,
-      checks: [
-        { name: "Compilation and sandbox", pass: false, detail: e.message },
-      ],
-    };
+    return verdict([
+      { name: "Compilation and sandbox", pass: false, detail: e.message },
+    ]);
   }
   const inputs = fixtures(),
     times = [];
@@ -61,7 +67,7 @@ export async function gateBot(client, source, budgetMode = "fuel") {
     },
     { name: "Finite numeric actions", pass: actions },
     { name: "Memory JSON ≤ 64 KB", pass: memory },
-    { name: "p99 time < 2 ms", pass: p99 < 2, detail: p99.toFixed(3) + " ms" },
+    { name: "p99 time < 2 ms", pass: p99 < 2, detail: p99.toFixed(3) + " ms", required: budgetMode === "wall" },
     {
       name: "600 inert ticks · bounded memory",
       pass: inertOK && maxBytes <= 65536,
@@ -69,11 +75,8 @@ export async function gateBot(client, source, budgetMode = "fuel") {
     },
   );
   return {
-    pass: checks.every((c) => c.pass),
-    checks,
+    ...verdict(checks),
     p99,
     maxBytes,
-    budgetMode: "fuel",
-    requestedMatchBudget: budgetMode,
   };
 }

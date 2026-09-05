@@ -1166,6 +1166,24 @@ p code {
 .pass {
   color: var(--lime);
 }
+.advisory {
+  color: #e2bd72;
+}
+.gate-advisory {
+  margin-top: 12px;
+  font-size: 0.8125rem;
+}
+.tournament-gate {
+  margin-top: 12px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+}
+.tournament-gate summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+}
 .fail,
 .gate-fail {
   color: var(--orange);

@@ -1,4 +1,4 @@
-import { botName } from "../bot-catalog.js";
+import { botMetadata, botName } from "../bot-catalog.js";
 import { BotClient } from "./client.js";
 import { runMatch } from "./match.js";
 import { gateBot } from "./gate.js";
@@ -50,9 +50,13 @@ self.onmessage = async ({ data }) => {
         try {
           const gate = await gateBot(client, bot.source);
           gates.push({ id: bot.id, ...gate });
-          if (!gate.pass)
+          self.postMessage({ type: "tournament-gate", bot: botMetadata(bot), gate });
+          if (!gate.eligible)
             throw new Error(
-              botName(bot) + ": gate failed. Open Bot Lab for details.",
+              botName(bot) + ": " + gate.checks
+                .filter(check => !check.pass && check.required !== false)
+                .map(check => check.name + (check.detail ? ` (${check.detail})` : ""))
+                .join("; "),
             );
         } finally {
           client.close();

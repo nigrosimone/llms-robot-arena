@@ -54,9 +54,9 @@ try {
       const gate = await gateBot(client, bot.source, budgetMode);
       gates.push({ id: bot.id, ...gate });
       console.log(
-        `${botName(bot)}: gate ${gate.pass ? "PASS" : "FAIL"}, p99 ${gate.p99?.toFixed(3)} ms`,
+        `${botName(bot)}: ${budgetMode} admission ${gate.eligible ? "PASS" : "FAIL"}, full conformity ${gate.pass ? "PASS" : "FAIL"}, p99 ${gate.p99?.toFixed(3)} ms`,
       );
-      if (!gate.pass)
+      if (!gate.eligible)
         throw Error(
           "Conformity gate failed: " + botName(bot) + "\n" + JSON.stringify(gate),
         );
