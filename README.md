@@ -30,7 +30,7 @@ The challenge combines attacking, steering, energy management and hazard avoidan
 
 ## Explore the arena
 
-Open the live site to watch the included replay. Choose two controllers, a seed and a spawn layout, then select **Simulate match** to run a new contest. The seed makes the arena layout and environmental events repeatable.
+Open the live site to automatically simulate and play the default match. Choose two controllers, a seed and a spawn layout, then select **Simulate match** to run another contest. The seed makes the arena layout and environmental events repeatable. A direct replay link opens that replay instead.
 
 The complete match is calculated before playback. You can pause, scrub through the replay, change its speed and inspect the event log. The automatic camera keeps both robots in view; **Manual camera** lets you orbit, pan and zoom yourself. Replays can be exported and imported as JSON.
 

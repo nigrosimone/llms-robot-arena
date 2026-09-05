@@ -636,9 +636,10 @@ fetch("./replays.json")
     $("#replay-library").hidden = false;
   })
   .catch(() => {});
-loadReplayUrl(
-  new URLSearchParams(location.search).get("replay") || "./demo-replay.json",
-).catch((e) => {
-  if (viewer) $("#stage-loading").hidden = true;
-  toast(e.message + " You can simulate a new match.", true);
-});
+const requestedReplay = new URLSearchParams(location.search).get("replay");
+if (requestedReplay) {
+  loadReplayUrl(requestedReplay).catch((e) => {
+    if (viewer) $("#stage-loading").hidden = true;
+    toast(e.message + " You can simulate a new match.", true);
+  });
+} else $("#simulate").click();

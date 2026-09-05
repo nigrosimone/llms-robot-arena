@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { createMatch, step, closeReplay } from "../packages/sim/index.js";
 import { parseReplay, stringifyReplay } from "../packages/sim/replay.js";
 import { samplePlayback } from "../packages/viewer/playback.js";
 
-const demo = JSON.parse(
-  await readFile(
-    new URL("../packages/viewer/public/demo-replay.json", import.meta.url),
-    "utf8",
-  ),
-);
+// Generate public engine data without loading any controller implementation.
+const fixture = createMatch(0, false, ["a", "b"].map(id => ({
+  id, model: `Fixture ${id}`, provider: null, codeSha256: "0".repeat(64),
+})));
+while (!fixture.result) step(fixture, [0, 1].map(() => ({ actions: { thrust: 0, turn: 0 } })));
+const demo = JSON.parse(stringifyReplay(closeReplay(fixture)));
 test("seeking exact ticks and the final event tolerates seconds-to-ticks rounding", () => {
   for (const count of [123,246,7200]) {
     const replay={result:{ticks:count},initialFrame:Array(12).fill(0),frames:new Float32Array(count*12),arenaExtents:new Float32Array(count).fill(8),events:[{tick:count-1,type:'ring-out',robot:0}]};

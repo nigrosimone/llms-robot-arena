@@ -609,7 +609,7 @@ The build includes the application assets. Local `node_modules/`, tournament `re
 
 ## Bot catalog
 
-The root [bots.json](bots.json) is the single source of truth for registered controllers. The browser build, default tournament CLI and demo generator all consume it. Do not maintain additional roster arrays or hardcoded source imports. Its order determines the initial selection; the first two entries are the default match and demo pair.
+The root [bots.json](bots.json) is the single source of truth for registered controllers. The browser build and default tournament CLI consume it. Do not maintain additional roster arrays or hardcoded source imports. Its first two entries determine the default match; browser selectors display controllers alphabetically while retaining these defaults.
 
 Each entry contains a stable unique `id`, the correctly formatted `model` name, a `provider` such as `OpenAI` or `Anthropic` (`null` for the reference controller or an undeclared provider), and a unique project-relative `file` directly inside `packages/bots/`. Store the thinking level separately in `thinking` (for example `max` or `ultra`), and the coding harness in `harness` (`Codex` for OpenAI, `Claude Code` for Anthropic). Use null when these do not apply. Keep development provenance separate from the model name in `provenance`: for example `iterative`, `one-shot`, `local submission`, or `reference`. The reference entry supplies the starting template for locally created controllers.
 
