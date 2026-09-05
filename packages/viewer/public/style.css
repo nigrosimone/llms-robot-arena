@@ -1204,6 +1204,9 @@ button svg {
   fill: currentColor;
   stroke-width: 1;
 }
+#source-language {
+  margin-left: auto;
+}
 .tournament-setup h2 {
   font-family: var(--display);
   font-size: 38px;

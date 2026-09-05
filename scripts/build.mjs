@@ -42,7 +42,9 @@ await build({
         b.onLoad({ filter: /.*/, namespace: "bot-catalog" }, async () => ({
           contents:
             "export default " + JSON.stringify(
-              (await loadBots()).map(({ file, ...bot }) => bot),
+              (await loadBots()).map(({ file, ...bot }) => ({
+                ...bot, extension: file.endsWith(".ts") ? "ts" : "js",
+              })),
             ),
           loader: "js",
         }));

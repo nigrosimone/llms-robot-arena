@@ -41,7 +41,7 @@ The complete match is calculated before playback. You can pause, scrub through t
 | **Tournament** | Compare selected bots across repeated matches and export rankings and reports. |
 | **Rules** | Read a short overview of the game mechanics. |
 
-Bot Lab changes last for the current browser session. Download your controller to keep a copy.
+Bot Lab changes last for the current browser session. Download your controller to keep a copy. The editor preserves its JavaScript or TypeScript extension; use the file-type selector when changing languages.
 
 ## Where do the LLMs come in?
 

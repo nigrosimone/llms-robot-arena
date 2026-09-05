@@ -4,6 +4,7 @@ import { ArenaViewer } from "./arena.js";
 import { stringifyReplay, parseReplay } from "../sim/replay.js";
 import builtins from "arena:bots";
 import { botName, botDetails } from "../bot-catalog.js";
+import { controllerExtension, controllerFilename } from "./controllers.js";
 const icons = {
   arena: "M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10",
   code: "m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18",
@@ -100,7 +101,7 @@ document.querySelector("#app").innerHTML = `
  </section>
  <section id="panel-lab" class="panel" hidden>
   <div class="page-heading"><div><div class="eyebrow">CONTROLLER WORKSPACE <span>/ 02</span></div><h1>Your code. Your robot<span>.</span></h1></div><button id="new-bot" class="button accent">${icon("plus")}New controller</button></div>
-  <div class="lab-layout"><div class="editor-panel"><div class="editor-toolbar"><select id="edit-bot" aria-label="Controller to edit"></select><span class="mono secondary">JAVASCRIPT / TYPESCRIPT</span></div><div class="editor-file">${icon("code", 16)}<span>controller.ts</span><span id="unsaved" class="unsaved" hidden>Unsaved changes</span></div><div class="editor-body"><pre id="line-numbers" aria-hidden="true"></pre><textarea id="code-editor" aria-label="Controller source" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea></div><div class="editor-footer"><input id="bot-name" aria-label="Model name" placeholder="Model name" maxlength="80"><select id="bot-provider" aria-label="Model provider"><option value="">No provider</option><option>OpenAI</option><option>Anthropic</option></select><button id="download-bot" class="button outline">${icon("download")}.ts file</button><button id="save-bot" class="button accent">Save controller</button></div></div>
+  <div class="lab-layout"><div class="editor-panel"><div class="editor-toolbar"><select id="edit-bot" aria-label="Controller to edit"></select><select id="source-language" aria-label="Controller file type"><option value="js">JavaScript (.js)</option><option value="ts">TypeScript (.ts)</option></select></div><div class="editor-file">${icon("code", 16)}<span id="editor-filename">controller.js</span><span id="unsaved" class="unsaved" hidden>Unsaved changes</span></div><div class="editor-body"><pre id="line-numbers" aria-hidden="true"></pre><textarea id="code-editor" aria-label="Controller source" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea></div><div class="editor-footer"><input id="bot-name" aria-label="Model name" placeholder="Model name" maxlength="80"><select id="bot-provider" aria-label="Model provider"><option value="">No provider</option><option>OpenAI</option><option>Anthropic</option></select><button id="download-bot" class="button outline">${icon("download")}.js file</button><button id="save-bot" class="button accent">Save controller</button></div></div>
    <aside class="lab-sidebar"><div class="info-card"><div class="eyebrow">THE CONTRACT</div><h2>One function. Two commands.</h2><code>tick(sensors, memory)</code><p>Return <code>actions</code> and <code>memory</code>. All data uses world coordinates.</p><dl><dt>thrust</dt><dd>−1 reverse → +1 forward</dd><dt>turn</dt><dd>−1 clockwise → +1 counterclockwise</dd><dt>memory</dt><dd>JSON · up to 64 KB</dd></dl></div><div class="info-card gate-card"><div class="eyebrow">CONFORMANCE GATE</div><h2>Validate the contract.</h2><p>200 snapshots and 600 inert ticks. These checks offer no combat advice.</p><button id="run-gate" class="button outline full-width">${icon("check")}Check controller</button><div id="gate-results" aria-live="polite"></div></div><p class="side-hint">Edits here are iterative experimentation. For a one-shot benchmark, follow AGENTS.md and use the project CLI.</p></aside>
   </div>
  </section>
@@ -451,6 +452,8 @@ function loadEditor(index) {
   editing = index;
   $("#code-editor").value = bots[index].source;
   $("#bot-name").value = botName(bots[index]);
+  $("#source-language").value = controllerExtension(bots[index]);
+  updateEditorFile();
   $("#bot-provider").value = bots[index].provider ?? "";
   $("#unsaved").hidden = true;
   $("#gate-results").innerHTML = "";
@@ -462,6 +465,15 @@ $("#code-editor").oninput = () => {
   $("#unsaved").hidden = false;
 };
 $("#bot-name").oninput = $("#bot-provider").onchange = () => { $("#unsaved").hidden = false; };
+function updateEditorFile() {
+  const extension = $("#source-language").value;
+  $("#editor-filename").textContent = `controller.${extension}`;
+  $("#download-bot").innerHTML = `${icon("download")}.${extension} file`;
+}
+$("#source-language").onchange = () => {
+  updateEditorFile();
+  $("#unsaved").hidden = false;
+};
 $("#code-editor").onscroll = (e) =>
   ($("#line-numbers").scrollTop = e.target.scrollTop);
 $("#code-editor").onkeydown = (e) => {
@@ -489,6 +501,7 @@ $("#new-bot").onclick = () => {
     provider: null,
     provenance: "iterative",
     source: template.source,
+    extension: controllerExtension(template),
   });
   refreshBotOptions();
   $("#edit-bot").value = bots.length - 1;
@@ -507,6 +520,7 @@ $("#save-bot").onclick = () => {
     provider: $("#bot-provider").value || null,
     provenance: "iterative",
     source: $("#code-editor").value,
+    extension: $("#source-language").value,
   };
   const index = editing < builtins.length ? bots.length : editing;
   bots[index] = copy;
@@ -517,9 +531,7 @@ $("#save-bot").onclick = () => {
 };
 $("#download-bot").onclick = () =>
   download(
-    ($("#bot-name")
-      .value.trim()
-      .replace(/[^a-zA-Z0-9_-]/g, "-") || "controller") + ".ts",
+    controllerFilename($("#bot-name").value, $("#source-language").value),
     $("#code-editor").value,
     "text/plain",
   );
