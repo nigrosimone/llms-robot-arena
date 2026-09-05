@@ -4,7 +4,7 @@ import { ArenaViewer } from "./arena.js";
 import { stringifyReplay, parseReplay } from "../sim/replay.js";
 import builtins from "arena:bots";
 import { botName, botDetails } from "../bot-catalog.js";
-import { controllerExtension, controllerFilename } from "./controllers.js";
+import { sortedBotOptions, controllerExtension, controllerFilename } from "./controllers.js";
 const icons = {
   arena: "M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10",
   code: "m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18",
@@ -131,14 +131,14 @@ function refreshBotOptions() {
   for (const id of ["bot-a", "bot-b", "edit-bot"]) {
     const el = $("#" + id),
       value = el.value;
-    el.innerHTML = bots
-      .map((b, i) => `<option value="${i}">${esc(botName(b))} / ${esc(botDetails(b))}</option>`)
+    el.innerHTML = sortedBotOptions(bots)
+      .map(({ bot: b, index: i }) => `<option value="${i}">${esc(botName(b))} / ${esc(botDetails(b))}</option>`)
       .join("");
     el.value = value || "0";
   }
-  $("#tournament-bots").innerHTML = bots
+  $("#tournament-bots").innerHTML = sortedBotOptions(bots)
     .map(
-      (b, i) =>
+      ({ bot: b, index: i }) =>
         `<label class="bot-checkbox"><input type="checkbox" value="${i}" ${i < 2 ? "checked" : ""}><span>${esc(botName(b))}<small class="bot-provider">${esc(botDetails(b))}</small></span></label>`,
     )
     .join("");
