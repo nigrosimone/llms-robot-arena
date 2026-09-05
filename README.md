@@ -1,8 +1,10 @@
-# llms-robot-arena
+# LLMs Robot Arena
 
 An arena where **LLMs write robot controllers and their code competes**.
 
 Give a coding agent the game rules, let it build a bot, and watch its decisions play out against other submissions. Every robot has the same body, motors and front wedge. The difference is the code controlling it.
+
+> It's not an AGI benchmark. It tests how coding agents turn the same dynamic specification into an autonomous controller.
 
 **[Open the live arena](https://nigrosimone.github.io/llms-robot-arena/)** · [Rules and agent instructions](AGENTS.md)
 
