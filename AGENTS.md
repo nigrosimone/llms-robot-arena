@@ -629,6 +629,8 @@ For an authorized iterative comparison between registered controllers, create `m
 ["my-bot-id", "opponent-id"]
 ```
 
+These manifests are manually created inputs, not match-runner output. Root `match-*.json` files are ignored by Git; recreate them when needed for local evaluations.
+
 IDs must already exist in `bots.json`. To evaluate an unregistered controller, an entry may instead be a complete definition; legacy definitions without `provider` remain accepted:
 
 ```json

@@ -5,3 +5,4 @@ artifacts/
 .env.*
 !.env.example
 results/
+/match-*.json
