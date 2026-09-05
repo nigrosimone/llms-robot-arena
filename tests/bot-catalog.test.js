@@ -10,8 +10,8 @@ import { rankTournament, matchRecord } from "../packages/tournament/ranking.js";
 import { renderCSV, renderReport } from "../packages/tournament/report.js";
 
 const pair = () => [
-  { id: "alpha", model: "Alpha Model", provider: "OpenAI", file: "packages/bots/alpha.js", provenance: "iterative" },
-  { id: "beta", model: "Beta Model", provider: "Anthropic", file: "packages/bots/beta.ts" },
+  { id: "alpha", model: "Alpha Model", provider: "OpenAI", thinking: "ultra", harness: "Codex", file: "packages/bots/alpha.js", provenance: "iterative" },
+  { id: "beta", model: "Beta Model", provider: "Anthropic", thinking: "max", harness: "Claude Code", file: "packages/bots/beta.ts" },
 ];
 
 test("registered files exist and ID selections resolve from any manifest directory without reading sources", async () => {
@@ -31,6 +31,10 @@ test("catalog validation rejects duplicates, missing metadata and paths outside 
     bots => { bots[0].model = " "; },
     bots => { delete bots[0].provider; },
     bots => { bots[0].provider = 42; },
+    bots => { delete bots[0].thinking; },
+    bots => { bots[0].thinking = 42; },
+    bots => { delete bots[0].harness; },
+    bots => { bots[0].harness = " "; },
     bots => { bots[0].file = "packages/bots/../private.js"; },
     bots => { bots[0].file = "packages/bots/alpha.js?raw"; },
   ]) {
@@ -80,7 +84,7 @@ async function inertMatch(bots) {
   return replay;
 }
 
-test("model/provider/provenance survive match, replay and ranking exports without changing physics or hashes", async () => {
+test("model, thinking, harness and provenance survive exports without changing physics or hashes", async () => {
   const bots = pair();
   const replay = await inertMatch(bots);
   const renamed = await inertMatch(bots.map(bot => ({ ...bot, model: "Renamed Model", provider: "Another Provider" })));
@@ -98,19 +102,26 @@ test("model/provider/provenance survive match, replay and ranking exports withou
     const bot = bots.find(bot => bot.id === row.id);
     assert.equal(row.model, bot.model);
     assert.equal(row.provider, bot.provider);
+    assert.equal(row.thinking, bot.thinking);
+    assert.equal(row.harness, bot.harness);
   }
   const report = renderReport({
     bots: parsed.bots, ranking, records, gates: [{ id: "alpha", pass: true, p99: 0.1 }],
     mode: "exhibition", budgetMode: "fuel", replicates: 10,
   });
-  assert.match(report, /Alpha Model \| OpenAI \| iterative \| alpha/);
+  assert.match(report, /Alpha Model \| OpenAI \| ultra \| Codex \| iterative \| alpha/);
   assert.match(report, /Alpha Model \| PASS/);
   const csv = renderCSV(ranking);
-  assert.match(csv, /^id,model,provider,provenance,/);
-  assert.match(csv, /"Alpha Model","OpenAI","iterative"/);
+  assert.match(csv, /^id,model,provider,thinking,harness,provenance,/);
+  assert.match(csv, /"Alpha Model","OpenAI","ultra","Codex","iterative"/);
   const legacy = JSON.parse(stringifyReplay(replay));
-  legacy.bots.forEach(bot => { delete bot.provider; delete bot.provenance; });
+  legacy.bots.forEach(bot => { delete bot.provider; delete bot.provenance; delete bot.thinking; delete bot.harness; });
   assert.doesNotThrow(() => parseReplay(JSON.stringify(legacy)));
   legacy.bots[0].provider = { invalid: true };
   assert.throws(() => parseReplay(JSON.stringify(legacy)), /bot metadata/);
+  for (const key of ["thinking", "harness"]) {
+    const invalid = JSON.parse(stringifyReplay(replay));
+    invalid.bots[0][key] = { invalid: true };
+    assert.throws(() => parseReplay(JSON.stringify(invalid)), /bot metadata/);
+  }
 });

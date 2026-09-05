@@ -107,6 +107,8 @@ export function parseReplay(text) {
         typeof b.model !== "string" ||
         typeof b.codeSha256 !== "string" ||
         (b.provider != null && typeof b.provider !== "string") ||
+        (b.thinking != null && typeof b.thinking !== "string") ||
+        (b.harness != null && typeof b.harness !== "string") ||
         (b.provenance != null && typeof b.provenance !== "string"),
     )
   )

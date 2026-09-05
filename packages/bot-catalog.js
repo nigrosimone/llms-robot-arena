@@ -17,6 +17,11 @@ export function validateBotDefinitions(entries, { catalog = false } = {}) {
     if (bot.provenance != null &&
         (typeof bot.provenance !== "string" || !bot.provenance.trim()))
       throw new Error("Bot provenance must be a non-empty string.");
+    for (const key of ["thinking", "harness"]) {
+      if ((catalog && !Object.hasOwn(bot, key)) ||
+          (bot[key] != null && (typeof bot[key] !== "string" || !bot[key].trim())))
+        throw new Error(`Bot ${key} must be a non-empty string or null.`);
+    }
     if (catalog) {
       if (!/^packages\/bots\/[a-zA-Z0-9_-]+\.(js|ts)$/.test(bot.file))
         throw new Error("Catalog files must be JS or TS files directly in packages/bots/.");
@@ -56,6 +61,14 @@ export function botMetadata(bot) {
     id: bot.id,
     model: bot.model ?? "Local controller",
     provider: bot.provider ?? null,
+    thinking: bot.thinking ?? null,
+    harness: bot.harness ?? null,
     ...(bot.provenance == null ? {} : { provenance: bot.provenance }),
   };
+}
+
+export function botDetails(bot) {
+  const metadata = displayMetadata(bot);
+  return [botProvider(bot), metadata.thinking && `Thinking: ${metadata.thinking}`, metadata.harness]
+    .filter(Boolean).join(" · ");
 }

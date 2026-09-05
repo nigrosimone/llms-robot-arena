@@ -15,6 +15,8 @@ export function renderCSV(ranking) {
     "id",
     "model",
     "provider",
+    "thinking",
+    "harness",
     "provenance",
     "score",
     "ciLow",
@@ -92,12 +94,12 @@ export function renderReport(report) {
     "",
     "## Controller provenance",
     "",
-    "| Controller | Provider | Development | ID | Code SHA-256 |",
-    "|---|---|---|---|---|",
+    "| Controller | Provider | Thinking | Harness | Development | ID | Code SHA-256 |",
+    "|---|---|---|---|---|---|---|",
   );
   bots.forEach((b) =>
     lines.push(
-      `| ${cell(botName(b))} | ${cell(botProvider(b))} | ${cell(b.provenance ?? "Not specified")} | ${cell(b.id)} | ${cell(b.codeSha256 ?? "unavailable")} |`,
+      `| ${cell(botName(b))} | ${cell(botProvider(b))} | ${cell(b.thinking ?? "Not specified")} | ${cell(b.harness ?? "Not specified")} | ${cell(b.provenance ?? "Not specified")} | ${cell(b.id)} | ${cell(b.codeSha256 ?? "unavailable")} |`,
     ),
   );
   if (report.gates?.length) {

@@ -3,7 +3,7 @@ import { renderReport } from "../tournament/report.js";
 import { ArenaViewer } from "./arena.js";
 import { stringifyReplay, parseReplay } from "../sim/replay.js";
 import builtins from "arena:bots";
-import { botName, botProvider } from "../bot-catalog.js";
+import { botName, botDetails } from "../bot-catalog.js";
 const icons = {
   arena: "M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10",
   code: "m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18",
@@ -83,7 +83,7 @@ document.querySelector("#app").innerHTML = `
     </div>
     <div class="playback"><button id="step-back" class="icon-button" aria-label="Previous frame" title="Previous frame (←)">‹</button><button id="play" class="play-button" aria-label="Play" disabled>${icon("play", 20)}</button><button id="step-forward" class="icon-button" aria-label="Next frame" title="Next frame (→)">›</button><span id="elapsed" class="mono">00:00</span><div class="scrubber"><div id="event-marks"></div><input type="range" id="timeline" aria-label="Replay position" min="0" max="120" step="any" value="0" disabled></div><span id="duration" class="mono secondary">02:00</span><select id="speed" aria-label="Playback speed"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></div>
     <div class="terrain-legend" aria-label="Arena cells"><span><i class="legend-recharge"></i>Recharge +60</span><span><i class="legend-hole"></i>Hole: instant loss</span><span><i class="legend-flame"></i>Grate: warning then flame</span><span><i class="legend-wear"></i>Cracks: weight damage</span><span><i class="legend-collapse"></i>Red flash: floor collapse</span></div>
-    <div class="robot-stats">${[0, 1].map((i) => `<article class="robot-card robot-${i}"><div class="robot-ident"><span class="robot-avatar">${icon("arena", 26)}</span><div><span class="eyebrow">ROBOT ${i ? "B" : "A"}</span><h2 id="robot-name-${i}">${esc(botName(builtins[i]))}</h2><span class="bot-provider" id="robot-provider-${i}">${esc(botProvider(builtins[i]))}</span></div><span id="robot-status-${i}" class="status-tag">ACTIVE</span></div><div class="energy-row"><span>${icon("bolt", 14)}Energy</span><strong><span id="energy-${i}">${S.ENERGY_MAX}</span><small> / <span id="energy-max-${i}">${S.ENERGY_MAX}</span></small></strong></div><div class="energy-track"><span id="energy-bar-${i}" style="width:100%"></span></div><div class="robot-bottom"><span>Flips taken</span><div class="flip-pips" id="flips-${i}"><i></i><i></i><b>0 / 2</b></div></div></article>`).join("")}</div>
+    <div class="robot-stats">${[0, 1].map((i) => `<article class="robot-card robot-${i}"><div class="robot-ident"><span class="robot-avatar">${icon("arena", 26)}</span><div><span class="eyebrow">ROBOT ${i ? "B" : "A"}</span><h2 id="robot-name-${i}">${esc(botName(builtins[i]))}</h2><span class="bot-provider" id="robot-provider-${i}">${esc(botDetails(builtins[i]))}</span></div><span id="robot-status-${i}" class="status-tag">ACTIVE</span></div><div class="energy-row"><span>${icon("bolt", 14)}Energy</span><strong><span id="energy-${i}">${S.ENERGY_MAX}</span><small> / <span id="energy-max-${i}">${S.ENERGY_MAX}</span></small></strong></div><div class="energy-track"><span id="energy-bar-${i}" style="width:100%"></span></div><div class="robot-bottom"><span>Flips taken</span><div class="flip-pips" id="flips-${i}"><i></i><i></i><b>0 / 2</b></div></div></article>`).join("")}</div>
    </div>
    <aside class="match-sidebar">
     <div class="side-head"><h2>Set up match</h2>${icon("settings")}</div>
@@ -131,14 +131,14 @@ function refreshBotOptions() {
     const el = $("#" + id),
       value = el.value;
     el.innerHTML = bots
-      .map((b, i) => `<option value="${i}">${esc(botName(b))}${b.provider ? " / " + esc(b.provider) : ""}</option>`)
+      .map((b, i) => `<option value="${i}">${esc(botName(b))} / ${esc(botDetails(b))}</option>`)
       .join("");
     el.value = value || "0";
   }
   $("#tournament-bots").innerHTML = bots
     .map(
       (b, i) =>
-        `<label class="bot-checkbox"><input type="checkbox" value="${i}" ${i < 2 ? "checked" : ""}><span>${esc(botName(b))}<small class="bot-provider">${esc(botProvider(b))}</small></span></label>`,
+        `<label class="bot-checkbox"><input type="checkbox" value="${i}" ${i < 2 ? "checked" : ""}><span>${esc(botName(b))}<small class="bot-provider">${esc(botDetails(b))}</small></span></label>`,
     )
     .join("");
 }
@@ -266,7 +266,7 @@ function loadReplay(r, autoplay = false) {
     `SEED ${String(r.seed).padStart(2, "0")} ${r.mirrored ? "· M" : ""}`;
   r.bots.forEach((b, i) => {
     $("#robot-name-" + i).textContent = botName(b);
-    $("#robot-provider-" + i).textContent = botProvider(b);
+    $("#robot-provider-" + i).textContent = botDetails(b);
   });
   $("#current-mode").textContent =
     r.mode === "one-shot"
@@ -546,7 +546,7 @@ function renderRanking() {
   $("#export-ranking").disabled = false;
   $("#export-report").disabled = false;
   $("#ranking-surface").innerHTML =
-    `<div class="ranking-header"><h2>Real results, uncertainty included.</h2><span class="tag">${report.records.length} MATCHES · EXHIBITION</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(botName(r))}</strong><small>${esc(botProvider(r))}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci.map((n) => n.toFixed(1)).join(" – ")}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
+    `<div class="ranking-header"><h2>Real results, uncertainty included.</h2><span class="tag">${report.records.length} MATCHES · EXHIBITION</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(botName(r))}</strong><small>${esc(botDetails(r))}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci.map((n) => n.toFixed(1)).join(" – ")}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
 }
 $("#export-report").onclick = () => {
   if (report) download("RESULTS.md", renderReport(report), "text/markdown");
