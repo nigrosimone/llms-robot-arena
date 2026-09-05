@@ -288,7 +288,8 @@ export function tick(s, m) {
     const angleAtImpact = opAbs - reach;
     const lev = angleAtImpact > 2.53 ? 0.85 : angleAtImpact > 1.34 ? 1 : angleAtImpact > 0.8 ? 0.6 : 0;
     const safeTarget = insideSoon(aimX, aimY, 0.6) && !blocked(me.x, me.y, aimX, aimY, 0.15, false);
-    const canFlip = lev > 0 && closeImp * lev * Math.cos(Math.min(0.5, Math.abs(aimErr))) > 2.95 && Math.abs(aimErr) < 0.5 && safeTarget && me.energy > 30 && dist < 4;
+    const aimOk = Math.abs(aimErr) < (opAbs > 1.9 ? 0.9 : 0.5);
+    const canFlip = lev > 0 && closeImp * lev * Math.cos(Math.min(0.5, Math.abs(aimErr))) > 2.95 && aimOk && safeTarget && me.energy > 30 && dist < 4;
     const huntStrike = mode === "hunt" && opAbs > 2.5 && dist < 3.2 && dist > 1.4 && Math.abs(aimErr) < 0.25 && safeTarget && op.energy < 12;
     if (canFlip || huntStrike || (committed("strike") && opAbs > 1.35 && dist < 3 && Math.abs(aimErr) < 0.8 && safeTarget)) {
       mode = "strike";
@@ -314,7 +315,8 @@ export function tick(s, m) {
   }
 
   // ---------- 5. Hold: face them, manage energy and position, absorb pushes wisely.
-  let resisting = false, leaving = false, nextHome, slideUntil = 0, slideSide = mem.slideSide || 1, backUntil = 0, shieldX = null, shieldY = null;
+  let resisting = false, leaving = false, nextHome, slideUntil = 0, slideSide = mem.slideSide || 1, backUntil = 0, shieldX = null, shieldY = null, sideUntil = 0, sideDir = 0;
+  const opSpeed = Math.sqrt(op.vx * op.vx + op.vy * op.vy);
   let chargeTarget = null;
   if (mode === "hold") {
     turn = faceCtl(aimBearing, dangerClose ? 3.5 : 2, dangerClose ? 1 : opDanger ? 0.6 : 0.3);
@@ -451,6 +453,24 @@ export function tick(s, m) {
         mode = "shield";
         const d = driveTo(shieldX, shieldY, dist > 3 ? 0.95 : 0.75, dist < 3, true);
         turn = d.turn; thrust = d.thrust;
+      } else if ((s.tick < (mem.sideUntil || 0)) || (dist > 3.6 && dist < 4.8 && opTo > 2.5 && opSpeed <= 4.2 && opSpeed > 2.5 && !recovering && s.tick > (mem.sideCd || 0))) {
+        // Sidestep: a chaser that is not at full speed cannot follow a late 90-degree dodge; it
+        // passes by and has to turn around, and the room behind me is too short to yield anyway.
+        mode = "sidestep";
+        let sd = mem.sideDir || 0;
+        if (s.tick >= (mem.sideUntil || 0)) {
+          const lFree = !blocked(me.x, me.y, me.x - uy * 2.5, me.y + ux * 2.5, 0.2, true) && insideSoon(me.x - uy * 2.5, me.y + ux * 2.5, 0.6);
+          const rFree = !blocked(me.x, me.y, me.x + uy * 2.5, me.y - ux * 2.5, 0.2, true) && insideSoon(me.x + uy * 2.5, me.y - ux * 2.5, 0.6);
+          const lRoom = lFree ? roomAlong(me.x, me.y, -uy, ux, hSoon) : 0, rRoom = rFree ? roomAlong(me.x, me.y, uy, -ux, hSoon) : 0;
+          sd = lRoom >= rRoom ? 1 : -1;
+          if (Math.max(lRoom, rRoom) < 2.2) sd = 0;
+          sideUntil = sd ? s.tick + 40 : 0; sideDir = sd;
+        } else { sideUntil = mem.sideUntil; sideDir = sd; }
+        if (sd) {
+          const a = Math.atan2(ux * sd, -uy * sd);
+          const e = wrap(a - me.heading);
+          turn = clamp(e * 4 - me.omega * 0.8, -1, 1); thrust = Math.abs(e) < 0.55 ? 1 : 0;
+        } else { turn = faceAngle(aimBearing, 4); thrust = 0; }
       } else if (dist < 3.4 && opTo > 1.2 && !recovering) {
         // Keep the wedge on them and back away along a clear path; a chaser that follows a
         // straight line will meet the holes before it meets me.
@@ -532,7 +552,7 @@ export function tick(s, m) {
         thrust = d.thrust; turn = d.turn;
       }
       nextMode = "hold"; nextUntil = 0;
-    } else if (myOut > softLimit && !resisting && mode !== "strike" && mode !== "push" && mode !== "shove" && mode !== "hunt" && mode !== "charge" && mode !== "slide" && mode !== "back" && mode !== "flee" && mode !== "shield" && !(inContact && opDanger)) {
+    } else if (myOut > softLimit && !resisting && mode !== "strike" && mode !== "push" && mode !== "shove" && mode !== "hunt" && mode !== "charge" && mode !== "slide" && mode !== "back" && mode !== "flee" && mode !== "shield" && mode !== "sidestep" && !(inContact && opDanger)) {
       const urgentEdge = myOut > softLimit + 0.5;
       const cb = Math.atan2(-me.y, -me.x);
       const toC = wrap(cb - me.heading);
@@ -564,6 +584,6 @@ export function tick(s, m) {
 
   return {
     actions: { thrust: clamp(thrust, -1, 1), turn: clamp(turn, -1, 1) },
-    memory: { mode: nextMode, until: nextUntil, rec: recovering, hunt: hunting, huntT, huntCd: nextCd, rev, leaving, home: nextHome === undefined ? mem.home || 0 : nextHome, slideUntil, slideSide, slideCd: slideUntil > 0 ? slideUntil + 60 : (mem.slideCd || 0), backUntil, shx: shieldX, shy: shieldY },
+    memory: { mode: nextMode, until: nextUntil, rec: recovering, hunt: hunting, huntT, huntCd: nextCd, rev, leaving, home: nextHome === undefined ? mem.home || 0 : nextHome, slideUntil, slideSide, slideCd: slideUntil > 0 ? slideUntil + 60 : (mem.slideCd || 0), backUntil, shx: shieldX, shy: shieldY, sideUntil, sideDir, sideCd: sideUntil > 0 ? sideUntil + 90 : (mem.sideCd || 0) },
   };
 }
