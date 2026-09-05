@@ -1,7 +1,7 @@
 # llms-robot-arena - rules and agent instructions
 
-**Rules version:** `0.2.1-draft`  
-**Engine:** `0.2.1-r1`
+**Rules version:** `0.2.2-draft`  
+**Engine:** `0.2.2-r1`
 
 This is the llms-robot-arena project. Repository: [nigrosimone/llms-robot-arena](https://github.com/nigrosimone/llms-robot-arena). Keep project text, comments, documentation, and user-facing messages in English. The rules below apply when implementing, improving, or evaluating a bot. Project maintenance does not authorize using opponent internals to develop a bot.
 
@@ -86,21 +86,21 @@ All cell locations, types, current states and countdowns are public through `sen
 
 **Holes:** a robot loses as soon as its center enters or crosses an open hole, even if it is flipped or recovering. The swept center segment between the previous pose and the post-collision pose is checked, so passing across a corner between two ticks also counts. Falling through a hole has the same priority as leaving the platform. This is a loss from falling, not an additional flip.
 
-**Flame grates:** each grate independently waits a seeded interval of 4–8 seconds, displays a **one-second amber warning**, then burns for **1.5 seconds**. The next interval starts when the burn ends. A robot whose center is on an active grate loses **30 energy units per second**, in addition to its normal costs. Flipped and recovering robots take this damage too; flip immunity does not protect from fire. Damage is clamped at zero energy. There is no separate health resource. A grate remains solid in every phase.
+**Flame grates:** each grate independently waits a seeded interval of 4–8 seconds, displays a **one-second amber warning**, then burns for **1.5 seconds**. The next interval starts when the burn ends. A robot whose center is on an active grate loses **30 energy units per second**, in addition to its normal costs. Flipped and recovering robots take this damage too; flip immunity does not protect from fire. Damage is clamped at zero energy. There is no separate health resource. Flame phases do not remove the grate; accumulated weight can still collapse it.
 
 Cell containment includes the square's boundary. Hole and recharge crossings use the swept center; fire damage uses the post-collision center for the tick. The engine handles both robots together so simultaneous cell interactions have no robot-index advantage.
 
-### Collapsing floor cells
+### Randomly collapsing floor cells
 
 During a full-length match, **four ordinary 1×1 m floor cells** are scheduled to disappear. A separate seeded stream chooses their positions and warning times, identically for mirrored matches. The first warning starts randomly between **20 and 30 seconds**. Subsequent warning starts are **15–25 seconds apart**. Each warning lasts exactly **3 seconds**, after which the cell becomes a permanent open hole. Matches ending earlier do not continue generating events.
 
-Only ordinary floor cells are eligible: recharge cells, flame grates and existing holes never collapse. A location is chosen only once and must remain completely inside the shrinking boundary through its collapse time. Collapses can occur in the central area or beneath a robot; selection does not target either controller or inspect its strategy. Spawn protection applies to initial hazards, not later announced collapses.
+Only ordinary floor cells are eligible: random collapses exclude recharge cells, flame grates and existing holes. Weight-induced collapse is a separate rule and can destroy any solid cell. A location is chosen only once and must remain completely inside the shrinking boundary through its collapse time. Collapses can occur in the central area or beneath a robot; selection does not target either controller or inspect its strategy. Spawn protection applies to initial hazards, not later announced collapses.
 
 Before the warning, the selected tile looks and behaves like normal solid floor and is omitted from `arena.cells`: controllers cannot read future collapse positions or times. At warning start, it appears as `type: 'collapse'`, `state: 'warning'`, with `timeUntilChange` counting down from 3 seconds. It flashes red with a visible X, and the viewer displays a countdown. The tile remains safe during this entire warning period. At collapse time, its sensor type and state both become `'hole'`, its ID stays unchanged, and its countdown becomes null. It follows the normal hole rules from that tick onward.
 
 A robot still on the cell when the warning expires falls immediately, including a flipped or recovering robot. Movement during that tick cannot rescue a center already over the new opening. A robot that leaves before expiry is safe unless its path crosses another hole. The floor does not return. Collapsed cells that later leave the shrinking arena become inactive like other cells.
 
-Replays record each collapse schedule plus `collapse-warning` and `collapse` events referencing the cell ID. These are environment events and have no robot field; a robot falling through the opening produces a separate `hole` event. Playback and seeking reconstruct the warning and the actual cut through all platform layers without changing simulation results.
+Replays record collapse schedules plus `collapse-warning` and `collapse` events referencing the cell ID. These are environment events and have no robot field; a robot falling through the opening produces a separate `hole` event. Playback and seeking reconstruct the warning and the actual cut through all platform layers without changing simulation results.
 
 ---
 
@@ -356,11 +356,11 @@ interface ContactInfo {
   y: number;
 }
 
-type CellType = 'recharge' | 'hole' | 'flame' | 'collapse';
+type CellType = 'recharge' | 'hole' | 'flame' | 'collapse' | 'floor';
 type CellState = 'ready' | 'cooldown' | 'hole' | 'safe' | 'warning' | 'flaming' | 'inactive';
 
 interface ArenaCell {
-  /** Stable public identifier, e.g. recharge-0, hole-0, flame-0, collapse-0 */
+  /** Stable public identifier, e.g. recharge-0, hole-0, flame-0, floor-136 */
   id: string;
   type: CellType;
   /** Fixed world-space cell center, meters */
@@ -375,6 +375,11 @@ interface ArenaCell {
   /** Seconds until the next cooldown/flame phase transition or collapse.
       Null for a ready charger, a hole, or an inactive cell. */
   timeUntilChange: number | null;
+  /** Remaining floor capacity: 1 intact, 0 exhausted or open. No regeneration. */
+  integrity: number;
+  /** Seconds until an announced opening, independently of recharge/fire state.
+      Null when no opening is announced, already open, or inactive. */
+  collapseIn: number | null;
 }
 
 interface Sensors {
@@ -464,7 +469,7 @@ Initial memory is null. Input sensors and memory are recursively frozen: return 
 
 1. The module exports `tick`.
 2. **Purity**: two calls with the same input produce the same output.
-3. No exceptions on 200 reference snapshots, including edge cases: energy 0 or 300, `status: 'flipped'`, an overlapping opponent, the smallest arena, `lastContact: null`, and cells with cooldowns, flame phase countdowns or collapse warnings.
+3. No exceptions on 200 reference snapshots, including edge cases: energy 0 or 300, `status: 'flipped'`, an overlapping opponent, the smallest arena, `lastContact: null`, and cells with cooldowns, flame phase countdowns or collapse warnings, worn floor and chargers/grates nearing collapse.
 4. `thrust` and `turn` are finite numbers.
 5. `memory` is serializable and ≤ 64 KB.
 6. No access to forbidden globals (static analysis + restricted runtime scope).
@@ -529,6 +534,8 @@ These values are checked against the simulator by the project tests. Update this
   "COLLAPSE_FIRST_MAX": 30,
   "COLLAPSE_GAP_MIN": 15,
   "COLLAPSE_GAP_MAX": 25,
+  "FLOOR_LOAD_CAPACITY": 1200,
+  "FLOOR_WARNING": 3,
   "K_IMPACT": 2.5,
   "E_RIGHT": 25,
   "FLIP_THRESHOLD": 2.6,
@@ -625,7 +632,7 @@ Use `--mode one-shot --budget wall` only for a declared one-shot benchmark requi
 
 Compare results only under matching rules, runtime and budget conditions. The conformity gate uses bounded fuel for functional checks and separately measures execution time. Wall-clock results also depend on identical timeout decisions.
 
-Replays retain their recorded rules, energy limit, arena dimensions, cell layout, flame schedules and collapse schedules. Recharge events record when each cell becomes ready again. Compare results only when the recorded rules, engine versions and runtime budgets match. Replay hashes diagnose simulation differences and do not authenticate imported files. Camera movement and playback controls never change a recorded result.
+Replays retain their recorded rules, energy limit, arena dimensions, cell layout, flame schedules, collapse schedules and cumulative floor loads. Recharge events record when each cell becomes ready again. Compare results only when the recorded rules, engine versions and runtime budgets match. Replay hashes diagnose simulation differences and do not authenticate imported files. Camera movement and playback controls never change a recorded result.
 
 Controllers receive the public arena state through `arena.cells`. Energy management must account for recharge pickups and the absence of passive regeneration. Implementing or updating a controller requires its own bot task and must respect the black-box policy above.
 
