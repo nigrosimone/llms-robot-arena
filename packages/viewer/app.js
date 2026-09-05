@@ -162,8 +162,11 @@ function renderFrame(frame) {
   $("#match-clock").textContent = clock(time);
   $("#elapsed").textContent = clock(time);
   $("#timeline").value = time;
-  $("#play").innerHTML = icon(frame.playing ? "pause" : "play", 20);
-  $("#play").setAttribute("aria-label", frame.playing ? "Pause" : "Play");
+  const playLabel = frame.playing ? "Pause" : "Play";
+  if ($("#play").getAttribute("aria-label") !== playLabel) {
+    $("#play").innerHTML = icon(frame.playing ? "pause" : "play", 20);
+    $("#play").setAttribute("aria-label", playLabel);
+  }
   $("#arena-size").textContent =
     `${(half * 2).toFixed(1)} × ${(half * 2).toFixed(1)} M`;
   $("#pressure-tag").textContent =

@@ -1199,6 +1199,11 @@ p code {
   padding: 30px;
   gap: 25px;
 }
+button svg {
+  width: 15px;
+  fill: currentColor;
+  stroke-width: 1;
+}
 .tournament-setup h2 {
   font-family: var(--display);
   font-size: 38px;
