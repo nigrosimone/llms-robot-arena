@@ -52,5 +52,14 @@
     "provider": "OpenAI",
     "file": "packages/bots/gpt-5-6-sol-ultra.js",
     "provenance": "iterative"
+  },
+  {
+    "id": "gpt-5-6-terra-ultra",
+    "model": "GPT-5.6 Terra",
+    "thinking": "ultra",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-5-6-terra-ultra.js",
+    "provenance": "iterative"
   }
 ]
