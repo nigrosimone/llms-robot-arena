@@ -1,0 +1,31 @@
+{
+  "name": "llms-robot-arena",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Autonomous robot combat simulator, controller sandbox and replay viewer.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nigrosimone/llms-robot-arena.git"
+  },
+  "homepage": "https://github.com/nigrosimone/llms-robot-arena#readme",
+  "bugs": {
+    "url": "https://github.com/nigrosimone/llms-robot-arena/issues"
+  },
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && node packages/viewer/serve.js",
+    "viewer": "node packages/viewer/serve.js",
+    "test": "node --test tests/*.test.js",
+    "gate": "node packages/runtime/gate-cli.js"
+  },
+  "dependencies": {
+    "three": "0.180.0",
+    "quickjs-emscripten": "0.31.0",
+    "@jitl/quickjs-singlefile-browser-release-sync": "0.31.0",
+    "typescript": "5.9.3",
+    "@noble/hashes": "1.8.0"
+  },
+  "devDependencies": { "esbuild": "0.25.10" }
+}
