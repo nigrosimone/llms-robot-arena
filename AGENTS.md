@@ -595,6 +595,10 @@ On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. No AP
 
 ## Publish
 
+The live arena is [nigrosimone.github.io/llms-robot-arena](https://nigrosimone.github.io/llms-robot-arena/). The `conformity-and-engine` workflow runs installation, tests and a production build on **Ubuntu** for pushes and pull requests. After successful checks on `main`, it uploads only `dist/` and deploys it to the `github-pages` environment. Pull requests and other branches do not deploy. To redeploy manually, run this workflow from the repository's **Actions** tab with `main` selected.
+
+In repository **Settings > Pages > Build and deployment**, the source must be **GitHub Actions**. The deploy job has `pages: write` and `id-token: write`; the test job has read-only repository access. Deployments run one at a time and an active deployment is allowed to finish. Assets, workers and replay URLs are relative, so the site works under `/llms-robot-arena/`. See the [GitHub Pages workflow documentation](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages) when changing deployment configuration.
+
 Run `npm ci` and `npm run build`, then publish **the contents of `dist/`** to a static HTTPS host. Hosting under a URL subpath is supported. No Node.js server is needed in production.
 
 The build includes the application assets. Source code, AGENTS.md, and README.md are available in the GitHub repository; the interface has no project archive or separate instruction download. Local `node_modules/`, tournament `results/`, and development artifacts are not deployment files. Results are generated only when you run evaluations.

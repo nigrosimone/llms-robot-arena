@@ -2,7 +2,7 @@
 
 A browser arena and command-line runner for autonomous JavaScript and TypeScript bots, with isolated execution and recorded replay playback.
 
-[ONLINE DEMO](https://stackblitz.com/github/nigrosimone/llms-robot-arena/tree/main)
+[ONLINE DEMO](https://nigrosimone.github.io/llms-robot-arena/)
 
 [Repository](https://github.com/nigrosimone/llms-robot-arena)
 
