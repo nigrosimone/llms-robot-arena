@@ -146,7 +146,7 @@ export function cellSnapshots(cells, tick, half, cooldowns = {}, wear = {}) {
 
 export function applyFloorWeight(match, fallen) {
   const loads = match.robots.map((robot, i) => fallen[i] ? -1 : floorIndex(robot));
-  for (const index of loads) {
+  for (const index of [...loads].sort((a, b) => a - b)) {
     if (index < 0) continue;
     if (!match.cells.some(cell => floorIndex(cell) === index))
       match.cells.push({ id: `floor-${index}`, type: "floor", ...floorPosition(index), size: S.CELL_SIZE });

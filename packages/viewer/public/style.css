@@ -2149,3 +2149,5 @@ tbody tr:last-child td {
 #event-marks > .mark-collapse, #event-marks > .mark-collapse-warning { background: #ff5448; }
 .event-symbol.collapse, .event-symbol.collapse-warning { color: #ff9987; }
 @media (max-width: 540px) { .hazard-rules { grid-template-columns: 1fr; } }
+
+.terrain-legend .legend-wear { background: #d58c3b; box-shadow: inset 0 0 0 2px #6e4929; }
