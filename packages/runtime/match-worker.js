@@ -2,9 +2,7 @@ import { botName } from "../bot-catalog.js";
 import { BotClient } from "./client.js";
 import { runMatch } from "./match.js";
 import { gateBot } from "./gate.js";
-import { matchRecord, rankTournament } from "../tournament/ranking.js";
-import { digest } from "../sim/index.js";
-import { SPEC_VERSION, ENGINE_VERSION } from "../sim/spec.js";
+import { runExhibition } from "../tournament/exhibition.js";
 const pool = new Set();
 const createClient = () => {
   const c = new BotClient(
@@ -44,10 +42,10 @@ self.onmessage = async ({ data }) => {
         client.close();
       }
     } else if (data.type === "tournament") {
-      const gates = [],
-        records = [],
-        total = ((data.bots.length * (data.bots.length - 1)) / 2) * 20;
+      const gates = [];
       for (const bot of data.bots) {
+        self.postMessage({ type: "progress", progress: 0,
+          message: `Checking ${botName(bot)} (${gates.length + 1} / ${data.bots.length})…` });
         const client = createClient();
         try {
           const gate = await gateBot(client, bot.source);
@@ -60,44 +58,12 @@ self.onmessage = async ({ data }) => {
           client.close();
         }
       }
-      for (let a = 0; a < data.bots.length; a++)
-        for (let b = a + 1; b < data.bots.length; b++)
-          for (let seed = 0; seed < 10; seed++)
-            for (const mirrored of [false, true]) {
-              const replay = await runMatch({
-                bots: [data.bots[a], data.bots[b]],
-                seed,
-                mirrored,
-                mode: "exhibition",
-                budgetMode: "fuel",
-                createClient,
-              });
-              records.push(matchRecord(replay, a, b));
-              self.postMessage({
-                type: "progress",
-                progress: records.length / total,
-                completed: records.length,
-                total,
-              });
-            }
-      const ranking = rankTournament(data.bots, records);
-      self.postMessage({
-        type: "tournament",
-        report: {
-          specVersion: SPEC_VERSION,
-          engineVersion: ENGINE_VERSION,
-          gates,
-          mode: "exhibition",
-          budgetMode: "fuel",
-          replicates: 1000,
-          records,
-          ranking,
-          bots: data.bots.map(({ source, ...b }) => ({
-            ...b,
-            codeSha256: digest(source),
-          })),
-        },
+      const report = await runExhibition({
+        bots: data.bots, format: data.format, gates, createClient,
+        onUpdate: update => self.postMessage(update, update.replay
+          ? [update.replay.frames.buffer, update.replay.arenaExtents.buffer] : []),
       });
+      self.postMessage({ type: "tournament", report });
     }
   } catch (e) {
     self.postMessage({ type: "error", message: e.message });

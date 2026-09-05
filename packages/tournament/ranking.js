@@ -57,10 +57,10 @@ export function rankTournament(bots, records, replicates = 1000) {
       return {
         ...botMetadata(bot),
         score: scores[i],
-        ci: [
+        ci: replicates ? [
           dist[Math.floor(replicates * 0.025)],
           dist[Math.min(replicates - 1, Math.floor(replicates * 0.975))],
-        ],
+        ] : null,
         matches: rows.length,
         wins: sum((r) => (own(r) === 1 ? 1 : 0)),
         draws: sum((r) => (own(r) === 0.5 ? 1 : 0)),

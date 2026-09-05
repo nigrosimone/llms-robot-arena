@@ -42,8 +42,8 @@ export function renderCSV(ranking) {
         : '"' + String(value).replace(/"/g, '""') + '"';
   const rows = ranking.map((r) => ({
     ...r,
-    ciLow: r.ci[0],
-    ciHigh: r.ci[1],
+    ciLow: r.ci?.[0],
+    ciHigh: r.ci?.[1],
     scoreRate: r.winRate,
     winRate: r.matches ? r.wins / r.matches : 0,
   }));
@@ -61,9 +61,12 @@ export function renderReport(report) {
     "# llms-robot-arena — results",
     "",
     `- **Mode:** ${cell(mode)}`,
+    `- **Format:** ${report.format === "quick" ? `Quick rounds (${report.rounds} rounds, one seed per pairing, mirrored spawns)` : "Round robin (10 seeds per pair, mirrored spawns)"}`,
+    `- **Status:** ${cell(report.status ?? "complete")}`,
     `- **Budget:** ${cell(budgetMode)}${budgetMode === "fuel" ? " (deterministic instructions, exhibition/diagnostic)" : " (2 ms per tick)"}`,
     `- **Spec / engine:** ${cell(report.specVersion)} / ${cell(report.engineVersion)}`,
-    `- **Matches:** ${records.length}; **bootstrap:** ${report.replicates} seed resamples, keeping mirrored spawns together.`,
+    `- **Matches:** ${records.length}${report.totalMatches ? ` / ${report.totalMatches}` : ""}; **bootstrap:** ${report.replicates ? `${report.replicates} seed resamples, keeping mirrored spawns together` : "not computed"}.`,
+    ...(report.format === "quick" ? ["- Quick rounds sample different opponents. Odd rosters have rotating byes without points. Seed-bootstrap intervals are unavailable with one seed per pairing."] : []),
     `- **Environment:** ${cell(report.environment?.node ?? "browser")} ${cell(report.environment?.platform ?? "")} ${cell(report.environment?.cpu ?? "")}`,
     "",
     "## Bradley–Terry ranking",
@@ -75,7 +78,7 @@ export function renderReport(report) {
   ];
   ranking.forEach((r, i) =>
     lines.push(
-      `| ${i + 1} | ${cell(botName(r))} | ${fmt(r.score, 1)} | ${r.ci.map((n) => fmt(n, 1)).join(" – ")} | ${fmt(r.winRate * 100, 1)} | ${fmt(r.matches ? (100 * r.wins) / r.matches : 0, 1)} | ${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws} |`,
+      `| ${i + 1} | ${cell(botName(r))} | ${fmt(r.score, 1)} | ${r.ci?.map((n) => fmt(n, 1)).join(" – ") ?? "—"} | ${fmt(r.winRate * 100, 1)} | ${fmt(r.matches ? (100 * r.wins) / r.matches : 0, 1)} | ${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws} |`,
     ),
   );
   lines.push(

@@ -5,6 +5,7 @@ import { stringifyReplay, parseReplay } from "../sim/replay.js";
 import builtins from "arena:bots";
 import { botName, botDetails } from "../bot-catalog.js";
 import { sortedBotOptions, controllerExtension, controllerFilename } from "./controllers.js";
+import { exhibitionSchedule } from "../tournament/exhibition.js";
 const icons = {
   arena: "M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10",
   code: "m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18",
@@ -36,6 +37,7 @@ const esc = (s) =>
       ],
   );
 const bots = [...builtins];
+const tournamentReplays = new Map();
 let replay = null,
   viewer = null,
   worker = null,
@@ -106,11 +108,12 @@ document.querySelector("#app").innerHTML = `
   </div>
  </section>
  <section id="panel-tournament" class="panel" hidden>
-  <div class="page-heading"><div><div class="eyebrow">ROUND ROBIN <span>/ 03</span></div><h1>Earn your ranking<span>.</span></h1></div><div class="heading-actions"><button id="export-report" class="button quiet" disabled>${icon("download")}.md report</button><button id="export-ranking" class="button outline" disabled>${icon("download")}Export results</button></div></div>
-  <div class="tournament-setup"><div><span class="eyebrow">EXHIBITION TOURNAMENT</span><h2>Every bot. Every opponent.</h2><p>20 matches per pair · 10 seeds · swapped spawns · 1,000 bootstrap samples</p><div id="tournament-bots" class="bot-checks"></div></div><button id="run-tournament" class="button accent">${icon("trophy")}Start tournament</button></div>
+  <div class="page-heading"><div><div class="eyebrow">TOURNAMENT <span>/ 03</span></div><h1>Earn your ranking<span>.</span></h1></div><div class="heading-actions"><button id="export-report" class="button quiet" disabled>${icon("download")}.md report</button><button id="export-ranking" class="button outline" disabled>${icon("download")}Export results</button></div></div>
+  <div class="tournament-setup"><div><span class="eyebrow">EXHIBITION TOURNAMENT</span><h2>More action. Fewer matches.</h2><label class="field-label" for="tournament-format">FORMAT</label><select id="tournament-format"><option value="quick">Quick rounds (up to 3 rounds)</option><option value="round-robin">Full round robin (20 matches per pair)</option></select><p id="tournament-description"></p><div id="tournament-bots" class="bot-checks"></div></div><button id="run-tournament" class="button accent">${icon("trophy")}Start tournament</button></div>
   <div id="tournament-progress" class="tournament-progress" hidden><div><strong id="tournament-status">Checking controllers…</strong><button id="cancel-tournament" class="button quiet">Cancel</button></div><progress max="1" value="0"></progress></div>
-  <div id="ranking-surface" class="ranking-surface"><div class="empty-ranking"><span>${icon("trophy", 44)}</span><h2>No verdict yet.</h2><p>Select at least two controllers and start the tournament.<br>Rankings appear once the matches have actually been played.</p></div></div>
-  <p class="tournament-note">Regularized Bradley–Terry: mean strength = 100. The 95% CI resamples seeds, keeping mirrored spawns together. Browser results are exhibitions; the one-shot protocol with a 2 ms budget is available through the CLI.</p>
+  <div id="ranking-surface" class="ranking-surface"><div class="empty-ranking"><span>${icon("trophy", 44)}</span><h2>No verdict yet.</h2><p>Select at least two controllers and start the tournament.<br>Results and provisional rankings update after every match.</p></div></div>
+  <div id="tournament-matches" class="tournament-matches"></div>
+  <p class="tournament-note">Regularized Bradley–Terry: mean strength = 100. Quick rounds sample different opponents with one seed and both spawns per pairing; they do not estimate confidence intervals. Full round robin adds 95% seed-bootstrap intervals when complete. Results remain provisional while running or after cancellation. Completed replays stay available until the next tournament or page reload. Browser results are exhibitions; the standard evaluation protocol is available through the CLI.</p>
  </section>
  <section id="panel-rules" class="panel" hidden>
   <div class="page-heading"><div><div class="eyebrow">SPEC ${SPEC_VERSION.replace("-draft", "")} <span>/ 04</span></div><h1>Same hardware. Different minds<span>.</span></h1></div></div>
@@ -136,12 +139,15 @@ function refreshBotOptions() {
       .join("");
     el.value = value || "0";
   }
+  const checked = new Set([...document.querySelectorAll("#tournament-bots input:checked")].map(input => input.value));
+  const first = !$("#tournament-bots").children.length;
   $("#tournament-bots").innerHTML = sortedBotOptions(bots)
     .map(
       ({ bot: b, index: i }) =>
-        `<label class="bot-checkbox"><input type="checkbox" value="${i}" ${i < 2 ? "checked" : ""}><span>${esc(botName(b))}<small class="bot-provider">${esc(botDetails(b))}</small></span></label>`,
+        `<label class="bot-checkbox"><input type="checkbox" value="${i}" ${first || checked.has(String(i)) ? "checked" : ""}><span>${esc(botName(b))}<small class="bot-provider">${esc(botDetails(b))}</small></span></label>`,
     )
     .join("");
+  updateTournamentFormat();
 }
 refreshBotOptions();
 $("#bot-b").value = "1";
@@ -341,6 +347,8 @@ function setBusy(busy) {
   document
     .querySelectorAll("#simulate,#run-gate,#run-tournament")
     .forEach((b) => (b.disabled = busy));
+  document.querySelectorAll("#tournament-bots input,#tournament-format")
+    .forEach(el => { el.disabled = busy; });
 }
 function startOperation(type, data) {
   if (worker) return toast("Wait for the current operation or cancel it.");
@@ -358,11 +366,19 @@ function startOperation(type, data) {
       } else if (operation === "tournament") {
         $("#tournament-progress progress").value = data.progress;
         $("#tournament-status").textContent =
-          `${data.completed} / ${data.total} matches completed`;
+          data.message ?? `${data.completed} / ${data.total} matches completed · Round ${data.round} / ${data.rounds} · ${data.pairing.map(botName).join(" vs ")}`;
       }
       return;
     }
+    if (data.type === "tournament-update") {
+      report = data.report;
+      if (data.replay) tournamentReplays.set(report.records.length - 1, data.replay);
+      renderRanking();
+      renderTournamentMatches();
+      return;
+    }
     if (data.type === "error") {
+      if (operation === "tournament" && report) report.status = "failed";
       toast(data.message, true);
       if (operation === "gate")
         $("#gate-results").innerHTML =
@@ -378,11 +394,14 @@ function startOperation(type, data) {
     if (data.type === "tournament") {
       report = data.report;
       renderRanking();
+      $("#tournament-progress progress").value = 1;
+      $("#tournament-status").textContent = `Tournament complete · ${report.records.length} matches`;
       toast("Tournament complete.");
     }
     finishOperation();
   };
   worker.onerror = (e) => {
+    if (operation === "tournament" && report) report.status = "failed";
     toast(e.message || "An error occurred during execution.", true);
     finishOperation();
   };
@@ -394,7 +413,14 @@ function finishOperation() {
   setBusy(false);
   $("#cancel").hidden = true;
   if (viewer) $("#stage-loading").hidden = true;
-  $("#tournament-progress").hidden = true;
+  if (operation === "tournament") {
+    $("#cancel-tournament").hidden = true;
+    if (report) {
+      if (report.status === "running") report.status = "cancelled";
+      renderRanking();
+      $("#tournament-status").textContent = `Tournament ${report.status} · ${report.records.length} / ${report.totalMatches} matches completed`;
+    } else $("#tournament-status").textContent = "Tournament stopped before any matches were played.";
+  }
   operation = null;
 }
 function cancelOperation() {
@@ -545,24 +571,58 @@ function renderGate(gate) {
     `<div class="gate-verdict ${gate.pass ? "pass" : "fail"}">${icon(gate.pass ? "check" : "close")} ${gate.pass ? "Passed" : "Check failed"}</div>${gate.checks.map((c) => `<div class="gate-check ${c.pass ? "pass" : "fail"}">${icon(c.pass ? "check" : "close", 14)}<span>${esc(c.name)}${c.detail ? `<small>${esc(c.detail)}</small>` : ""}</span></div>`).join("")}`;
 }
 loadEditor(0);
+function updateTournamentFormat() {
+  const count = document.querySelectorAll("#tournament-bots input:checked").length;
+  if (count < 2) {
+    $("#tournament-description").textContent = "Select at least two controllers.";
+    return;
+  }
+  const schedule = exhibitionSchedule(count, $("#tournament-format").value);
+  $("#tournament-description").textContent = schedule.format === "quick"
+    ? `${schedule.rounds} rounds · different opponents · mirrored spawns · ${schedule.matches.length} matches${count % 2 ? " · rotating byes, no points" : ""}`
+    : `10 seeds per pair · mirrored spawns · ${schedule.matches.length} matches`;
+}
+$("#tournament-format").onchange = updateTournamentFormat;
+$("#tournament-bots").onchange = updateTournamentFormat;
 $("#run-tournament").onclick = () => {
   const selected = [
     ...document.querySelectorAll("#tournament-bots input:checked"),
   ].map((i) => bots[+i.value]);
   if (selected.length < 2)
     return toast("Select at least two controllers.", true);
+  report = null;
+  tournamentReplays.clear();
+  $("#export-ranking").disabled = true;
+  $("#export-report").disabled = true;
+  $("#ranking-surface").innerHTML = '<div class="empty-ranking"><h2>Checking controllers…</h2><p>The provisional ranking updates after every completed match.</p></div>';
+  $("#tournament-matches").innerHTML = "";
+  $("#cancel-tournament").hidden = false;
   $("#tournament-progress").hidden = false;
   $("#tournament-progress progress").value = 0;
   $("#tournament-status").textContent = "Running controller conformance gates…";
-  startOperation("tournament", { bots: selected });
+  startOperation("tournament", { bots: selected, format: $("#tournament-format").value });
 };
 function renderRanking() {
   const rows = report.ranking;
   $("#export-ranking").disabled = false;
   $("#export-report").disabled = false;
   $("#ranking-surface").innerHTML =
-    `<div class="ranking-header"><h2>Real results, uncertainty included.</h2><span class="tag">${report.records.length} MATCHES · EXHIBITION</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(botName(r))}</strong><small>${esc(botDetails(r))}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci.map((n) => n.toFixed(1)).join(" – ")}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
+    `<div class="ranking-header"><h2>${report.status === "complete" ? "Final ranking" : "Provisional ranking"}</h2><span class="tag">${report.records.length} / ${report.totalMatches} MATCHES · ${report.format === "quick" ? "QUICK ROUNDS" : "ROUND ROBIN"} · ${esc(report.status.toUpperCase())}</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(botName(r))}</strong><small>${esc(botDetails(r))}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci?.map((n) => n.toFixed(1)).join(" – ") ?? "—"}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
 }
+function renderTournamentMatches() {
+  $("#tournament-matches").innerHTML = report.records.length
+    ? `<div class="ranking-header"><h2>Completed matches</h2><span class="tag">WATCH WHILE THE TOURNAMENT RUNS</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Round</th><th>Match</th><th>Seed / spawn</th><th>Result</th><th>Replay</th></tr></thead><tbody>${report.records.map((r, i) => `<tr><td>${i + 1}</td><td>${r.round}</td><td>${esc(botName(report.bots[r.a]))} vs ${esc(botName(report.bots[r.b]))}</td><td>${r.seed} / ${r.mirrored ? "Mirrored" : "Standard"}</td><td>${r.score === 0.5 ? "Draw" : esc(botName(report.bots[r.score === 1 ? r.a : r.b])) + " wins"}<small>${esc(r.reason)} · ${clock(r.ticks / 60)}</small></td><td><button class="button outline" data-watch-match="${i}">${icon("play")}Watch</button></td></tr>`).reverse().join("")}</tbody></table></div>`
+    : "";
+}
+$("#tournament-matches").onclick = event => {
+  const button = event.target.closest("[data-watch-match]");
+  if (!button) return;
+  const completed = tournamentReplays.get(Number(button.dataset.watchMatch));
+  if (completed) {
+    loadReplay(completed, true);
+    $('[data-tab="arena"]').click();
+  }
+};
 $("#export-report").onclick = () => {
   if (report) download("RESULTS.md", renderReport(report), "text/markdown");
 };
@@ -571,7 +631,7 @@ $("#export-ranking").onclick = () => {
     download("llms-robot-arena-tournament.json", JSON.stringify(report, null, 2));
 };
 function stepFrame(direction, count = 1) {
-  if (!viewer || !replay || operation) return;
+  if (!viewer || !replay || operation === "match") return;
   viewer.playing = false;
   viewer.seek(
     (Math.round(Math.min(viewer.time, viewer.duration) * 60) +
@@ -585,7 +645,7 @@ document.addEventListener("keydown", (e) => {
   if (
     /INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName) ||
     $("#panel-arena").hidden ||
-    operation
+    operation === "match"
   )
     return;
   if (e.code === "Space") {

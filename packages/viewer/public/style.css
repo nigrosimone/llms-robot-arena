@@ -1200,12 +1200,23 @@ p code {
   gap: 25px;
 }
 button svg {
-  width: 15px;
-  fill: currentColor;
-  stroke-width: 1;
+  pointer-events: none;
+}
+.tournament-matches:not(:empty) {
+  margin-top: 25px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel);
 }
 #source-language {
   margin-left: auto;
+}
+#tournament-format {
+  max-width: 100%;
+}
+.tournament-setup > div {
+  min-width: 0;
 }
 .tournament-setup h2 {
   font-family: var(--display);
