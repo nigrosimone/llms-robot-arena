@@ -1,3 +1,4 @@
+import { botName } from "../bot-catalog.js";
 import { BotClient } from "./client.js";
 import { runMatch } from "./match.js";
 import { gateBot } from "./gate.js";
@@ -53,7 +54,7 @@ self.onmessage = async ({ data }) => {
           gates.push({ id: bot.id, ...gate });
           if (!gate.pass)
             throw new Error(
-              bot.id + ": gate failed. Open Bot Lab for details.",
+              botName(bot) + ": gate failed. Open Bot Lab for details.",
             );
         } finally {
           client.close();

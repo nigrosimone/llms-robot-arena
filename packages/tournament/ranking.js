@@ -1,3 +1,4 @@
+import { botMetadata } from "../bot-catalog.js";
 import { mulberry32 } from "../sim/spec.js";
 export function bradleyTerry(n, records) {
   const wins = Array(n).fill(0.5 * (n - 1)),
@@ -54,8 +55,7 @@ export function rankTournament(bots, records, replicates = 1000) {
       const dist = samples[i].sort((a, b) => a - b);
       const first = rows.filter((r) => r.firstContact !== null);
       return {
-        id: bot.id,
-        model: bot.model ?? "Local controller",
+        ...botMetadata(bot),
         score: scores[i],
         ci: [
           dist[Math.floor(replicates * 0.025)],

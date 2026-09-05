@@ -1,0 +1,37 @@
+[
+  {
+    "id": "gpt-6-astra-ultra",
+    "model": "GPT-6 Astra Ultra",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-6-astra-ultra.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "fable-5-1-max",
+    "model": "Fable 5.1 Max",
+    "provider": "Anthropic",
+    "file": "packages/bots/fable-5-1-max.js",
+    "provenance": "local submission"
+  },
+  {
+    "id": "opus-5-1-max",
+    "model": "Claude Opus 5.1 Max",
+    "provider": "Anthropic",
+    "file": "packages/bots/opus-5-1-max.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "sonnet-5-max",
+    "model": "Claude Sonnet 5 Max",
+    "provider": "Anthropic",
+    "file": "packages/bots/sonnet-5-max.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "Baseline",
+    "model": "Baseline",
+    "provider": null,
+    "file": "packages/bots/baseline.js",
+    "provenance": "reference"
+  }
+]

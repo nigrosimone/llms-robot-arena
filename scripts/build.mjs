@@ -1,7 +1,8 @@
 import { build } from "esbuild";
-import { mkdir, readFile, writeFile, cp, lstat, realpath, rm } from "node:fs/promises";
+import { mkdir, writeFile, cp, lstat, realpath, rm } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadBots } from "../packages/bot-catalog-node.js";
 
 const root = await realpath(fileURLToPath(new URL("../", import.meta.url)));
 const dist = resolve(root, "dist");
@@ -32,15 +33,17 @@ await build({
   logLevel: "info",
   plugins: [
     {
-      name: "raw",
+      name: "bot-catalog",
       setup(b) {
-        b.onResolve({ filter: /\?raw$/ }, (a) => ({
-          path: resolve(a.resolveDir, a.path.slice(0, -4)),
-          namespace: "raw",
+        b.onResolve({ filter: /^arena:bots$/ }, () => ({
+          path: "bots",
+          namespace: "bot-catalog",
         }));
-        b.onLoad({ filter: /.*/, namespace: "raw" }, async (a) => ({
+        b.onLoad({ filter: /.*/, namespace: "bot-catalog" }, async () => ({
           contents:
-            "export default " + JSON.stringify(await readFile(a.path, "utf8")),
+            "export default " + JSON.stringify(
+              (await loadBots()).map(({ file, ...bot }) => bot),
+            ),
           loader: "js",
         }));
       },

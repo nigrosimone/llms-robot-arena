@@ -2,9 +2,8 @@ import { SPEC as S, SPEC_VERSION, ENGINE_VERSION } from "../sim/spec.js";
 import { renderReport } from "../tournament/report.js";
 import { ArenaViewer } from "./arena.js";
 import { stringifyReplay, parseReplay } from "../sim/replay.js";
-import baseline from "../bots/baseline.js?raw";
-import astraUltra from "../bots/gpt-6-astra-ultra.js?raw";
-import fableMax from "../bots/fable-5-6-max.js?raw";
+import builtins from "arena:bots";
+import { botName, botProvider } from "../bot-catalog.js";
 const icons = {
   arena: "M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10",
   code: "m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18",
@@ -35,11 +34,6 @@ const esc = (s) =>
         c
       ],
   );
-const builtins = [
-  { id: "gpt-6-astra-ultra", model: "GPT-6 Astra · iterative development", source: astraUltra },
-  { id: "fable-5-6-max", model: "Fable 5.6 Max · local submission", source: fableMax },
-  { id: "Baseline", model: "Specification baseline", source: baseline },
-];
 const bots = [...builtins];
 let replay = null,
   viewer = null,
@@ -89,7 +83,7 @@ document.querySelector("#app").innerHTML = `
     </div>
     <div class="playback"><button id="step-back" class="icon-button" aria-label="Previous frame" title="Previous frame (←)">‹</button><button id="play" class="play-button" aria-label="Play" disabled>${icon("play", 20)}</button><button id="step-forward" class="icon-button" aria-label="Next frame" title="Next frame (→)">›</button><span id="elapsed" class="mono">00:00</span><div class="scrubber"><div id="event-marks"></div><input type="range" id="timeline" aria-label="Replay position" min="0" max="120" step="any" value="0" disabled></div><span id="duration" class="mono secondary">02:00</span><select id="speed" aria-label="Playback speed"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></div>
     <div class="terrain-legend" aria-label="Arena cells"><span><i class="legend-recharge"></i>Recharge +60</span><span><i class="legend-hole"></i>Hole: instant loss</span><span><i class="legend-flame"></i>Grate: warning then flame</span><span><i class="legend-wear"></i>Cracks: weight damage</span><span><i class="legend-collapse"></i>Red flash: floor collapse</span></div>
-    <div class="robot-stats">${[0, 1].map((i) => `<article class="robot-card robot-${i}"><div class="robot-ident"><span class="robot-avatar">${icon("arena", 26)}</span><div><span class="eyebrow">ROBOT ${i ? "B" : "A"}</span><h2 id="robot-name-${i}">${esc(builtins[i].id)}</h2></div><span id="robot-status-${i}" class="status-tag">ACTIVE</span></div><div class="energy-row"><span>${icon("bolt", 14)}Energy</span><strong><span id="energy-${i}">${S.ENERGY_MAX}</span><small> / <span id="energy-max-${i}">${S.ENERGY_MAX}</span></small></strong></div><div class="energy-track"><span id="energy-bar-${i}" style="width:100%"></span></div><div class="robot-bottom"><span>Flips taken</span><div class="flip-pips" id="flips-${i}"><i></i><i></i><b>0 / 2</b></div></div></article>`).join("")}</div>
+    <div class="robot-stats">${[0, 1].map((i) => `<article class="robot-card robot-${i}"><div class="robot-ident"><span class="robot-avatar">${icon("arena", 26)}</span><div><span class="eyebrow">ROBOT ${i ? "B" : "A"}</span><h2 id="robot-name-${i}">${esc(botName(builtins[i]))}</h2><span class="bot-provider" id="robot-provider-${i}">${esc(botProvider(builtins[i]))}</span></div><span id="robot-status-${i}" class="status-tag">ACTIVE</span></div><div class="energy-row"><span>${icon("bolt", 14)}Energy</span><strong><span id="energy-${i}">${S.ENERGY_MAX}</span><small> / <span id="energy-max-${i}">${S.ENERGY_MAX}</span></small></strong></div><div class="energy-track"><span id="energy-bar-${i}" style="width:100%"></span></div><div class="robot-bottom"><span>Flips taken</span><div class="flip-pips" id="flips-${i}"><i></i><i></i><b>0 / 2</b></div></div></article>`).join("")}</div>
    </div>
    <aside class="match-sidebar">
     <div class="side-head"><h2>Set up match</h2>${icon("settings")}</div>
@@ -106,7 +100,7 @@ document.querySelector("#app").innerHTML = `
  </section>
  <section id="panel-lab" class="panel" hidden>
   <div class="page-heading"><div><div class="eyebrow">CONTROLLER WORKSPACE <span>/ 02</span></div><h1>Your code. Your robot<span>.</span></h1></div><button id="new-bot" class="button accent">${icon("plus")}New controller</button></div>
-  <div class="lab-layout"><div class="editor-panel"><div class="editor-toolbar"><select id="edit-bot" aria-label="Controller to edit"></select><span class="mono secondary">JAVASCRIPT / TYPESCRIPT</span></div><div class="editor-file">${icon("code", 16)}<span>controller.ts</span><span id="unsaved" class="unsaved" hidden>Unsaved changes</span></div><div class="editor-body"><pre id="line-numbers" aria-hidden="true"></pre><textarea id="code-editor" aria-label="Controller source" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea></div><div class="editor-footer"><input id="bot-name" aria-label="Controller name" placeholder="Controller name" maxlength="40"><button id="download-bot" class="button outline">${icon("download")}.ts file</button><button id="save-bot" class="button accent">Save controller</button></div></div>
+  <div class="lab-layout"><div class="editor-panel"><div class="editor-toolbar"><select id="edit-bot" aria-label="Controller to edit"></select><span class="mono secondary">JAVASCRIPT / TYPESCRIPT</span></div><div class="editor-file">${icon("code", 16)}<span>controller.ts</span><span id="unsaved" class="unsaved" hidden>Unsaved changes</span></div><div class="editor-body"><pre id="line-numbers" aria-hidden="true"></pre><textarea id="code-editor" aria-label="Controller source" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea></div><div class="editor-footer"><input id="bot-name" aria-label="Model name" placeholder="Model name" maxlength="80"><select id="bot-provider" aria-label="Model provider"><option value="">No provider</option><option>OpenAI</option><option>Anthropic</option></select><button id="download-bot" class="button outline">${icon("download")}.ts file</button><button id="save-bot" class="button accent">Save controller</button></div></div>
    <aside class="lab-sidebar"><div class="info-card"><div class="eyebrow">THE CONTRACT</div><h2>One function. Two commands.</h2><code>tick(sensors, memory)</code><p>Return <code>actions</code> and <code>memory</code>. All data uses world coordinates.</p><dl><dt>thrust</dt><dd>−1 reverse → +1 forward</dd><dt>turn</dt><dd>−1 clockwise → +1 counterclockwise</dd><dt>memory</dt><dd>JSON · up to 64 KB</dd></dl></div><div class="info-card gate-card"><div class="eyebrow">CONFORMANCE GATE</div><h2>Validate the contract.</h2><p>200 snapshots and 600 inert ticks. These checks offer no combat advice.</p><button id="run-gate" class="button outline full-width">${icon("check")}Check controller</button><div id="gate-results" aria-live="polite"></div></div><p class="side-hint">Edits here are iterative experimentation. For a one-shot benchmark, follow AGENTS.md and use the project CLI.</p></aside>
   </div>
  </section>
@@ -137,14 +131,14 @@ function refreshBotOptions() {
     const el = $("#" + id),
       value = el.value;
     el.innerHTML = bots
-      .map((b, i) => `<option value="${i}">${esc(b.id)}</option>`)
+      .map((b, i) => `<option value="${i}">${esc(botName(b))}${b.provider ? " / " + esc(b.provider) : ""}</option>`)
       .join("");
     el.value = value || "0";
   }
   $("#tournament-bots").innerHTML = bots
     .map(
       (b, i) =>
-        `<label class="bot-checkbox"><input type="checkbox" value="${i}" ${i < 2 ? "checked" : ""}><span>${esc(b.id)}</span></label>`,
+        `<label class="bot-checkbox"><input type="checkbox" value="${i}" ${i < 2 ? "checked" : ""}><span>${esc(botName(b))}<small class="bot-provider">${esc(botProvider(b))}</small></span></label>`,
     )
     .join("");
 }
@@ -215,19 +209,19 @@ function renderFrame(frame) {
                 : e.type === "impact"
                 ? `Impact · ${e.closingSpeed.toFixed(1)} m/s`
                 : e.type === "flip"
-                  ? `${replay.bots[e.robot].id} flipped`
+                  ? `${botName(replay.bots[e.robot])} flipped`
                   : e.type === "ring-out"
-                    ? `${replay.bots[e.robot].id} out of the arena`
+                    ? `${botName(replay.bots[e.robot])} out of the arena`
                     : e.type === "hole"
-                      ? `${replay.bots[e.robot].id} fell through a hole`
+                      ? `${botName(replay.bots[e.robot])} fell through a hole`
                     : e.type === "recharge"
-                      ? `${replay.bots[e.robot].id} recharged +${e.amount.toFixed(1)}`
+                      ? `${botName(replay.bots[e.robot])} recharged +${e.amount.toFixed(1)}`
                     : e.type === "fire-damage"
-                      ? `${replay.bots[e.robot].id} taking fire damage`
+                      ? `${botName(replay.bots[e.robot])} taking fire damage`
                     : e.type === "recovery"
-                      ? `${replay.bots[e.robot].id} self-rights`
+                      ? `${botName(replay.bots[e.robot])} self-rights`
                       : e.type === "violation"
-                        ? `${replay.bots[e.robot].id}: ${e.reason}`
+                        ? `${botName(replay.bots[e.robot])}: ${e.reason}`
                         : "Engine violation";
             return `<button class="event-row" data-time="${(e.tick + 1) / 60}"><span class="event-symbol ${e.type}">${e.type === "impact" ? "×" : e.type === "flip" ? "↻" : "·"}</span><span>${esc(label)}</span><time>${clock((e.tick + 1) / 60)}</time></button>`;
           })
@@ -239,7 +233,7 @@ function renderFrame(frame) {
     $("#result-title").textContent =
       replay.result.winner === null
         ? "Draw."
-        : replay.bots[replay.result.winner].id + " wins.";
+        : botName(replay.bots[replay.result.winner]) + " wins.";
     $("#result-reason").textContent =
       {
         ["ring-out"]: "Ring-out",
@@ -270,7 +264,10 @@ function loadReplay(r, autoplay = false) {
   $("#duration").textContent = clock(r.result.ticks / 60);
   $("#replay-seed").textContent =
     `SEED ${String(r.seed).padStart(2, "0")} ${r.mirrored ? "· M" : ""}`;
-  r.bots.forEach((b, i) => ($("#robot-name-" + i).textContent = b.id));
+  r.bots.forEach((b, i) => {
+    $("#robot-name-" + i).textContent = botName(b);
+    $("#robot-provider-" + i).textContent = botProvider(b);
+  });
   $("#current-mode").textContent =
     r.mode === "one-shot"
       ? "One-shot benchmark"
@@ -450,7 +447,8 @@ function lineNumbers() {
 function loadEditor(index) {
   editing = index;
   $("#code-editor").value = bots[index].source;
-  $("#bot-name").value = bots[index].id;
+  $("#bot-name").value = botName(bots[index]);
+  $("#bot-provider").value = bots[index].provider ?? "";
   $("#unsaved").hidden = true;
   $("#gate-results").innerHTML = "";
   lineNumbers();
@@ -460,6 +458,7 @@ $("#code-editor").oninput = () => {
   lineNumbers();
   $("#unsaved").hidden = false;
 };
+$("#bot-name").oninput = $("#bot-provider").onchange = () => { $("#unsaved").hidden = false; };
 $("#code-editor").onscroll = (e) =>
   ($("#line-numbers").scrollTop = e.target.scrollTop);
 $("#code-editor").onkeydown = (e) => {
@@ -473,45 +472,45 @@ $("#code-editor").onkeydown = (e) => {
     $("#unsaved").hidden = false;
   }
 };
+function customId() {
+  let number = bots.length - builtins.length + 1;
+  while (bots.some(bot => bot.id === "custom-" + number)) number++;
+  return "custom-" + number;
+}
 $("#new-bot").onclick = () => {
+  const template = builtins.find(bot => bot.provenance === "reference");
+  if (!template) return toast("No reference controller is registered.", true);
   bots.push({
-    id: "Custom " + (bots.length - builtins.length + 1),
-    model: "Local controller · iterative",
-    source: baseline,
+    id: customId(),
+    model: "Custom controller " + (bots.length - builtins.length + 1),
+    provider: null,
+    provenance: "iterative",
+    source: template.source,
   });
   refreshBotOptions();
   $("#edit-bot").value = bots.length - 1;
   loadEditor(bots.length - 1);
-  toast("Controller created from the baseline.");
+  toast("Controller created from the reference controller.");
 };
 $("#save-bot").onclick = () => {
-  const name = $("#bot-name").value.trim();
-  if (!name) return toast("Enter a controller name.", true);
-  if (bots.some((b, i) => i !== editing && b.id === name))
+  let model = $("#bot-name").value.trim();
+  if (!model) return toast("Enter a model name.", true);
+  if (editing < builtins.length && model === botName(bots[editing])) model += " (custom)";
+  if (bots.some((bot, i) => i !== editing && botName(bot) === model))
     return toast("This name is already in use.", true);
-  let index = editing;
-  if (editing < builtins.length) {
-    index = bots.length;
-    const id = name === bots[editing].id ? name + " custom" : name;
-    if (bots.some((b) => b.id === id))
-      return toast("Choose a different name for the copy.", true);
-    bots.push({
-      id,
-      source: $("#code-editor").value,
-      model: "Local controller · iterative",
-    });
-  } else
-    bots[index] = {
-      id: name,
-      source: $("#code-editor").value,
-      model: "Local controller · iterative",
-    };
+  const copy = {
+    id: editing < builtins.length ? customId() : bots[editing].id,
+    model,
+    provider: $("#bot-provider").value || null,
+    provenance: "iterative",
+    source: $("#code-editor").value,
+  };
+  const index = editing < builtins.length ? bots.length : editing;
+  bots[index] = copy;
   refreshBotOptions();
   $("#edit-bot").value = index;
   loadEditor(index);
-  toast(
-    "Controller is ready in the match selectors. Download the file to keep a copy.",
-  );
+  toast("Controller is ready in the match selectors. Download the file to keep a copy.");
 };
 $("#download-bot").onclick = () =>
   download(
@@ -547,7 +546,7 @@ function renderRanking() {
   $("#export-ranking").disabled = false;
   $("#export-report").disabled = false;
   $("#ranking-surface").innerHTML =
-    `<div class="ranking-header"><h2>Real results, uncertainty included.</h2><span class="tag">${report.records.length} MATCHES · EXHIBITION</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(r.id)}</strong><small>${esc(r.model)}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci.map((n) => n.toFixed(1)).join(" – ")}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
+    `<div class="ranking-header"><h2>Real results, uncertainty included.</h2><span class="tag">${report.records.length} MATCHES · EXHIBITION</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(botName(r))}</strong><small>${esc(botProvider(r))}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci.map((n) => n.toFixed(1)).join(" – ")}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
 }
 $("#export-report").onclick = () => {
   if (report) download("RESULTS.md", renderReport(report), "text/markdown");

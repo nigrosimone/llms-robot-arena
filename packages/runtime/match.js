@@ -5,6 +5,7 @@ import {
   closeReplay,
   digest,
 } from "../sim/index.js";
+import { botMetadata } from "../bot-catalog.js";
 export async function runMatch({
   bots,
   seed = 0,
@@ -22,8 +23,7 @@ export async function runMatch({
       ),
     );
     const refs = bots.map((b) => ({
-      id: b.id,
-      model: b.model ?? "Local controller",
+      ...botMetadata(b),
       codeSha256: digest(b.source),
     }));
     const m = createMatch(seed, mirrored, refs);

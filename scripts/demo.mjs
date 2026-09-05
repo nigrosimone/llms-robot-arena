@@ -1,20 +1,10 @@
-import { writeFile, readFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { Worker } from "node:worker_threads";
 import { BotClient } from "../packages/runtime/client.js";
 import { runMatch } from "../packages/runtime/match.js";
 import { stringifyReplay } from "../packages/sim/replay.js";
-const bots = await Promise.all(
-  [
-    {
-      id: "gpt-6-astra-ultra",
-      model: "GPT-6 Astra · iterative development",
-    },
-    { id: "fable-5-6-max", model: "Fable 5.6 Max · local submission" },
-  ].map(async (bot) => ({
-    ...bot,
-    source: await readFile(`packages/bots/${bot.id}.js`, "utf8"),
-  })),
-);
+import { loadBots } from "../packages/bot-catalog-node.js";
+const bots = (await loadBots()).slice(0, 2);
 const replay = await runMatch({
   bots,
   seed: 0,
@@ -28,7 +18,7 @@ const replay = await runMatch({
     ),
 });
 await writeFile(
-  "packages/viewer/public/demo-replay.json",
+  new URL("../packages/viewer/public/demo-replay.json", import.meta.url),
   stringifyReplay(replay),
 );
 console.log(

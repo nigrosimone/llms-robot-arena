@@ -431,7 +431,7 @@ main {
   position: absolute;
   pointer-events: none;
   transform: translate(-50%, -100%);
-  width: 65px;
+  width: 160px;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -441,12 +441,14 @@ main {
 .robot-label b {
   font: 500 11px var(--mono);
   color: #eff7f1;
-  max-width: 110px;
+  max-width: 100%;
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
 }
 .robot-label > span {
+  width: 65px;
+  align-self: center;
   height: 3px;
   background: #374144;
   border-radius: 2px;
@@ -1052,6 +1054,7 @@ progress::-webkit-progress-value {
   outline-offset: -2px;
 }
 .editor-footer {
+  flex-wrap: wrap;
   display: flex;
   justify-content: space-between;
   padding: 17px 20px;
@@ -2172,3 +2175,23 @@ tbody tr:last-child td {
 /* Keep camera controls clear of the terrain status, including on narrow screens. */
 .stage-note { bottom: 70px; right: 20px; }
 .stage-note #camera-hint { max-width: none; line-height: 1.5; }
+
+.bot-provider {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font: 12px/1.4 var(--sans);
+}
+#bot-provider { min-width: 130px; font-size: 14px; }
+
+@media (max-width: 540px) {
+  .side-body { grid-template-columns: minmax(0, 1fr); }
+  .side-body > .field-label:nth-of-type(2) { grid-column: 1; grid-row: 3; }
+  .side-body > .bot-select:nth-of-type(2) { grid-column: 1; grid-row: 4; }
+  .editor-toolbar { flex-wrap: wrap; }
+  .editor-toolbar select { width: 100%; }
+  .editor-toolbar .mono { max-width: none; }
+}
+@media (max-width: 360px) {
+  .nav-button svg { display: none; }
+}

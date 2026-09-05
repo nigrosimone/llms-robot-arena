@@ -105,7 +105,9 @@ export function parseReplay(text) {
         !b ||
         typeof b.id !== "string" ||
         typeof b.model !== "string" ||
-        typeof b.codeSha256 !== "string",
+        typeof b.codeSha256 !== "string" ||
+        (b.provider != null && typeof b.provider !== "string") ||
+        (b.provenance != null && typeof b.provenance !== "string"),
     )
   )
     throw new Error("Missing bot metadata.");

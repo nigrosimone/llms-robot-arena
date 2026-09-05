@@ -1,3 +1,4 @@
+import { botName } from "../bot-catalog.js";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { samplePlayback } from "./playback.js";
@@ -304,7 +305,7 @@ export class ArenaViewer {
     this.playing = false;
     this.lastUI = -1;
     this.labels.forEach(
-      (l, i) => (l.querySelector("b").textContent = replay.bots[i].id),
+      (l, i) => (l.querySelector("b").textContent = botName(replay.bots[i])),
     );
     this.draw(0, true);
   }
@@ -438,7 +439,10 @@ export class ArenaViewer {
       model.shell.emissiveIntensity = lowEnergy ? 0.45 : 0;
       const projected = new THREE.Vector3(x, y, z + 1.25).project(this.camera),
         el = this.labels[i];
-      el.style.left = (projected.x * 0.5 + 0.5) * 100 + "%";
+      const width = this.container.clientWidth;
+      const margin = el.offsetWidth / 2 + 4;
+      const labelX = Math.max(margin, Math.min(width - margin, (projected.x * 0.5 + 0.5) * width));
+      el.style.left = (labelX / width) * 100 + "%";
       el.style.top = (-projected.y * 0.5 + 0.5) * 100 + "%";
       el.querySelector("i").style.width = (energy / sample.energyMax * 100) + "%";
       el.style.opacity = projected.z > 1 || fall > 0.7 ? "0" : "1";
@@ -449,7 +453,7 @@ export class ArenaViewer {
     const [first, second] = this.labels;
     const dx = Math.abs(parseFloat(first.style.left) - parseFloat(second.style.left)) * this.container.clientWidth / 100;
     const dy = Math.abs(parseFloat(first.style.top) - parseFloat(second.style.top)) * this.container.clientHeight / 100;
-    if (dx < 75 && dy < 32 && first.style.opacity !== "0" && second.style.opacity !== "0") {
+    if (dx < (first.offsetWidth + second.offsetWidth) / 2 + 10 && dy < 32 && first.style.opacity !== "0" && second.style.opacity !== "0") {
       const upper = parseFloat(first.style.top) <= parseFloat(second.style.top) ? first : second;
       upper.style.top = `calc(${upper.style.top} - ${32 - dy}px)`;
     }

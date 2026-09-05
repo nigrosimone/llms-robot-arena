@@ -93,7 +93,7 @@ test("public bot rules match engine constants and include the black-box policy",
   assert.ok(prompt.includes(`**Engine:** \`${ENGINE_VERSION}\``));
   assert.deepEqual([...prompt.matchAll(/^## (\d+)\./gm)].map(match => +match[1]), [3, 4, 5, 6, 7, 8, 9, 15]);
   assert.ok(!prompt.includes("export function tick(s, memory)"));
-  assert.ok(!/gpt-6-astra-ultra|fable-5-6-max/.test(prompt));
+  assert.ok(!/gpt-6-astra-ultra|fable-5-1-max/.test(prompt));
   assert.ok(prompt.includes("Every other bot implementation is a black box."));
 });
 test("Markdown report uses computed rankings, draws, provenance and metrics", () => {

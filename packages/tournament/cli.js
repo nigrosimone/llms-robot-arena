@@ -1,5 +1,7 @@
-import { readFile, mkdir, writeFile } from "node:fs/promises";
-import { resolve, basename, dirname } from "node:path";
+import { loadBots } from "../bot-catalog-node.js";
+import { botMetadata, botName } from "../bot-catalog.js";
+import { mkdir, writeFile } from "node:fs/promises";
+import { resolve, basename } from "node:path";
 import { Worker } from "node:worker_threads";
 import { cpus } from "node:os";
 import { parseArgs } from "node:util";
@@ -26,7 +28,7 @@ try {
   const value = (name, fallback) => values[name.slice(2)] ?? fallback;
   if (args.includes("--help")) {
     console.log(
-      "npm run tournament -- --bots bots.json --out results --mode one-shot --budget wall\nUse --budget fuel for deterministic diagnostic tournaments. Never combine rankings from different modes/budgets.",
+      "node packages/tournament/cli.js --bots match-bots.json --out results --mode one-shot --budget wall\nUse --budget fuel for deterministic diagnostic tournaments. Never combine rankings from different modes/budgets.",
     );
     process.exit(0);
   }
@@ -39,55 +41,8 @@ try {
     !["wall", "fuel"].includes(budgetMode)
   )
     throw Error("Invalid mode or budget.");
-  const definitions = configPath
-    ? JSON.parse(await readFile(configPath, "utf8"))
-    : [
-        {
-          id: "gpt-6-astra-ultra",
-          model: "GPT-6 Astra · iterative development",
-          file: "packages/bots/gpt-6-astra-ultra.js",
-        },
-        {
-          id: "fable-5-6-max",
-          model: "Fable 5.6 Max · local submission",
-          file: "packages/bots/fable-5-6-max.js",
-        },
-        {
-          id: "Baseline",
-          model: "Reference baseline",
-          file: "packages/bots/baseline.js",
-        },
-      ];
+  const bots = await loadBots(configPath);
   const actualMode = configPath ? mode : "exhibition";
-  if (!Array.isArray(definitions) || definitions.length < 2)
-    throw Error("At least two bot definitions are required.");
-  if (
-    definitions.some(
-      (b) =>
-        !b ||
-        typeof b.id !== "string" ||
-        !b.id.trim() ||
-        typeof b.model !== "string" ||
-        !b.model.trim() ||
-        typeof b.file !== "string" ||
-        !b.file.trim(),
-    )
-  )
-    throw Error("Each bot needs a non-empty id, model and file.");
-  if (new Set(definitions.map((b) => b.id)).size !== definitions.length)
-    throw Error("Bot IDs must be unique.");
-  const bots = await Promise.all(
-    definitions.map(async (b) => ({
-      ...b,
-      source: await readFile(
-        resolve(
-          configPath ? dirname(resolve(configPath)) : process.cwd(),
-          b.file,
-        ),
-        "utf8",
-      ),
-    })),
-  );
   const createClient = () =>
     new BotClient(
       new Worker(new URL("../runtime/node-worker.js", import.meta.url)),
@@ -99,11 +54,11 @@ try {
       const gate = await gateBot(client, bot.source, budgetMode);
       gates.push({ id: bot.id, ...gate });
       console.log(
-        `${bot.id}: gate ${gate.pass ? "PASS" : "FAIL"}, p99 ${gate.p99?.toFixed(3)} ms`,
+        `${botName(bot)}: gate ${gate.pass ? "PASS" : "FAIL"}, p99 ${gate.p99?.toFixed(3)} ms`,
       );
       if (!gate.pass)
         throw Error(
-          "Conformity gate failed: " + bot.id + "\n" + JSON.stringify(gate),
+          "Conformity gate failed: " + botName(bot) + "\n" + JSON.stringify(gate),
         );
     } finally {
       client.close();
@@ -128,7 +83,7 @@ try {
           await writeFile(resolve(out, filename), stringifyReplay(replay));
           records.push({ ...matchRecord(replay, a, b), replay: filename });
           console.log(
-            `${records.length}/${total}: ${bots[a].id} / ${bots[b].id} seed ${seed}${mirrored ? " M" : ""} → ${replay.result.winner === null ? "draw" : replay.bots[replay.result.winner].id} (${replay.result.reason})`,
+            `${records.length}/${total}: ${botName(bots[a])} / ${botName(bots[b])} seed ${seed}${mirrored ? " M" : ""} → ${replay.result.winner === null ? "draw" : botName(replay.bots[replay.result.winner])} (${replay.result.reason})`,
           );
           await writeFile(
             resolve(out, "checkpoint.json"),
@@ -149,8 +104,7 @@ try {
         cpu: cpus()[0]?.model,
       },
       bots: bots.map((b) => ({
-        id: b.id,
-        model: b.model,
+        ...botMetadata(b),
         codeSha256: digest(b.source),
         file: basename(b.file),
       })),
@@ -166,7 +120,7 @@ try {
   await writeFile(resolve(out, "RESULTS.md"), renderReport(result));
   console.table(
     ranking.map((r) => ({
-      bot: r.id,
+      bot: botName(r),
       BT: r.score.toFixed(1),
       CI95: r.ci.map((x) => x.toFixed(1)).join(" – "),
       score: (r.winRate * 100).toFixed(1) + "%",

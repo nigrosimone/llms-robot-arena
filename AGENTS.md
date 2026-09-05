@@ -31,7 +31,7 @@ For general project searches, explicitly exclude `packages/bots/**`, `dist/**`, 
 2. Export exactly one function: `tick(sensors, memory)`, returning `{ actions: { thrust, turn }, memory }`. Use no imports, dependencies, extra exports, network, filesystem, clock, randomness APIs, or dynamic code generation.
 3. Treat sensors and incoming memory as immutable. Persistent state belongs only in returned JSON memory; each tick gets a fresh module scope. Initial memory is `null`. Return finite numeric actions and strict JSON memory within the documented 64 KiB limit.
 4. Design using the public rules and sensor interface. Do not modify physics, energy, collision thresholds, runtime budgets, gates, fixtures, ranking, or an opponent to help your bot win. Report an engine issue separately.
-5. Keep changes within your own bot and explicitly named evaluation artifacts/manifests. Ask for a separate maintenance task if platform integration requires unrelated changes.
+5. Keep changes within your own bot, its entry in `bots.json`, and explicitly named evaluation artifacts/manifests. Ask for a separate maintenance task if platform integration requires unrelated changes.
 
 ## Validation and fair evaluation
 
@@ -47,7 +47,7 @@ For an authorized iterative comparison, create a manifest using your own source 
 node packages/tournament/cli.js --bots match-bots.json --out results/<bot-id> --mode iterative --budget fuel
 ```
 
-Manifest paths are relative to the manifest file. Each entry has `id`, `model`, and `file`; see the Tournament CLI section below for the format. Use the standard mirrored-seed protocol, record source hashes and the engine/spec versions, and report wins, draws, losses, and violations honestly. Do not cherry-pick favorable seeds or combine results from different rules or budget modes.
+A manifest selects registered bots by ID, without repeating their metadata. For an unregistered controller, use an object with `id`, `model`, `provider`, and `file`; object paths are relative to the manifest file. See the Tournament CLI section below for the format. Use the standard mirrored-seed protocol, record source hashes and the engine/spec versions, and report wins, draws, losses, and violations honestly. Do not cherry-pick favorable seeds or combine results from different rules or budget modes.
 
 The gate checks conformity, not tactical strength. A `fuel` result is a deterministic instruction-budget result, not proof of meeting the wall-clock budget. Use `--budget wall` when that evaluation is explicitly required.
 
@@ -607,24 +607,38 @@ Run `npm ci` and `npm run build`, then publish **the contents of `dist/`** to a 
 
 The build includes the application assets. Local `node_modules/`, tournament `results/`, and development artifacts are not deployment files. Results are generated only when you run evaluations.
 
+## Bot catalog
+
+The root [bots.json](bots.json) is the single source of truth for registered controllers. The browser build, default tournament CLI and demo generator all consume it. Do not maintain additional roster arrays or hardcoded source imports. Its order determines the initial selection; the first two entries are the default match and demo pair.
+
+Each entry contains a stable unique `id`, the correctly formatted `model` name, a `provider` such as `OpenAI` or `Anthropic` (`null` for the reference controller or an undeclared provider), and a unique project-relative `file` directly inside `packages/bots/`. Keep development provenance separate from the model name in `provenance`: for example `iterative`, `one-shot`, `local submission`, or `reference`. The reference entry supplies the starting template for locally created controllers.
+
+When registering your assigned bot, add or update only its own entry. Rename its ID and path consistently when explicitly requested. Catalog metadata and file paths are public; registration never authorizes inspecting another implementation. The build loads sources opaquely and fails for duplicate IDs, invalid metadata or missing files. Rebuild after changing the catalog. Replays and reports store metadata snapshots and code hashes; historical results are not additional roster definitions and must retain their recorded provenance.
+
 ## Tournament CLI
 
-Run an exhibition with the default controllers:
+Run an exhibition with all controllers registered in `bots.json`:
 
 ```sh
 node packages/tournament/cli.js --out results --budget fuel
 ```
 
-For an authorized iterative comparison, create `match-bots.json` with your source path and an opponent's known opaque path:
+For an authorized iterative comparison between registered controllers, create `match-bots.json` as an array of their catalog IDs. No names, providers or paths need to be copied:
+
+```json
+["my-bot-id", "opponent-id"]
+```
+
+IDs must already exist in `bots.json`. To evaluate an unregistered controller, an entry may instead be a complete definition; legacy definitions without `provider` remain accepted:
 
 ```json
 [
-  { "id": "My Bot", "model": "exact-model-version", "file": "./packages/bots/my-bot.js" },
-  { "id": "Opponent", "model": "declared-opponent-model", "file": "./packages/bots/opponent.js" }
+  { "id": "My Bot", "model": "Exact Model Version", "provider": "OpenAI", "provenance": "iterative", "file": "./packages/bots/my-bot.js" },
+  { "id": "Opponent", "model": "Declared Opponent Model", "provider": "Anthropic", "file": "./packages/bots/opponent.js" }
 ]
 ```
 
-Paths are relative to the manifest. Run:
+Object paths are relative to the manifest; catalog IDs always resolve relative to the project root, even when the manifest is outside the project. Entries can mix catalog IDs and complete definitions. Run:
 
 ```sh
 node packages/tournament/cli.js --bots match-bots.json --out results/my-bot --mode iterative --budget fuel

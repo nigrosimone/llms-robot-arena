@@ -28,6 +28,8 @@ export function tick(s, memory) {
       hazards.push([c.x, c.y, c.size * 0.5 + 0.23, c.type === "hole" ? 0 : 1]);
     } else if (wear < 0.24) grid[i] = 1;
     if (i === start && (falling || wear < 0.4 || c.type === "flame")) urgent = true;
+    if (c.type === "hole" && Math.max(Math.abs(a.x - c.x), Math.abs(a.y - c.y)) < 0.95)
+      urgent = true;
     if (c.type === "recharge" && !falling && wear > 0.26) chargers.push(c);
   }
 
@@ -75,20 +77,30 @@ export function tick(s, memory) {
   const distance = Math.hypot(dx, dy), bearing = Math.atan2(dy, dx);
   const exposure = Math.abs(wrap(bearing + Math.PI - b.heading));
   const closing = -(dx * (b.vx - a.vx) + dy * (b.vy - a.vy)) / Math.max(0.2, distance);
+  const enemyAway = (dx * b.vx + dy * b.vy) / Math.max(0.2, distance);
+  const ownToward = (dx * a.vx + dy * a.vy) / Math.max(0.2, distance);
+  // Resist an actual advancing shove; do not chase a retreating wedge until empty.
+  const pressure = (enemyAway < -0.5 && ownToward < -0.3) ||
+    (m.pressure === true && distance < 1.4 && enemyAway < 0.55);
   const powerless = b.status === "flipped" || b.energy < 12;
-  const charge = a.energy < 175 || (m.mode === "charge" && a.energy < 240);
+  // A flip deficit cannot be repaired by hoarding energy at the time limit.
+  const finish = a.flipsTaken > b.flipsTaken && s.time > 75;
+  const charge = a.energy < (finish ? 95 : 210) ||
+    (m.mode === "charge" && a.energy < (finish ? 170 : 265));
   // Resist a sustained frontal shove before doing any route search.
   // A dangerous supporting tile still takes precedence over holding contact.
-  if (!urgent && !powerless && distance < 1.25 && exposure < 1.1 && a.energy > 0.5 &&
+  if (!urgent && (!charge || pressure) && !powerless && distance < 1.25 && exposure < 1.1 &&
+      clear(a.x, a.y, a.x + a.vx * 0.55, a.y + a.vy * 0.55) &&
       clear(a.x, a.y, a.x + Math.cos(bearing) * 0.55, a.y + Math.sin(bearing) * 0.55)) {
-    const error = wrap(bearing - a.heading);
+    const slip = pressure && a.energy < 225 ? (m.side === -1 ? -0.22 : 0.22) : 0;
+    const error = wrap(bearing + slip - a.heading);
     const forward = a.vx * Math.cos(a.heading) + a.vy * Math.sin(a.heading);
     const tracking = clamp((dx * (b.vy - a.vy) - dy * (b.vx - a.vx)) /
       Math.max(0.25, distance * distance), -3, 3);
     return { actions: {
       thrust: clamp((5.8 * 4.5 * Math.max(0, Math.cos(error)) - 4.2 * forward) / 8, -1, 1),
       turn: clamp(error * 3.6 + tracking - a.omega * 1.25, -1, 1)
-    }, memory: { mode: "guard" } };
+    }, memory: { mode: "guard", pressure } };
   }
   const side = m.side === -1 ? -1 : 1;
   let goal = Array.isArray(m.goal) && m.goal.length === 2 ? m.goal : [0, 0];
@@ -126,12 +138,16 @@ export function tick(s, memory) {
         offer(c.x, c.y, (charge ? 30 + Math.max(0, 120 - a.energy) * 0.2 : a.energy < 260 ? 7 : -30) -
           wait * 5 - (enemyNear < 1.3 && !powerless ? 5 : 0), "charge", side);
       }
-      if (a.energy > 48 && (powerless || exposure > 1.05) && distance < 5.5) {
+      const rearAttack = finish && b.energy < 50 && b.status !== "flipped";
+      if (a.energy > 48 && (powerless || exposure > 1.05) && distance < 5.5 &&
+          (!rearAttack || exposure > 1.05)) {
         const lead = clamp((distance - 0.8) / 5, 0, 0.3);
         offer(b.x + b.vx * lead, b.y + b.vy * lead,
           charge && a.energy < 100 ? 6 : 26 + (powerless ? 5 : 0), "attack", side);
       }
       const cb = Math.cos(b.heading), sb = Math.sin(b.heading);
+      if (rearAttack)
+        offer(b.x - cb * 2.2, b.y - sb * 2.2, 29, "flank", side);
       for (const direction of [side, -side]) {
         offer(b.x - cb * 0.35 - sb * direction * 2.15,
           b.y - sb * 0.35 + cb * direction * 2.15,
@@ -202,12 +218,12 @@ export function tick(s, memory) {
       guardWeight * Math.abs(wrap(target + Math.PI - bearing)) + 0.16;
     if (reverseCost < forwardCost) { target = wrap(target + Math.PI); reverse = true; }
   }
-  let speed = attacking ? (powerless ? 3.4 : 4.4) : urgent ? 2.6 : a.energy < 65 ? 1.5 : 2.5;
+  let speed = attacking ? (powerless ? 3.4 : 4.4) : urgent ? 3.2 : a.energy < 65 ? 1.8 : 3;
   if (!attacking) speed = Math.min(speed, remaining < 0.12 ? 0 : Math.max(0.45, remaining * 2.5));
-  if (reverse) speed = -Math.min(speed, 2.5);
+  if (reverse) speed = -Math.min(speed, charge || urgent ? 3.4 : 2.5);
   // Meet an incoming wedge with our own while braking, unless the floor requires departure.
   let guarding = false;
-  if (!urgent && !powerless && distance < 2.7 && closing > 0.65 && exposure < 1.05) {
+  if (!urgent && !charge && !powerless && distance < 2.7 && closing > 0.65 && exposure < 1.05) {
     target = bearing;
     speed = Math.abs(wrap(bearing - a.heading)) > 0.45 || a.energy < 100 ? -1.2 : 0.35;
     guarding = true;

@@ -1,3 +1,4 @@
+import { botName, botProvider } from "../bot-catalog.js";
 // Tournament reports with controller provenance and confidence intervals.
 const fmt = (value, digits = 2) =>
   Number.isFinite(value) ? value.toFixed(digits) : "—";
@@ -12,6 +13,9 @@ const cell = (value) =>
 export function renderCSV(ranking) {
   const columns = [
     "id",
+    "model",
+    "provider",
+    "provenance",
     "score",
     "ciLow",
     "ciHigh",
@@ -69,7 +73,7 @@ export function renderReport(report) {
   ];
   ranking.forEach((r, i) =>
     lines.push(
-      `| ${i + 1} | ${cell(r.id)} | ${fmt(r.score, 1)} | ${r.ci.map((n) => fmt(n, 1)).join(" – ")} | ${fmt(r.winRate * 100, 1)} | ${fmt(r.matches ? (100 * r.wins) / r.matches : 0, 1)} | ${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws} |`,
+      `| ${i + 1} | ${cell(botName(r))} | ${fmt(r.score, 1)} | ${r.ci.map((n) => fmt(n, 1)).join(" – ")} | ${fmt(r.winRate * 100, 1)} | ${fmt(r.matches ? (100 * r.wins) / r.matches : 0, 1)} | ${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws} |`,
     ),
   );
   lines.push(
@@ -81,19 +85,19 @@ export function renderReport(report) {
   );
   ranking.forEach((r) =>
     lines.push(
-      `| ${cell(r.id)} | ${r.flipDifferential} | ${r.ringOutsInflicted} / ${r.ringOutsTaken} | ${fmt(r.meanEnergy, 1)} | ${fmt(r.meanFirstContactTick, 0)} | ${fmt(r.violationsPerMatch)} | ${r.timeouts} |`,
+      `| ${cell(botName(r))} | ${r.flipDifferential} | ${r.ringOutsInflicted} / ${r.ringOutsTaken} | ${fmt(r.meanEnergy, 1)} | ${fmt(r.meanFirstContactTick, 0)} | ${fmt(r.violationsPerMatch)} | ${r.timeouts} |`,
     ),
   );
   lines.push(
     "",
     "## Controller provenance",
     "",
-    "| Controller | Declared model | Code SHA-256 |",
-    "|---|---|---|",
+    "| Controller | Provider | Development | ID | Code SHA-256 |",
+    "|---|---|---|---|---|",
   );
   bots.forEach((b) =>
     lines.push(
-      `| ${cell(b.id)} | ${cell(b.model)} | ${cell(b.codeSha256 ?? "unavailable")} |`,
+      `| ${cell(botName(b))} | ${cell(botProvider(b))} | ${cell(b.provenance ?? "Not specified")} | ${cell(b.id)} | ${cell(b.codeSha256 ?? "unavailable")} |`,
     ),
   );
   if (report.gates?.length) {
@@ -106,7 +110,7 @@ export function renderReport(report) {
     );
     report.gates.forEach((g) =>
       lines.push(
-        `| ${cell(g.id)} | ${g.pass ? "PASS" : "FAIL"} | ${fmt(g.p99, 3)} |`,
+        `| ${cell(botName(bots.find(b => b.id === g.id) ?? g))} | ${g.pass ? "PASS" : "FAIL"} | ${fmt(g.p99, 3)} |`,
       ),
     );
   }

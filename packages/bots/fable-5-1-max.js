@@ -1,4 +1,4 @@
-// fable-5-6-max (rules 0.2.2)
+// fable-5-1-max (rules 0.2.2)
 // Doctrine: never fall (edge, holes, collapses), never show the flank at speed, spend little,
 // pick up charges when they are worth 60, and punish clear openings: exhausted, flipped or
 // rear-exposed opponents. Written for a cheap tick: arithmetic wrap, one pass over cells.
