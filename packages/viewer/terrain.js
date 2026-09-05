@@ -74,6 +74,7 @@ export class TerrainView {
         this.mesh(group, new THREE.BoxGeometry(0.035, cell.size, 0.025), border.clone(), side * half, 0, 0.046);
       }
       border.dispose();
+      record.borders = [...group.children];
       record.surface = new THREE.Group();
       group.add(record.surface);
       if (cell.type === "recharge") {
@@ -126,6 +127,12 @@ export class TerrainView {
       const snapshot = snapshots.find(c => c.id === record.cell.id);
       const state = snapshot?.state;
       record.group.visible = Boolean(state) && state !== "inactive";
+      const borderColor = snapshot?.type === "hole" ? 0xe4a568 : snapshot?.collapseIn != null ? 0xff5448 :
+        snapshot?.type === "recharge" ? 0x3baaff : 0x64737b;
+      for (const edge of record.borders) {
+        edge.material.color.set(borderColor);
+        edge.material.emissive.set(borderColor);
+      }
       record.surface.visible = snapshot?.type !== "hole";
       if (record.wear) {
         const damage = 1 - (snapshot?.integrity ?? 1);
