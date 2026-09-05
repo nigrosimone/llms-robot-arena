@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { samplePlayback } from "./playback.js";
 import { TerrainView, deckGeometry, decalGeometry } from "./terrain.js";
+import { FollowCamera } from "./camera.js";
 const COLORS = [0xafd965, 0xf09163];
 function material(color, metalness = 0.4, roughness = 0.5) {
   return new THREE.MeshStandardMaterial({ color, metalness, roughness });
@@ -91,6 +92,8 @@ export class ArenaViewer {
     this.camera = new THREE.PerspectiveCamera(39, 1, 0.1, 160);
     this.camera.up.set(0, 0, 1);
     this.camera.position.set(17, -22, 23);
+    this.followCamera = new FollowCamera(this.camera);
+    this.manualCamera = false;
     const renderer = (this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: false,
@@ -110,14 +113,18 @@ export class ArenaViewer {
     container.appendChild(renderer.domElement);
     renderer.domElement.setAttribute(
       "aria-label",
-      "3D arena. Drag to orbit; use the scroll wheel or two fingers to zoom.",
+      "3D arena. Automatic camera follows both robots. Enable Manual camera to orbit and zoom.",
     );
     this.controls = new OrbitControls(this.camera, renderer.domElement);
+    this.controls.enabled = false;
+    renderer.domElement.style.touchAction = "pan-y";
     this.controls.target.set(0, 0, -0.1);
     this.controls.enableDamping = true;
-    this.controls.enablePan = false;
-    this.controls.minDistance = 10;
-    this.controls.maxDistance = 43;
+    this.controls.enablePan = true;
+    this.controls.screenSpacePanning = false;
+    this.controls.maxTargetRadius = 12;
+    this.controls.minDistance = 6;
+    this.controls.maxDistance = 90;
     this.controls.maxPolarAngle = Math.PI * 0.47;
     this.controls.minPolarAngle = 0.2;
     scene.add(new THREE.HemisphereLight(0xe2efff, 0x3a4446, 2));
@@ -283,6 +290,7 @@ export class ArenaViewer {
       renderer.setSize(width, height);
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
+      this.draw(0, true);
     });
     this.resize.observe(container);
     this.animate = this.animate.bind(this);
@@ -298,11 +306,11 @@ export class ArenaViewer {
     this.labels.forEach(
       (l, i) => (l.querySelector("b").textContent = replay.bots[i].id),
     );
-    this.draw();
+    this.draw(0, true);
   }
   seek(t) {
     this.time = t >= this.duration ? this.playbackDuration : Math.max(0, t);
-    this.draw();
+    this.draw(0, true);
   }
   get duration() {
     return this.replay ? this.replay.result.ticks / 60 : 0;
@@ -314,12 +322,35 @@ export class ArenaViewer {
     );
   }
   resetCamera() {
+    this.clearCameraInertia();
     this.camera.position.set(17, -22, 23);
     this.controls.target.set(0, 0, -0.1);
+    if (this.replay) {
+      this.followCamera.update(samplePlayback(this.replay, this.time).states, 0, true);
+      this.controls.target.copy(this.followCamera.target);
+    }
     this.controls.update();
+    this.draw(0, true);
+  }
+  clearCameraInertia() {
+    this.controls.enableDamping = false;
+    this.controls.update();
+    this.controls.enableDamping = true;
+  }
+  setManualCamera(manual) {
+    this.clearCameraInertia();
+    this.manualCamera = manual;
+    this.controls.enabled = manual;
+    const canvas = this.renderer.domElement;
+    canvas.style.touchAction = manual ? "none" : "pan-y";
+    canvas.style.cursor = manual ? "grab" : "default";
+    canvas.setAttribute("aria-label", manual
+      ? "3D arena. Drag to orbit, right-drag to pan; scroll or pinch to zoom."
+      : "3D arena. Automatic camera follows both robots. Enable Manual camera to orbit and zoom.");
+    this.draw(0, true);
   }
   toggle() {
-    if (this.time >= this.duration) this.time = 0;
+    if (this.time >= this.duration) this.seek(0);
     this.playing = !this.playing;
     return this.playing;
   }
@@ -331,17 +362,22 @@ export class ArenaViewer {
       if (this.time === this.playbackDuration) this.playing = false;
     }
     if (this.container.clientWidth > 0) {
-      this.controls.update();
-      this.draw();
+      if (this.manualCamera) this.controls.update();
+      this.draw(dt);
       this.renderer.render(this.scene, this.camera);
     }
     this.raf = requestAnimationFrame(this.animate);
   }
-  draw() {
+  draw(dt = 0, snapCamera = false) {
     const r = this.replay;
     if (!r) return;
     const sample = samplePlayback(r, this.time),
       { states, half, events: past } = sample;
+    if (!this.manualCamera) {
+      this.followCamera.update(states, dt, snapCamera);
+      this.controls.target.copy(this.followCamera.target);
+    }
+    this.camera.updateMatrixWorld();
     const holes = sample.cells.filter(cell => cell.type === "hole");
     const deckKey = holes.map(cell => cell.id).join("|");
     if (deckKey !== this.deckKey) {

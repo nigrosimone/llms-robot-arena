@@ -407,7 +407,7 @@ export function tick(s, m) {
           const tsc = tileScore(Math.floor(px) + 0.5, Math.floor(py) + 0.5);
           if (tsc < -50 || !insideSoon(px, py, 0.8)) continue;
           const dme = Math.sqrt((px - me.x) ** 2 + (py - me.y) ** 2);
-          if (dme > Math.min(5, dist * 0.7) || dme > vl - 0.3) continue;
+          if (dme > (opTo > 1.2 ? 7 : 4) || dme > vl - 0.3) continue;
           if (dme < sbest) { sbest = dme; sx0 = px; sy0 = py; }
         }
         if (sbest < 1e9) { hx = sx0; hy = sy0; shieldX = sx0; shieldY = sy0; }
@@ -446,8 +446,10 @@ export function tick(s, m) {
     const incoming = opTo > 1.5 && dist < 6 && opAbs < 1.0 && opDanger;
     if (incoming && !inContact && mode === "hold") {
       if (shieldX !== null && Math.hypot(shieldX - me.x, shieldY - me.y) > 0.4) {
+        // Lead the chaser across the hole: run there forward while it is far (rear exposure only
+        // at near-zero closing speed), reverse with the wedge on it when it is close.
         mode = "shield";
-        const d = driveTo(shieldX, shieldY, 0.75, true, true);
+        const d = driveTo(shieldX, shieldY, dist > 3 ? 0.95 : 0.75, dist < 3, true);
         turn = d.turn; thrust = d.thrust;
       } else if (dist < 3.4 && opTo > 1.2 && !recovering) {
         // Keep the wedge on them and back away along a clear path; a chaser that follows a

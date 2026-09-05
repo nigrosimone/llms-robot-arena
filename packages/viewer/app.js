@@ -82,8 +82,8 @@ document.querySelector("#app").innerHTML = `
     <div class="stage" id="stage">
      <div class="stage-header"><div class="record-tag"><span class="record-dot"></span>REPLAY <span id="replay-seed">SEED 00</span></div><div class="stage-clock"><b id="match-clock">00:00</b><span>/ 02:00</span></div><span class="arena-size" id="arena-size">16.0 × 16.0 M</span></div>
      <div id="viewport"></div>
-     <div class="stage-note"><span id="pressure-tag">RAISED PLATFORM</span><span>Drag to orbit · scroll to zoom</span><span id="collapse-warning" role="status" aria-live="polite" hidden></span></div>
-     <div class="camera-actions"><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
+     <div class="stage-note"><span id="pressure-tag">RAISED PLATFORM</span><span id="camera-hint">Auto camera · follows both robots</span><span id="collapse-warning" role="status" aria-live="polite" hidden></span></div>
+     <div class="camera-actions"><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint">Manual camera</label><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
      <div id="stage-loading" class="stage-loading"><span class="loader"></span><b>Preparing replay</b><span id="loading-detail">Simulation comes before every frame.</span><progress id="simulation-progress" value="0" max="1"></progress><button id="cancel" class="button outline" hidden>Cancel</button></div>
      <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><button id="watch-again" class="button accent">${icon("reset")}Watch again</button></div>
     </div>
@@ -317,6 +317,13 @@ $("#speed").onchange = (e) => {
   if (viewer) viewer.speed = +e.target.value;
 };
 $("#reset-camera").onclick = () => viewer?.resetCamera();
+$("#manual-camera").disabled = !viewer;
+$("#manual-camera").onchange = (e) => {
+  viewer?.setManualCamera(e.target.checked);
+  $("#camera-hint").textContent = e.target.checked
+    ? "Drag to orbit · right-drag to pan · scroll or pinch to zoom"
+    : "Auto camera · follows both robots";
+};
 $("#fullscreen").onclick = async () => {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();

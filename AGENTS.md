@@ -21,6 +21,8 @@ This is the llms-robot-arena project. Repository: [nigrosimone/llms-robot-arena]
 
 This file is the single reference for game rules, TypeScript contracts, bot development, evaluation, local operation, and publication. Use the rules and constants below and evaluate results under matching rules, engine versions and runtime budgets. The public example in this document may be used as a starting template, without opening any other bot implementation.
 
+Keep this file focused on instructions for agents. Omit camera controls, visual styling details and end-user interface walkthroughs.
+
 For general project searches, explicitly exclude `packages/bots/**`, `dist/**`, `node_modules/**`, `artifacts/**`, `results/**`, archives, and the sibling implementation folders. Read your own assigned bot by its exact path. Do not browse other implementations to find a starting template.
 
 ## Implementing a bot
@@ -49,6 +51,8 @@ Manifest paths are relative to the manifest file. Each entry has `id`, `model`, 
 
 The gate checks conformity, not tactical strength. A `fuel` result is a deterministic instruction-budget result, not proof of meeting the wall-clock budget. Use `--budget wall` when that evaluation is explicitly required.
 
+**Minimum competitive requirement:** a bot must beat **Baseline**, a basic, blind implementation. Passing the conformity gate alone is insufficient. In an authorized evaluation, verify this over the standard 20-match mirrored-seed series: more wins than losses, equivalent to a score above 50% with draws worth half a point. Use matching rules and runtime budgets and report the full results. Baseline remains a black box under the policy above.
+
 If the task requires a one-shot submission, submit the first generated file without iterative tuning or opponent feedback. Label iterative development as iterative; never present it as one-shot. For repository implementation tasks, finish by stating the bot path, validation performed, and any remaining limitations without revealing opponent internals.
 
 ---
@@ -59,7 +63,7 @@ If the task requires a one-shot submission, submit the first generated file with
 
 - A **suspended square platform**, with no walls. Leaving it means defeat.
 - Centered at `(0, 0)`. Initial half-extent: `8.0 m` (a 16×16 m arena).
-- The playing plane is `XY`, viewed from above. `Z` exists only for rendering and the flip animation.
+- The simulation uses the `XY` plane; `Z` does not participate in physics or bot sensors.
 - Heading is in radians, `0 = +X`, positive counterclockwise, normalized to `(-π, π]`.
 
 ### Shrinking arena (sudden death)
@@ -78,7 +82,7 @@ With these constants, the half-extent at 120 s is 3.8 m: the 3 m minimum would o
 
 ### Seeded arena cells
 
-Each match contains **four blue recharge cells, two or three open holes, and four flame grates**. Every cell occupies one fixed 1×1 m grid square. Its center has half-integer world coordinates. Cell positions do not move or scale as the arena shrinks; their visible and usable area is clipped by the boundary. Cells entirely outside the arena are inactive.
+Each match contains **four recharge cells, two or three open holes, and four flame grates**. Every cell occupies one fixed 1×1 m grid square. Its center has half-integer world coordinates. Cell positions do not move or scale as the arena shrinks; their usable area is clipped by the boundary. Cells entirely outside the arena are inactive.
 
 The seed determines the layout and flame schedule using a separate deterministic random stream. Swapping robot spawns retains exactly the same cells and timing. The central 4×4 m square starts without special cells; at least two recharge cells sit next to this central area and remain inside the final arena. Initial recharge, hole and flame cell centers stay at least 2 m from both initial robot centers, and any two of those cells have at least 2 m of separation on one axis. Thus initial special cells neither overlap nor share an edge. Later collapses can affect ordinary floor cells, including the central area and cells adjacent to other hazards.
 
@@ -86,7 +90,7 @@ All cell locations, types, current states and countdowns are public through `sen
 
 **Holes:** a robot loses as soon as its center enters or crosses an open hole, even if it is flipped or recovering. The swept center segment between the previous pose and the post-collision pose is checked, so passing across a corner between two ticks also counts. Falling through a hole has the same priority as leaving the platform. This is a loss from falling, not an additional flip.
 
-**Flame grates:** each grate independently waits a seeded interval of 4–8 seconds, displays a **one-second amber warning**, then burns for **1.5 seconds**. The next interval starts when the burn ends. A robot whose center is on an active grate loses **30 energy units per second**, in addition to its normal costs. Flipped and recovering robots take this damage too; flip immunity does not protect from fire. Damage is clamped at zero energy. There is no separate health resource. Flame phases do not remove the grate; accumulated weight can still collapse it.
+**Flame grates:** each grate independently waits a seeded interval of 4–8 seconds, enters a **one-second warning state**, then burns for **1.5 seconds**. The next interval starts when the burn ends. A robot whose center is on an active grate loses **30 energy units per second**, in addition to its normal costs. Flipped and recovering robots take this damage too; flip immunity does not protect from fire. Damage is clamped at zero energy. There is no separate health resource. Flame phases do not remove the grate; accumulated weight can still collapse it.
 
 Cell containment includes the square's boundary. Hole and recharge crossings use the swept center; fire damage uses the post-collision center for the tick. The engine handles both robots together so simultaneous cell interactions have no robot-index advantage.
 
@@ -96,11 +100,11 @@ During a full-length match, **four ordinary 1×1 m floor cells** are scheduled t
 
 Only ordinary floor cells are eligible: random collapses exclude recharge cells, flame grates and existing holes. Weight-induced collapse is a separate rule and can destroy any solid cell. A location is chosen only once and must remain completely inside the shrinking boundary through its collapse time. Collapses can occur in the central area or beneath a robot; selection does not target either controller or inspect its strategy. Spawn protection applies to initial hazards, not later announced collapses.
 
-Before the warning, the selected tile behaves like ordinary floor: it is omitted from `arena.cells` while untouched and appears as ordinary worn floor if loaded. Controllers cannot read future random collapse positions or times. At warning start, it appears as `type: 'collapse'`, `state: 'warning'`, with `timeUntilChange` counting down from 3 seconds. It flashes red with a visible X, and the viewer displays a countdown. The tile remains safe during this entire warning period. At collapse time, its sensor type and state both become `'hole'`, its ID stays unchanged, and its countdown becomes null. It follows the normal hole rules from that tick onward. An earlier opening caused by weight takes precedence.
+Before the warning, the selected tile behaves like ordinary floor: it is omitted from `arena.cells` while untouched and appears as ordinary worn floor if loaded. Controllers cannot read future random collapse positions or times. At warning start, it appears as `type: 'collapse'`, `state: 'warning'`, with `timeUntilChange` counting down from 3 seconds. The tile remains safe during this entire warning period. At collapse time, its sensor type and state both become `'hole'`, its ID stays unchanged, and its countdown becomes null. It follows the normal hole rules from that tick onward. An earlier opening caused by weight takes precedence.
 
 A robot still on the cell when the warning expires falls immediately, including a flipped or recovering robot. Movement during that tick cannot rescue a center already over the new opening. A robot that leaves before expiry is safe unless its path crosses another hole. The floor does not return. Collapsed cells that later leave the shrinking arena become inactive like other cells.
 
-Replays record collapse schedules plus `collapse-warning` and `collapse` events referencing the cell ID. These are environment events and have no robot field; a robot falling through the opening produces a separate `hole` event. Playback and seeking reconstruct the warning and the actual cut through all platform layers without changing simulation results.
+Replays record collapse schedules plus `collapse-warning` and `collapse` events referencing the cell ID. These are environment events and have no robot field; a robot falling through the opening produces a separate `hole` event.
 
 ### Floor wear under robot weight
 
@@ -110,7 +114,7 @@ Load is accumulated in integer kg-ticks, capped at capacity. The tick that reach
 
 Weight is assigned to exactly one supporting cell: indices use `floor(x)` and `floor(y)`, so an internal grid boundary belongs to the positive side. The outer +8 m edge belongs to the last tile. Chassis overlap does not spread load across neighboring cells. This convention does not change inclusive hole boundaries or swept falling checks. Weight is applied after movement, collision, falls and energy effects; its updated state is visible in the next sensor snapshot.
 
-Worn ordinary floor appears in sensors as `type: 'floor'`, `state: 'safe'`. Untouched ordinary floor is omitted and has integrity 1. Every exposed cell has **`integrity`** from 1 (intact) to 0 (exhausted or open), plus **`collapseIn`**, a nullable countdown until an announced opening. Damaged tiles gain an amber tint and progressively more cracks; an impending collapse adds a flashing red X and countdown. A charger or grate retains its type and functional phase during a weight warning; bots must also check `collapseIn`. Ordinary warning tiles use type `'collapse'`. All openings use type and state `'hole'`, retaining their cell ID. Future random schedules remain private, even if a tile is already worn.
+Worn ordinary floor appears in sensors as `type: 'floor'`, `state: 'safe'`. Untouched ordinary floor is omitted and has integrity 1. Every exposed cell has **`integrity`** from 1 (intact) to 0 (exhausted or open), plus **`collapseIn`**, a nullable countdown until an announced opening. A charger or grate retains its type and functional phase during a weight warning; bots must also check `collapseIn`. Ordinary warning tiles use type `'collapse'`. All openings use type and state `'hole'`, retaining their cell ID. Future random schedules remain private, even if a tile is already worn.
 
 Replays store two supporting-cell indices per tick in `floorLoads`: -1 for a fallen robot, otherwise `(floor(y)+8)*16+floor(x)+8`, with each axis clamped to 0..15. Playback reconstructs exact cumulative wear, warnings and openings from these loads, including backward seeking. Collapse events identify their `cause` as `'weight'` or `'random'`; floor wear also participates in the state hash.
 
@@ -159,7 +163,7 @@ The cost is **quadratic**: half throttle costs one quarter as much. Continuous f
 
 ### Recharge cells; no passive regeneration
 
-Waiting, idling and running out of energy never regenerate energy. The only source is a **ready blue cell**: entering or crossing one grants up to **60 energy**, capped at 300, and starts a shared **8-second cooldown** for that cell. The pickup works while moving and can also charge a flipped robot pushed onto the cell.
+Waiting, idling and running out of energy never regenerate energy. The only source is a **ready recharge cell**: entering or crossing one grants up to **60 energy**, capped at 300, and starts a shared **8-second cooldown** for that cell. The pickup works while moving and can also charge a flipped robot pushed onto the cell.
 
 Camping does not collect repeated pickups: the robot must be outside the cell at the beginning of the tick and enter or cross it while it is ready. If it arrives during cooldown, it must leave and enter again after the cooldown. A robot at full energy does not consume a pickup. When two eligible robots enter on the same tick, each receives up to 30 energy; unused capacity is not transferred to the other robot. No robot ID or processing order wins a contested pickup.
 
@@ -591,7 +595,7 @@ npm run build
 npm run viewer -- --port 4173
 ```
 
-On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. No API keys are required. Google Fonts are optional, with system font fallbacks.
+On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. No API keys are required; the application makes no LLM API calls.
 
 ## Publish
 
@@ -601,18 +605,7 @@ In repository **Settings > Pages > Build and deployment**, the source must be **
 
 Run `npm ci` and `npm run build`, then publish **the contents of `dist/`** to a static HTTPS host. Hosting under a URL subpath is supported. No Node.js server is needed in production.
 
-The build includes the application assets. Source code, AGENTS.md, and README.md are available in the GitHub repository; the interface has no project archive or separate instruction download. Local `node_modules/`, tournament `results/`, and development artifacts are not deployment files. Results are generated only when you run evaluations.
-
-## Use the arena
-
-- **Arena:** choose two controllers, a seed and a spawn layout, then simulate and watch the replay.
-- **Playback:** Space plays or pauses, arrows step one tick, Shift+arrows step one second, and Home returns to the start.
-- **Replays:** import or export JSON. A URL such as `?replay=./replays/match.json` opens a hosted replay. For local tournament files, start the server with `npm run viewer -- --replays results`.
-- **Bot Lab:** edit your controller, run the conformity gate, and download its source. Changes last for the browser session; saving an included controller creates a copy.
-- **Tournament:** run an exhibition round robin and export results in JSON or Markdown.
-- **Rules:** view the game summary. All rules, contracts, and instructions are maintained in the repository's AGENTS.md.
-
-The application makes no LLM API calls. Included controller metadata declares development provenance; iterative development must not be presented as a one-shot submission.
+The build includes the application assets. Local `node_modules/`, tournament `results/`, and development artifacts are not deployment files. Results are generated only when you run evaluations.
 
 ## Tournament CLI
 
@@ -648,7 +641,7 @@ Use `--mode one-shot --budget wall` only for a declared one-shot benchmark requi
 
 Compare results only under matching rules, runtime and budget conditions. The conformity gate uses bounded fuel for functional checks and separately measures execution time. Wall-clock results also depend on identical timeout decisions.
 
-Replays retain their recorded rules, energy limit, arena dimensions, cell layout, flame schedules, collapse schedules and cumulative floor loads. Recharge events record when each cell becomes ready again. Compare results only when the recorded rules, engine versions and runtime budgets match. Replay hashes diagnose simulation differences and do not authenticate imported files. Camera movement and playback controls never change a recorded result.
+Replays retain their recorded rules, energy limit, arena dimensions, cell layout, flame schedules, collapse schedules and cumulative floor loads. Recharge events record when each cell becomes ready again. Compare results only when the recorded rules, engine versions and runtime budgets match. Replay hashes diagnose simulation differences and do not authenticate imported files.
 
 Controllers receive the public arena state through `arena.cells`. Energy management must account for recharge pickups and the absence of passive regeneration. Implementing or updating a controller requires its own bot task and must respect the black-box policy above.
 
