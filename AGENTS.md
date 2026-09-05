@@ -96,11 +96,23 @@ During a full-length match, **four ordinary 1×1 m floor cells** are scheduled t
 
 Only ordinary floor cells are eligible: random collapses exclude recharge cells, flame grates and existing holes. Weight-induced collapse is a separate rule and can destroy any solid cell. A location is chosen only once and must remain completely inside the shrinking boundary through its collapse time. Collapses can occur in the central area or beneath a robot; selection does not target either controller or inspect its strategy. Spawn protection applies to initial hazards, not later announced collapses.
 
-Before the warning, the selected tile looks and behaves like normal solid floor and is omitted from `arena.cells`: controllers cannot read future collapse positions or times. At warning start, it appears as `type: 'collapse'`, `state: 'warning'`, with `timeUntilChange` counting down from 3 seconds. It flashes red with a visible X, and the viewer displays a countdown. The tile remains safe during this entire warning period. At collapse time, its sensor type and state both become `'hole'`, its ID stays unchanged, and its countdown becomes null. It follows the normal hole rules from that tick onward.
+Before the warning, the selected tile behaves like ordinary floor: it is omitted from `arena.cells` while untouched and appears as ordinary worn floor if loaded. Controllers cannot read future random collapse positions or times. At warning start, it appears as `type: 'collapse'`, `state: 'warning'`, with `timeUntilChange` counting down from 3 seconds. It flashes red with a visible X, and the viewer displays a countdown. The tile remains safe during this entire warning period. At collapse time, its sensor type and state both become `'hole'`, its ID stays unchanged, and its countdown becomes null. It follows the normal hole rules from that tick onward. An earlier opening caused by weight takes precedence.
 
 A robot still on the cell when the warning expires falls immediately, including a flipped or recovering robot. Movement during that tick cannot rescue a center already over the new opening. A robot that leaves before expiry is safe unless its path crosses another hole. The floor does not return. Collapsed cells that later leave the shrinking arena become inactive like other cells.
 
 Replays record collapse schedules plus `collapse-warning` and `collapse` events referencing the cell ID. These are environment events and have no robot field; a robot falling through the opening produces a separate `hole` event. Playback and seeking reconstruct the warning and the actual cut through all platform layers without changing simulation results.
+
+### Floor wear under robot weight
+
+Every solid 1 m grid cell, including recharge cells and flame grates, has a cumulative load capacity of **1200 kg-seconds**. Each 100 kg robot applies its full weight to the cell containing its post-collision center for that tick. One robot exhausts an intact cell after **12 seconds of total occupancy**; two robots on the same cell take **6 seconds**. Active, flipped, recovering and depleted robots all contribute equally. Fallen robots apply no load. Passing through adds only the ticks supported by that tile; wear never heals when a robot leaves.
+
+Load is accumulated in integer kg-ticks, capped at capacity. The tick that reaches capacity schedules a **3-second warning starting at the next tick**. Collapse then happens even if everyone leaves. A lone stationary robot on fresh floor falls when the opening is processed at 15 seconds. Recharge and fire continue during the warning, then stop permanently when the tile becomes a hole. If random and weight-induced collapse affect the same cell, the earlier opening wins; there is only one warning and one opening. An exact timing tie uses the random schedule.
+
+Weight is assigned to exactly one supporting cell: indices use `floor(x)` and `floor(y)`, so an internal grid boundary belongs to the positive side. The outer +8 m edge belongs to the last tile. Chassis overlap does not spread load across neighboring cells. This convention does not change inclusive hole boundaries or swept falling checks. Weight is applied after movement, collision, falls and energy effects; its updated state is visible in the next sensor snapshot.
+
+Worn ordinary floor appears in sensors as `type: 'floor'`, `state: 'safe'`. Untouched ordinary floor is omitted and has integrity 1. Every exposed cell has **`integrity`** from 1 (intact) to 0 (exhausted or open), plus **`collapseIn`**, a nullable countdown until an announced opening. Damaged tiles gain an amber tint and progressively more cracks; an impending collapse adds a flashing red X and countdown. A charger or grate retains its type and functional phase during a weight warning; bots must also check `collapseIn`. Ordinary warning tiles use type `'collapse'`. All openings use type and state `'hole'`, retaining their cell ID. Future random schedules remain private, even if a tile is already worn.
+
+Replays store two supporting-cell indices per tick in `floorLoads`: -1 for a fallen robot, otherwise `(floor(y)+8)*16+floor(x)+8`, with each axis clamped to 0..15. Playback reconstructs exact cumulative wear, warnings and openings from these loads, including backward seeking. Collapse events identify their `cause` as `'weight'` or `'random'`; floor wear also participates in the state hash.
 
 ---
 
@@ -397,8 +409,8 @@ interface Sensors {
     halfExtent: number;
     /** half-extent at the next tick, to anticipate shrinking */
     nextHalfExtent: number;
-    /** Initial cells plus announced/collapsed floor cells, with fresh states.
-        Future collapses are omitted until their warning begins. */
+    /** Initial cells plus worn and announced/collapsed floor cells, with fresh states.
+        Untouched ordinary floor is omitted. Future random schedules stay hidden. */
     cells: ArenaCell[];
   };
   /** most recent contact, or null if none has occurred */
