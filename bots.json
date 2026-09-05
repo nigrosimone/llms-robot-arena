@@ -33,5 +33,12 @@
     "provider": null,
     "file": "packages/bots/baseline.js",
     "provenance": "reference"
+  },
+  {
+    "id": "gpt-5-6-sol-ultra",
+    "model": "GPT-5.6 Sol Ultra",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-5-6-sol-ultra.js",
+    "provenance": "iterative"
   }
 ]
