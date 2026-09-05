@@ -6,6 +6,7 @@ import builtins from "arena:bots";
 import { botName, botDetails } from "../bot-catalog.js";
 import { sortedBotOptions, controllerExtension, controllerFilename } from "./controllers.js";
 import { exhibitionSchedule } from "../tournament/exhibition.js";
+import { readMatchSettings, matchSettingsSearch } from "./match-link.js";
 const icons = {
   arena: "M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10",
   code: "m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18",
@@ -447,12 +448,30 @@ $("#simulate").onclick = () => {
   $("#simulation-progress").value = 0;
   $("#cancel").hidden = false;
   $("#result-banner").hidden = true;
-  startOperation("match", {
-    bots: [bots[+$("#bot-a").value], bots[+$("#bot-b").value]],
-    seed: value,
-    mirrored: $("#spawn").value === "mirror",
-  });
+  const a = +$("#bot-a").value,
+    b = +$("#bot-b").value,
+    mirrored = $("#spawn").value === "mirror";
+  const url = new URL(location.href);
+  // Only registered controllers can be reloaded from a link; local ones exist in this tab alone.
+  url.search = a < builtins.length && b < builtins.length
+    ? matchSettingsSearch({ a: bots[a].id, b: bots[b].id, seed: value, mirrored })
+    : "";
+  history.replaceState(null, "", url);
+  startOperation("match", { bots: [bots[a], bots[b]], seed: value, mirrored });
 };
+function applyMatchSettings() {
+  let settings = null;
+  try {
+    settings = readMatchSettings(location.search, bots);
+  } catch (error) {
+    toast(error.message + " Default settings are used.", true);
+  }
+  if (!settings) return;
+  if (settings.a !== null) $("#bot-a").value = String(settings.a);
+  if (settings.b !== null) $("#bot-b").value = String(settings.b);
+  if (settings.seed !== null) $("#seed").value = String(settings.seed);
+  if (settings.spawn !== null) $("#spawn").value = settings.spawn;
+}
 $("#export-replay").onclick = () => {
   if (replay)
     download(`llms-robot-arena-${replay.seed}.json`, stringifyReplay(replay));
@@ -724,4 +743,7 @@ if (requestedReplay) {
     if (viewer) $("#stage-loading").hidden = true;
     toast(e.message + " You can simulate a new match.", true);
   });
-} else $("#simulate").click();
+} else {
+  applyMatchSettings();
+  $("#simulate").click();
+}
