@@ -613,6 +613,8 @@ The root [bots.json](bots.json) is the single source of truth for registered con
 
 Each entry contains a stable unique `id`, the correctly formatted `model` name, a `provider` such as `OpenAI` or `Anthropic` (`null` for the reference controller or an undeclared provider), and a unique project-relative `file` directly inside `packages/bots/`. Store the thinking level separately in `thinking` (for example `max` or `ultra`), and the coding harness in `harness` (`Codex` for OpenAI, `Claude Code` for Anthropic). Use null when these do not apply. Keep development provenance separate from the model name in `provenance`: for example `iterative`, `one-shot`, `local submission`, or `reference`. The reference entry supplies the starting template for locally created controllers.
 
+Official catalog additions are maintainer-managed. Pull requests adding new models or model-attributed bots are not accepted because their claimed model origin cannot be verified. See [CONTRIBUTING.md](CONTRIBUTING.md) to request an inclusion by arranging API access with the maintainer. Bot implementation instructions also support local experiments; they do not authorize submitting a new model to the official catalog.
+
 When registering your assigned bot, add or update only its own entry. Rename its ID and path consistently when explicitly requested. Catalog metadata and file paths are public; registration never authorizes inspecting another implementation. The build loads sources opaquely and fails for duplicate IDs, invalid metadata or missing files. Rebuild after changing the catalog. Replays and reports store metadata snapshots and code hashes; historical results are not additional roster definitions and must retain their recorded provenance.
 
 ## Tournament CLI
