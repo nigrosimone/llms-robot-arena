@@ -183,7 +183,7 @@ export function parseReplay(text) {
         throw new Error("Invalid collapse event.");
     }
   }
-  if (!["exhibition", "one-shot", "iterative"].includes(r.mode))
+  if (!["exhibition", "one-shot", "iterative", "manual"].includes(r.mode))
     throw new Error("Invalid mode.");
   if (
     !Array.isArray(r.stateHashes) ||

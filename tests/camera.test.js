@@ -80,3 +80,34 @@ test("seeking and resizing reframe immediately; normal playback eases toward the
   follow.update(opposite, 0, true);
   assertVisible(camera, opposite);
 });
+
+test("manual focus chases the driven robot from behind and turns with it", () => {
+  for (const aspect of [0.5, 1.8]) {
+    const { camera, follow } = setup(aspect);
+    follow.setFocus(0);
+    const opponent = { x: -6, y: 5, heading: 0 };
+    follow.update([{ x: 0, y: 0, heading: 0 }, opponent], 0, true);
+    assert.ok(camera.position.x < -8, `behind: ${camera.position.x}`);
+    assert.ok(Math.abs(camera.position.y) < 1e-6);
+    assert.ok(camera.position.z > 5);
+    assert.equal(follow.distance, 13);
+    assertVisible(camera, [{ x: 0, y: 0 }]);
+    // A quarter turn swings the camera around the robot, not around the arena.
+    follow.update([{ x: 0, y: 0, heading: Math.PI / 2 }, opponent], 0, true);
+    assert.ok(camera.position.y < -8, `behind: ${camera.position.y}`);
+    assert.ok(Math.abs(camera.position.x) < 1e-6);
+    assertVisible(camera, [{ x: 0, y: 0 }]);
+    // Driving in circles keeps the robot framed while the view rotates.
+    for (let tick = 0; tick < 600; tick++) {
+      const heading = tick * 0.02;
+      const state = { x: 5 * Math.cos(heading), y: 5 * Math.sin(heading), heading };
+      follow.update([state, opponent], 1 / 60);
+      assertVisible(camera, [state]);
+    }
+    follow.setFocus(null);
+    const pair = [{ x: -8, y: -8 }, { x: 8, y: 8 }];
+    follow.update(pair, 0, true);
+    assertVisible(camera, pair);
+    assert.equal(follow.target.x, 0);
+  }
+});

@@ -85,6 +85,7 @@ export class ArenaViewer {
     this.playing = false;
     this.speed = 1;
     this.replay = null;
+    this.live = false;
     this.last = 0;
     this.lastUI = -1;
     const scene = (this.scene = new THREE.Scene());
@@ -297,12 +298,14 @@ export class ArenaViewer {
     this.animate = this.animate.bind(this);
     this.raf = requestAnimationFrame(this.animate);
   }
-  load(replay) {
+  load(replay, { live = false } = {}) {
     this.replay = replay;
     this.deckKey = null;
     this.terrain.load(replay.arenaCells ?? []);
     this.time = 0;
-    this.playing = false;
+    // A live match grows while it plays: playback follows the simulated ticks.
+    this.live = live;
+    this.playing = live;
     this.lastUI = -1;
     this.labels.forEach(
       (l, i) => (l.querySelector("b").textContent = botName(replay.bots[i])),
@@ -350,6 +353,10 @@ export class ArenaViewer {
       : "3D arena. Automatic camera follows both robots. Enable Manual camera to orbit and zoom.");
     this.draw(0, true);
   }
+  setFocus(index) {
+    this.followCamera.setFocus(index);
+    this.draw(0, true);
+  }
   toggle() {
     if (this.time >= this.duration) this.seek(0);
     this.playing = !this.playing;
@@ -359,8 +366,9 @@ export class ArenaViewer {
     const dt = this.last ? Math.min((now - this.last) / 1000, 0.1) : 0;
     this.last = now;
     if (this.playing && this.replay) {
-      this.time = Math.min(this.playbackDuration, this.time + dt * this.speed);
-      if (this.time === this.playbackDuration) this.playing = false;
+      const limit = this.live ? this.duration : this.playbackDuration;
+      this.time = Math.min(limit, this.time + dt * this.speed);
+      if (!this.live && this.time === limit) this.playing = false;
     }
     if (this.container.clientWidth > 0) {
       if (this.manualCamera) this.controls.update();
@@ -493,7 +501,7 @@ export class ArenaViewer {
         flips,
         events: past,
         cells: sample.cells,
-        ended: this.time >= this.playbackDuration,
+        ended: !this.live && this.time >= this.playbackDuration,
       });
     }
   }

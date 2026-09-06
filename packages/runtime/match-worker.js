@@ -3,7 +3,12 @@ import { BotClient } from "./client.js";
 import { runMatch } from "./match.js";
 import { gateBot } from "./gate.js";
 import { runExhibition } from "../tournament/exhibition.js";
+import { runLiveMatch } from "./live-match.js";
 const pool = new Set();
+// Manual matches read the newest keyboard state at each tick; input messages
+// arrive between ticks and never queue up.
+let liveInput = { thrust: 0, turn: 0 };
+let liveStopped = false;
 const createClient = () => {
   const c = new BotClient(
     new Worker(new URL("./bot-worker.js", import.meta.url), { type: "module" }),
@@ -17,7 +22,12 @@ const createClient = () => {
   return c;
 };
 self.onmessage = async ({ data }) => {
+  if (data.type === "input") {
+    liveInput = { thrust: data.thrust, turn: data.turn };
+    return;
+  }
   if (data.type === "cancel") {
+    liveStopped = true;
     for (const c of pool) c.close();
     self.postMessage({ type: "cancelled" });
     return;
@@ -33,6 +43,20 @@ self.onmessage = async ({ data }) => {
         replay.frames.buffer,
         replay.arenaExtents.buffer,
       ]);
+    } else if (data.type === "live") {
+      liveInput = { thrust: 0, turn: 0 };
+      liveStopped = false;
+      const replay = await runLiveMatch({
+        ...data,
+        createClient,
+        readInput: () => liveInput,
+        stopped: () => liveStopped,
+        onTick: (update) => self.postMessage(update),
+      });
+      self.postMessage(
+        replay ? { type: "live-end", replay } : { type: "live-aborted" },
+        replay ? [replay.frames.buffer, replay.arenaExtents.buffer] : [],
+      );
     } else if (data.type === "gate") {
       const client = createClient();
       try {

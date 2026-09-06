@@ -39,7 +39,17 @@ const esc = (s) =>
   );
 const bots = [...builtins];
 const tournamentReplays = new Map();
+const heldKeys = new Set();
+const CONTROL_KEYS = {
+  KeyW: "forward", ArrowUp: "forward",
+  KeyS: "back", ArrowDown: "back",
+  KeyA: "left", ArrowLeft: "left",
+  KeyD: "right", ArrowRight: "right",
+};
 let replay = null,
+  liveReplay = null,
+  liveActive = false,
+  previousReplay = null,
   viewer = null,
   worker = null,
   operation = null,
@@ -78,12 +88,13 @@ document.querySelector("#app").innerHTML = `
   <div class="arena-layout">
    <div class="match-surface">
     <div class="stage" id="stage">
-     <div class="stage-header"><div class="record-tag"><span class="record-dot"></span>REPLAY <span id="replay-seed">SEED 00</span></div><div class="stage-clock"><b id="match-clock">00:00</b><span>/ 02:00</span></div><span class="arena-size" id="arena-size">16.0 × 16.0 M</span></div>
+     <div class="stage-header"><div class="record-tag"><span class="record-dot"></span><span id="record-label">REPLAY</span> <span id="replay-seed">SEED 00</span></div><div class="stage-clock"><b id="match-clock">00:00</b><span>/ 02:00</span></div><span class="arena-size" id="arena-size">16.0 × 16.0 M</span></div>
      <div id="viewport"></div>
      <div class="stage-note"><span id="pressure-tag">RAISED PLATFORM</span><span id="camera-hint">Auto camera · follows both robots</span><span id="collapse-warning" role="status" aria-live="polite" hidden></span></div>
      <div class="camera-actions"><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint">Manual camera</label><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
      <div id="stage-loading" class="stage-loading"><span class="loader"></span><b>Preparing replay</b><span id="loading-detail">Simulation comes before every frame.</span><progress id="simulation-progress" value="0" max="1"></progress><button id="cancel" class="button outline" hidden>Cancel</button></div>
      <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><div class="result-actions"><button id="watch-again" class="button accent">${icon("reset")}Watch again</button><button id="random-match" class="button outline">${icon("swap")}Random seed</button></div></div>
+     <div id="live-hud" class="live-hud" hidden><strong>YOU DRIVE ROBOT A</strong><span><b>W</b> <b>S</b> thrust · <b>A</b> <b>D</b> turn</span><button id="live-stop" class="button quiet">Leave match</button></div>
     </div>
     <div class="playback"><button id="step-back" class="icon-button" aria-label="Previous frame" title="Previous frame (←)">‹</button><button id="play" class="play-button" aria-label="Play" disabled>${icon("play", 20)}</button><button id="step-forward" class="icon-button" aria-label="Next frame" title="Next frame (→)">›</button><span id="elapsed" class="mono">00:00</span><div class="scrubber"><div id="event-marks"></div><input type="range" id="timeline" aria-label="Replay position" min="0" max="120" step="any" value="0" disabled></div><span id="duration" class="mono secondary">02:00</span><select id="speed" aria-label="Playback speed"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></div>
     <div class="terrain-legend" aria-label="Arena cells"><span><i class="legend-recharge"></i>Recharge +60</span><span><i class="legend-hole"></i>Hole: instant loss</span><span><i class="legend-flame"></i>Grate: warning then flame</span><span><i class="legend-wear"></i>Cracks: weight damage</span><span><i class="legend-collapse"></i>Red flash: floor collapse</span></div>
@@ -94,13 +105,14 @@ document.querySelector("#app").innerHTML = `
     <div class="side-body"><label class="field-label" for="bot-a"><span class="color-square a"></span>ROBOT A</label><select id="bot-a" class="bot-select"></select><label class="field-label" for="bot-b"><span class="color-square b"></span>ROBOT B</label><select id="bot-b" class="bot-select"></select>
      <div class="seed-row"><div><label for="seed" class="field-label">SEED</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="0"></div><div><label for="spawn" class="field-label">SPAWN</label><select id="spawn"><option value="normal">Standard</option><option value="mirror">Mirrored</option></select></div></div>
      <button id="simulate" class="button accent run-button">${icon("play")}Simulate match${icon("arrow")}</button><p class="field-note">The entire match is computed before playback.</p>
+     <button id="play-manual" class="button outline run-button">${icon("bolt")}Play yourself vs Robot B${icon("arrow")}</button><p class="field-note">Manual matches run in real time with the keyboard. They are exhibitions: not deterministic and never ranked.</p>
     </div>
     <div class="mode-box"><span class="eyebrow">CURRENT MODE</span><div><span class="mode-symbol">E</span><strong id="current-mode">Local exhibition</strong></div><p id="mode-note">Exhibitions use a deterministic budget. Controller provenance is recorded in each replay.</p></div>
     <div class="event-section"><div class="side-head"><h2>Event log</h2><span class="count" id="event-count">0</span></div><div id="event-log" class="event-log"><p class="empty-note">Events will appear during playback.</p></div></div>
     
    </aside>
   </div>
-  <div class="arena-footer"><span><i></i>60 HZ PHYSICS</span><span>100 KG / ROBOT</span><span>NO MANUAL CONTROL</span><span id="hash-label">SHA-256 · HASH EVERY 60 TICKS</span></div>
+  <div class="arena-footer"><span><i></i>60 HZ PHYSICS</span><span>100 KG / ROBOT</span><span id="control-tag">NO MANUAL CONTROL</span><span id="hash-label">SHA-256 · HASH EVERY 60 TICKS</span></div>
  </section>
  <section id="panel-lab" class="panel" hidden>
   <div class="page-heading"><div><div class="eyebrow">CONTROLLER WORKSPACE <span>/ 02</span></div><h1>Your code. Your robot<span>.</span></h1></div><button id="new-bot" class="button accent">${icon("plus")}New controller</button></div>
@@ -242,10 +254,13 @@ function renderFrame(frame) {
   }
   $("#result-banner").hidden = !ended;
   if (ended && replay) {
+    const winner = replay.result.winner === null ? null : replay.bots[replay.result.winner];
     $("#result-title").textContent =
-      replay.result.winner === null
+      winner === null
         ? "Draw."
-        : botName(replay.bots[replay.result.winner]) + " wins.";
+        : winner.id === "human"
+          ? "You win."
+          : botName(winner) + " wins.";
     $("#result-reason").textContent =
       {
         ["ring-out"]: "Ring-out",
@@ -263,6 +278,15 @@ function renderFrame(frame) {
   $("#hash-label").textContent = lastHash
     ? "SHA-256 " + lastHash.hash.slice(0, 12) + "…"
     : "SHA-256 · HASH EVERY 60 TICKS";
+}
+function renderEventMarks(r) {
+  $("#event-marks").innerHTML = r.events
+    .filter((e) => ["flip", "ring-out", "hole", "recharge", "collapse-warning", "collapse"].includes(e.type))
+    .map(
+      (e) =>
+        `<span class="mark-${e.type}" style="left:${((e.tick + 1) / r.result.ticks) * 100}%" title="${e.type}"></span>`,
+    )
+    .join("");
 }
 function loadReplay(r, autoplay = false) {
   delete $("#event-log").dataset.signature;
@@ -285,16 +309,13 @@ function loadReplay(r, autoplay = false) {
       ? "One-shot benchmark"
       : r.mode === "iterative"
         ? "Iterative benchmark"
-        : "Local exhibition";
-  $("#mode-note").textContent =
-    `${r.runtime?.budgetMode === "wall" ? "2 ms wall-clock budget." : "Deterministic instruction budget."} ${r.mode === "exhibition" ? "Exhibition of the selected controllers. Provenance is recorded in exported metadata." : "See exported metadata for provenance."}`;
-  $("#event-marks").innerHTML = r.events
-    .filter((e) => ["flip", "ring-out", "hole", "recharge", "collapse-warning", "collapse"].includes(e.type))
-    .map(
-      (e) =>
-        `<span class="mark-${e.type}" style="left:${((e.tick + 1) / r.result.ticks) * 100}%" title="${e.type}"></span>`,
-    )
-    .join("");
+        : r.mode === "manual"
+          ? "Manual duel"
+          : "Local exhibition";
+  $("#mode-note").textContent = r.mode === "manual"
+    ? "A human drove one robot in real time. The match is not deterministic and cannot be reproduced from its seed."
+    : `${r.runtime?.budgetMode === "wall" ? "2 ms wall-clock budget." : "Deterministic instruction budget."} ${r.mode === "exhibition" ? "Exhibition of the selected controllers. Provenance is recorded in exported metadata." : "See exported metadata for provenance."}`;
+  renderEventMarks(r);
   viewer?.load(r);
   if (viewer) viewer.playing = autoplay;
   else {
@@ -347,7 +368,7 @@ $("#event-log").onclick = (e) => {
 };
 function setBusy(busy) {
   document
-    .querySelectorAll("#simulate,#run-gate,#run-tournament")
+    .querySelectorAll("#simulate,#play-manual,#run-gate,#run-tournament")
     .forEach((b) => (b.disabled = busy));
   document.querySelectorAll("#tournament-bots input,#tournament-format")
     .forEach(el => { el.disabled = busy; });
@@ -372,6 +393,16 @@ function startOperation(type, data) {
       }
       return;
     }
+    if (data.type === "live-start") {
+      beginLiveMatch(data);
+      return;
+    }
+    if (data.type === "live-tick") {
+      appendLiveTick(data);
+      return;
+    }
+    if (data.type === "live-end") finishLiveMatch(data.replay);
+    if (data.type === "live-aborted") abortLiveMatch();
     if (data.type === "tournament-gate") {
       renderTournamentGate(data.bot, data.gate);
       return;
@@ -419,6 +450,10 @@ function finishOperation() {
   setBusy(false);
   $("#cancel").hidden = true;
   if (viewer) $("#stage-loading").hidden = true;
+  if (operation === "live") {
+    if (liveReplay) abortLiveMatch();
+    setLiveUI(false);
+  }
   if (operation === "tournament") {
     $("#cancel-tournament").hidden = true;
     if (report) {
@@ -462,15 +497,165 @@ function simulateMatch() {
 $("#simulate").onclick = simulateMatch;
 $("#random-match").onclick = () => {
   // Same pairing, new draw: the seed decides spawn jitter and terrain layout.
+  const manual = replay?.mode === "manual";
   const indexes = (replay?.bots ?? []).map((b) => bots.findIndex((c) => c.id === b.id));
-  if (indexes.length === 2 && indexes.every((i) => i >= 0)) {
+  if (manual) {
+    if (indexes[1] >= 0) $("#bot-b").value = String(indexes[1]);
+  } else if (indexes.length === 2 && indexes.every((i) => i >= 0)) {
     $("#bot-a").value = String(indexes[0]);
     $("#bot-b").value = String(indexes[1]);
   }
   $("#seed").value = String(Math.floor(Math.random() * 4294967296));
   $("#spawn").value = Math.random() < 0.5 ? "normal" : "mirror";
-  simulateMatch();
+  if (manual) startLiveMatch();
+  else simulateMatch();
 };
+// Manual duel: the keyboard drives robot A, the selected controller drives B.
+const LIVE_PLAYER = 0;
+function setLiveUI(active) {
+  liveActive = active;
+  $("#live-hud").hidden = !active;
+  $("#record-label").textContent = active ? "LIVE" : "REPLAY";
+  $("#control-tag").textContent = active
+    ? "MANUAL CONTROL · UNRANKED"
+    : "NO MANUAL CONTROL";
+  for (const id of ["#play", "#timeline", "#step-back", "#step-forward", "#speed", "#export-replay", "#import-replay"])
+    $(id).disabled = active || !replay;
+  viewer?.setFocus(active ? LIVE_PLAYER : null);
+  if (!active && heldKeys.size) heldKeys.clear();
+}
+function startLiveMatch() {
+  const seed = Number($("#seed").value);
+  if (!Number.isInteger(seed) || seed < 0 || seed > 4294967295)
+    return toast("Enter an integer seed between 0 and 4294967295.", true);
+  if (viewer) viewer.playing = false;
+  previousReplay = liveActive ? previousReplay : replay;
+  $("#stage-loading").hidden = false;
+  $("#stage-loading b").textContent = "Starting manual match";
+  $("#loading-detail").textContent = "Loading the opposing controller…";
+  $("#simulation-progress").value = 0;
+  $("#cancel").hidden = true;
+  $("#result-banner").hidden = true;
+  startOperation("live", {
+    bot: bots[+$("#bot-b").value],
+    seed,
+    mirrored: $("#spawn").value === "mirror",
+    player: LIVE_PLAYER,
+  });
+  if (operation === "live") setLiveUI(true);
+}
+// The replay grows tick by tick while the match is played, so the viewer, the
+// robot cards and the event log keep using the ordinary replay format.
+function beginLiveMatch(data) {
+  liveReplay = replay = {
+    specVersion: SPEC_VERSION,
+    engineVersion: ENGINE_VERSION,
+    mode: "manual",
+    seed: data.seed,
+    mirrored: data.mirrored,
+    bots: data.bots,
+    dt: S.DT,
+    energyMax: S.ENERGY_MAX,
+    arenaCells: data.arenaCells,
+    floorLoads: [],
+    initialFrame: data.initialFrame,
+    frames: new Float32Array(7200 * 12),
+    arenaExtents: new Float32Array(7200),
+    events: [],
+    stateHashes: [],
+    result: { winner: null, reason: "timeout", ticks: 0 },
+    finalStates: [],
+    violations: [0, 0],
+    engineViolations: 0,
+    runtime: {},
+  };
+  delete $("#event-log").dataset.signature;
+  $("#event-marks").innerHTML = "";
+  $("#replay-seed").textContent =
+    `SEED ${String(data.seed).padStart(2, "0")} ${data.mirrored ? "· M" : ""}`;
+  data.bots.forEach((b, i) => {
+    $("#robot-name-" + i).textContent = botName(b);
+    $("#robot-provider-" + i).textContent = botDetails(b);
+  });
+  $("#current-mode").textContent = "Manual duel";
+  $("#mode-note").textContent =
+    "You drive one robot in real time. The match is not deterministic and cannot be reproduced from its seed.";
+  $("#timeline").max = S.MATCH_DURATION;
+  $("#duration").textContent = clock(S.MATCH_DURATION);
+  $("#stage-loading").hidden = true;
+  viewer?.load(liveReplay, { live: true });
+  viewer?.setFocus(LIVE_PLAYER);
+}
+function appendLiveTick(data) {
+  const r = liveReplay;
+  if (!r || data.tick > 7200) return;
+  r.frames.set(data.frame, (data.tick - 1) * 12);
+  r.arenaExtents[data.tick - 1] = data.extent;
+  r.floorLoads.push(...data.loads);
+  r.events.push(...data.events);
+  r.stateHashes.push(...data.hashes);
+  r.result.ticks = data.tick;
+}
+function finishLiveMatch(final) {
+  const r = liveReplay;
+  liveReplay = null;
+  if (!r) return loadReplay(final, true);
+  // Keep the object the viewer is already playing: the closing frames and the
+  // fall animation continue without a reload.
+  Object.assign(r, final);
+  replay = r;
+  if (viewer) {
+    viewer.live = false;
+    viewer.playing = true;
+  }
+  $("#timeline").max = r.result.ticks / 60;
+  $("#duration").textContent = clock(r.result.ticks / 60);
+  renderEventMarks(r);
+}
+function abortLiveMatch() {
+  liveReplay = null;
+  if (viewer) {
+    viewer.live = false;
+    viewer.playing = false;
+  }
+  if (previousReplay) return loadReplay(previousReplay);
+  replay = null;
+  $("#stage-loading").hidden = false;
+  $("#stage-loading b").textContent = "Match abandoned";
+  $("#loading-detail").textContent =
+    "Simulate a match or start another manual duel.";
+}
+function sendLiveInput() {
+  const held = (action) =>
+    [...heldKeys].some((code) => CONTROL_KEYS[code] === action);
+  worker?.postMessage({
+    type: "input",
+    thrust: (held("forward") ? 1 : 0) - (held("back") ? 1 : 0),
+    turn: (held("left") ? 1 : 0) - (held("right") ? 1 : 0),
+  });
+}
+$("#play-manual").onclick = startLiveMatch;
+$("#live-stop").onclick = () => {
+  if (!worker) return;
+  worker.postMessage({ type: "cancel" });
+  toast("Manual match left.");
+};
+document.addEventListener("keydown", (e) => {
+  if (!liveActive || !CONTROL_KEYS[e.code]) return;
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  e.preventDefault();
+  if (e.repeat || heldKeys.has(e.code)) return;
+  heldKeys.add(e.code);
+  sendLiveInput();
+});
+document.addEventListener("keyup", (e) => {
+  if (heldKeys.delete(e.code)) sendLiveInput();
+});
+addEventListener("blur", () => {
+  if (!heldKeys.size) return;
+  heldKeys.clear();
+  sendLiveInput();
+});
 function applyMatchSettings() {
   let settings = null;
   try {
@@ -698,7 +883,8 @@ document.addEventListener("keydown", (e) => {
   if (
     /INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName) ||
     $("#panel-arena").hidden ||
-    operation === "match"
+    operation === "match" ||
+    liveActive
   )
     return;
   if (e.code === "Space") {

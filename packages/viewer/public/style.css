@@ -924,8 +924,8 @@ progress::-webkit-progress-value {
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  background: #12191ac9;
-  backdrop-filter: blur(5px);
+  background: #12191aa6;
+  backdrop-filter: blur(2px);
   z-index: 3;
   gap: 14px;
 }
@@ -938,6 +938,47 @@ progress::-webkit-progress-value {
 .result-banner > span:not(.eyebrow) {
   font: 13px var(--mono);
   color: #b0bbb9;
+}
+.live-hud {
+  position: absolute;
+  left: 14px;
+  bottom: 64px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #2c3a33;
+  background: #12191ad9;
+  backdrop-filter: blur(4px);
+}
+.live-hud strong {
+  font: 12px var(--mono);
+  letter-spacing: 0.08em;
+  color: var(--lime);
+}
+.live-hud span {
+  font: 12px var(--mono);
+  color: #b0bbb9;
+}
+.live-hud b {
+  display: inline-block;
+  min-width: 18px;
+  padding: 2px 4px;
+  border: 1px solid #3c4a44;
+  border-radius: 4px;
+  text-align: center;
+  color: #e6efe4;
+}
+@media (max-width: 720px) {
+  .live-hud {
+    left: 8px;
+    right: 8px;
+    bottom: 56px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 }
 .result-actions {
   display: flex;
