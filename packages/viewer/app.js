@@ -83,7 +83,7 @@ document.querySelector("#app").innerHTML = `
      <div class="stage-note"><span id="pressure-tag">RAISED PLATFORM</span><span id="camera-hint">Auto camera · follows both robots</span><span id="collapse-warning" role="status" aria-live="polite" hidden></span></div>
      <div class="camera-actions"><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint">Manual camera</label><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
      <div id="stage-loading" class="stage-loading"><span class="loader"></span><b>Preparing replay</b><span id="loading-detail">Simulation comes before every frame.</span><progress id="simulation-progress" value="0" max="1"></progress><button id="cancel" class="button outline" hidden>Cancel</button></div>
-     <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><button id="watch-again" class="button accent">${icon("reset")}Watch again</button></div>
+     <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><div class="result-actions"><button id="watch-again" class="button accent">${icon("reset")}Watch again</button><button id="random-match" class="button outline">${icon("swap")}Random seed</button></div></div>
     </div>
     <div class="playback"><button id="step-back" class="icon-button" aria-label="Previous frame" title="Previous frame (←)">‹</button><button id="play" class="play-button" aria-label="Play" disabled>${icon("play", 20)}</button><button id="step-forward" class="icon-button" aria-label="Next frame" title="Next frame (→)">›</button><span id="elapsed" class="mono">00:00</span><div class="scrubber"><div id="event-marks"></div><input type="range" id="timeline" aria-label="Replay position" min="0" max="120" step="any" value="0" disabled></div><span id="duration" class="mono secondary">02:00</span><select id="speed" aria-label="Playback speed"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></div>
     <div class="terrain-legend" aria-label="Arena cells"><span><i class="legend-recharge"></i>Recharge +60</span><span><i class="legend-hole"></i>Hole: instant loss</span><span><i class="legend-flame"></i>Grate: warning then flame</span><span><i class="legend-wear"></i>Cracks: weight damage</span><span><i class="legend-collapse"></i>Red flash: floor collapse</span></div>
@@ -437,7 +437,7 @@ function cancelOperation() {
 }
 $("#cancel").onclick = cancelOperation;
 $("#cancel-tournament").onclick = cancelOperation;
-$("#simulate").onclick = () => {
+function simulateMatch() {
   const value = Number($("#seed").value);
   if (!Number.isInteger(value) || value < 0 || value > 4294967295)
     return toast("Enter an integer seed between 0 and 4294967295.", true);
@@ -458,6 +458,18 @@ $("#simulate").onclick = () => {
     : "";
   history.replaceState(null, "", url);
   startOperation("match", { bots: [bots[a], bots[b]], seed: value, mirrored });
+}
+$("#simulate").onclick = simulateMatch;
+$("#random-match").onclick = () => {
+  // Same pairing, new draw: the seed decides spawn jitter and terrain layout.
+  const indexes = (replay?.bots ?? []).map((b) => bots.findIndex((c) => c.id === b.id));
+  if (indexes.length === 2 && indexes.every((i) => i >= 0)) {
+    $("#bot-a").value = String(indexes[0]);
+    $("#bot-b").value = String(indexes[1]);
+  }
+  $("#seed").value = String(Math.floor(Math.random() * 4294967296));
+  $("#spawn").value = Math.random() < 0.5 ? "normal" : "mirror";
+  simulateMatch();
 };
 function applyMatchSettings() {
   let settings = null;

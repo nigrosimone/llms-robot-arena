@@ -939,7 +939,11 @@ progress::-webkit-progress-value {
   font: 13px var(--mono);
   color: #b0bbb9;
 }
-.result-banner .button {
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
   margin-top: 10px;
 }
 #toast {
