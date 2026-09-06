@@ -86,6 +86,8 @@ export class ArenaViewer {
     this.speed = 1;
     this.replay = null;
     this.live = false;
+    // Set by the recorder: the drawing buffer can only be read in its own frame.
+    this.onRender = null;
     this.last = 0;
     this.lastUI = -1;
     const scene = (this.scene = new THREE.Scene());
@@ -391,6 +393,7 @@ export class ArenaViewer {
       if (this.manualCamera) this.controls.update();
       this.draw(dt);
       this.renderer.render(this.scene, this.camera);
+      this.onRender?.();
     }
     this.raf = requestAnimationFrame(this.animate);
   }

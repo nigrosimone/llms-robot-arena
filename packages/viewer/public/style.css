@@ -967,6 +967,119 @@ progress::-webkit-progress-value {
 .result-standings b {
   color: var(--lime);
 }
+.match-intro {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  text-align: center;
+  background: radial-gradient(circle at 50% 42%, #1b2429f2, #0b0f12fb);
+  backdrop-filter: blur(4px);
+  animation: intro-fade 0.35s ease;
+}
+.intro-eyebrow {
+  font: 12px var(--mono);
+  letter-spacing: 0.24em;
+  color: var(--muted);
+}
+.intro-title {
+  font-family: var(--display);
+  font-size: clamp(26px, 3.4vw, 40px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.intro-fighter {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.intro-fighter.a {
+  animation: intro-left 0.55s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.intro-fighter.b {
+  animation: intro-right 0.55s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.intro-fighter span {
+  font: 11px var(--mono);
+  letter-spacing: 0.18em;
+  color: var(--muted);
+}
+.intro-fighter b {
+  font-family: var(--display);
+  font-size: clamp(32px, 4.8vw, 60px);
+  font-weight: 700;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--robot, var(--lime));
+}
+.intro-fighter small {
+  font: 12px var(--mono);
+  color: #8e999f;
+}
+.intro-versus {
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: #6f7c82;
+  margin: 8px 0;
+}
+.intro-roster {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 28px;
+  max-width: 760px;
+}
+.intro-roster b {
+  font-family: var(--display);
+  font-size: clamp(22px, 2.6vw, 32px);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--robot, var(--lime));
+}
+.intro-seed {
+  margin-top: 20px;
+  font: 12px var(--mono);
+  letter-spacing: 0.16em;
+  color: #7d8a90;
+}
+#record.recording {
+  color: var(--orange);
+  border-color: #7d4c39;
+}
+#record.recording svg {
+  animation: rec-pulse 1.1s ease-in-out infinite;
+}
+@keyframes intro-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes intro-left {
+  from {
+    opacity: 0;
+    transform: translateX(-90px);
+  }
+}
+@keyframes intro-right {
+  from {
+    opacity: 0;
+    transform: translateX(90px);
+  }
+}
+@keyframes rec-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
 .live-hud {
   position: absolute;
   left: 14px;
@@ -2072,6 +2185,11 @@ tbody tr:last-child td {
   }
   .energy-track > span {
     transition: none;
+  }
+  .match-intro,
+  .intro-fighter,
+  #record.recording svg {
+    animation: none;
   }
 }
 /* Readable telemetry on compact screens and at enlarged text sizes. */

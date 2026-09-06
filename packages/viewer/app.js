@@ -8,6 +8,15 @@ import { botName, botDetails } from "../bot-catalog.js";
 import { sortedBotOptions, controllerExtension, controllerFilename } from "./controllers.js";
 import { exhibitionSchedule } from "../tournament/exhibition.js";
 import { readMatchSettings, matchSettingsSearch } from "./match-link.js";
+import {
+  MatchRecorder,
+  recordingSupported,
+  recordingFilename,
+  introCard,
+  matchOutcome,
+  INTRO_SECONDS,
+  OUTRO_SECONDS,
+} from "./recorder.js";
 const icons = {
   arena: "M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10",
   code: "m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18",
@@ -27,6 +36,8 @@ const icons = {
   plus: "M12 4v16M4 12h16",
   settings: "M4 7h16M4 17h16M8 4v6m8 4v6",
   swap: "M4 7h16l-4-4M20 17H4l4 4",
+  record: "M12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z",
+  stop: "M6 6h12v12H6Z",
 };
 const icon = (name, size = 18) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${icons[name] ?? icons.arena}"/></svg>`;
@@ -55,7 +66,11 @@ let replay = null,
   worker = null,
   operation = null,
   report = null,
-  lastFrame = null;
+  lastFrame = null,
+  recorder = null,
+  recorderStop = null,
+  introStart = null,
+  introTimer = null;
 const $ = (s) => document.querySelector(s);
 const clock = (t) =>
   `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
@@ -85,7 +100,7 @@ document.querySelector("#app").innerHTML = `
 </header>
 <main>
  <section id="panel-arena" class="panel">
-  <div class="page-heading"><div><div class="eyebrow">AUTONOMOUS COMBAT LAB <span>/ 01</span></div><h1>The arena decides<span>.</span></h1></div><div class="heading-actions"><select id="replay-library" aria-label="Local tournament replays" hidden><option value="">Tournament replays…</option></select><button id="import-replay" class="button quiet">${icon("upload")}Import replay</button><button id="export-replay" class="button outline" disabled>${icon("download")}Export replay</button><input type="file" id="replay-file" accept=".json,application/json" hidden></div></div>
+  <div class="page-heading"><div><div class="eyebrow">AUTONOMOUS COMBAT LAB <span>/ 01</span></div><h1>The arena decides<span>.</span></h1></div><div class="heading-actions"><select id="replay-library" aria-label="Local tournament replays" hidden><option value="">Tournament replays…</option></select><button id="import-replay" class="button outline">${icon("upload")}Import replay</button><button id="record" class="button outline" disabled>${icon("record")}Record video</button><button id="export-replay" class="button outline" disabled>${icon("download")}Export replay</button><input type="file" id="replay-file" accept=".json,application/json" hidden></div></div>
   <div class="arena-layout">
    <div class="match-surface">
     <div class="stage" id="stage">
@@ -95,6 +110,7 @@ document.querySelector("#app").innerHTML = `
      <div class="camera-actions"><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint">Manual camera</label><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
      <div id="stage-loading" class="stage-loading"><span class="loader"></span><b>Preparing replay</b><span id="loading-detail">Simulation comes before every frame.</span><progress id="simulation-progress" value="0" max="1"></progress><button id="cancel" class="button outline" hidden>Cancel</button></div>
      <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><div id="result-standings" class="result-standings" hidden></div><div class="result-actions"><button id="watch-again" class="button accent">${icon("reset")}Watch again</button><button id="random-match" class="button outline">${icon("swap")}Random seed</button></div></div>
+     <div id="match-intro" class="match-intro" aria-hidden="true" hidden></div>
      <div id="live-hud" class="live-hud" hidden><strong>YOU DRIVE ROBOT A</strong><span><b>W</b> <b>S</b> thrust · <b>A</b> <b>D</b> turn</span><button id="live-stop" class="button quiet">Leave match</button></div>
     </div>
     <div class="playback"><button id="step-back" class="icon-button" aria-label="Previous frame" title="Previous frame (←)">‹</button><button id="play" class="play-button" aria-label="Play" disabled>${icon("play", 20)}</button><button id="step-forward" class="icon-button" aria-label="Next frame" title="Next frame (→)">›</button><span id="elapsed" class="mono">00:00</span><div class="scrubber"><div id="event-marks"></div><input type="range" id="timeline" aria-label="Replay position" min="0" max="120" step="any" value="0" disabled></div><span id="duration" class="mono secondary">02:00</span><select id="speed" aria-label="Playback speed"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></div>
@@ -123,7 +139,7 @@ document.querySelector("#app").innerHTML = `
   </div>
  </section>
  <section id="panel-tournament" class="panel" hidden>
-  <div class="page-heading"><div><div class="eyebrow">TOURNAMENT <span>/ 03</span></div><h1>Earn your ranking<span>.</span></h1></div><div class="heading-actions"><button id="export-report" class="button quiet" disabled>${icon("download")}.md report</button><button id="export-ranking" class="button outline" disabled>${icon("download")}Export results</button></div></div>
+  <div class="page-heading"><div><div class="eyebrow">TOURNAMENT <span>/ 03</span></div><h1>Earn your ranking<span>.</span></h1></div><div class="heading-actions"><button id="export-report" class="button outline" disabled>${icon("download")}.md report</button><button id="export-ranking" class="button outline" disabled>${icon("download")}Export results</button></div></div>
   <div class="tournament-setup"><div><span class="eyebrow">EXHIBITION TOURNAMENT</span><h2>More action. Fewer matches.</h2><label class="field-label" for="tournament-format">FORMAT</label><select id="tournament-format"><option value="quick">Quick rounds (up to 3 rounds)</option><option value="round-robin">Full round robin (20 matches per pair)</option></select><p id="tournament-description"></p><div id="tournament-bots" class="bot-checks"></div></div><button id="run-tournament" class="button accent">${icon("trophy")}Start tournament</button></div>
   <div id="tournament-progress" class="tournament-progress" hidden><div><strong id="tournament-status">Checking controllers…</strong><button id="cancel-tournament" class="button quiet">Cancel</button></div><progress max="1" value="0"></progress></div>
   <div id="tournament-gates" aria-label="Tournament controller checks" hidden></div>
@@ -268,28 +284,17 @@ function renderFrame(frame) {
   }
   $("#result-banner").hidden = !ended;
   if (ended && replay) {
-    const winner = replay.result.winner === null ? null : replay.bots[replay.result.winner];
-    $("#result-title").textContent =
-      winner === null
-        ? "Draw."
-        : winner.id === "human"
-          ? "You win."
-          : botName(winner) + " wins.";
+    const outcome = matchOutcome(replay);
+    $("#result-title").textContent = outcome.title;
     $("#result-standings").hidden = !replay.result.standings;
     if (replay.result.standings)
       $("#result-standings").innerHTML = replay.result.standings
         .map((robot, place) => `<span><b>${place + 1}</b>${esc(botName(replay.bots[robot]))}</span>`)
         .join("");
     $("#result-reason").textContent =
-      {
-        ["ring-out"]: "Ring-out",
-        hole: "Fell through a hole",
-        flips: "Two flips",
-        disqualification: "Disqualification",
-        timeout: replay.result.decision === "center" ? "Timeout ? closest to center" : "Timeout decision",
-      }[replay.result.reason] +
-      " · " +
-      clock(viewer.duration);
+      outcome.reason + " · " + clock(viewer.duration);
+    if (recorder?.recording && recorderStop === null)
+      recorderStop = setTimeout(finishRecording, OUTRO_SECONDS * 1000);
   }
   const lastHash = replay?.stateHashes
     .filter((h) => h.tick <= time * 60)
@@ -315,6 +320,7 @@ function loadReplay(r, autoplay = false) {
   $("#play").disabled = false;
   $("#timeline").disabled = false;
   $("#export-replay").disabled = false;
+  $("#record").disabled = !viewer || !recordingSupported();
   $("#timeline").max = r.result.ticks / 60;
   $("#duration").textContent = clock(r.result.ticks / 60);
   $("#replay-seed").textContent =
@@ -335,8 +341,10 @@ function loadReplay(r, autoplay = false) {
     : `${r.runtime?.budgetMode === "wall" ? "2 ms wall-clock budget." : "Deterministic instruction budget."} ${r.mode === "exhibition" ? "Exhibition of the selected controllers. Provenance is recorded in exported metadata." : "See exported metadata for provenance."}`;
   renderEventMarks(r);
   viewer?.load(r);
-  if (viewer) viewer.playing = autoplay;
-  else {
+  if (viewer) {
+    if (autoplay) playWithIntro();
+    else viewer.playing = false;
+  } else {
     $("#stage-loading b").textContent =
       "Replay ready. 3D graphics unavailable.";
     $("#loading-detail").textContent =
@@ -355,12 +363,115 @@ try {
   $("#stage-loading .loader").hidden = true;
   toast("Could not start 3D graphics.", true);
 }
-$("#play").onclick = () => viewer?.toggle();
-$("#watch-again").onclick = () => {
-  viewer?.seek(0);
-  if (viewer) viewer.playing = true;
+// A few seconds of card before the action: who is fighting, on screen and in
+// the recorded video, then playback starts on its own.
+function showIntro(r) {
+  const card = introCard(r);
+  const fighters =
+    card.robots.length > 2
+      ? `<div class="intro-roster">${card.robots
+          .map(
+            (robot) =>
+              `<b style="--robot:${robot.color}">${esc(robot.name)}</b>`,
+          )
+          .join("")}</div>`
+      : card.robots
+          .map(
+            (robot, i) =>
+              `<div class="intro-fighter ${i ? "b" : "a"}" style="--robot:${robot.color}"><span>${esc(robot.label)}</span><b>${esc(robot.name)}</b><small>${esc(robot.provider)}</small></div>`,
+          )
+          .join('<span class="intro-versus">VS</span>');
+  $("#match-intro").innerHTML =
+    `<span class="intro-eyebrow">AUTONOMOUS COMBAT LAB</span><span class="intro-title">${esc(card.title)}</span>${fighters}<span class="intro-seed">${esc(card.seed)}</span>`;
+  $("#match-intro").hidden = false;
+  introStart = performance.now();
+}
+function cancelIntro() {
+  clearTimeout(introTimer);
+  introTimer = null;
+  introStart = null;
+  $("#match-intro").hidden = true;
+}
+function playWithIntro() {
+  if (!viewer || !replay) return;
+  cancelIntro();
+  viewer.playing = false;
+  viewer.seek(0);
+  showIntro(replay);
+  introTimer = setTimeout(() => {
+    cancelIntro();
+    if (viewer) viewer.playing = true;
+  }, INTRO_SECONDS * 1000);
+}
+function setRecordingUI(active) {
+  $("#record").innerHTML = active
+    ? `${icon("stop")}Stop and save`
+    : `${icon("record")}Record video`;
+  $("#record").classList.toggle("recording", active);
+  $("#record-label").textContent = active ? "REC" : liveActive ? "LIVE" : "REPLAY";
+}
+function recorderState() {
+  return {
+    replay,
+    frame: lastFrame,
+    duration: viewer?.duration ?? 0,
+    intro:
+      introStart === null
+        ? null
+        : Math.min(1, (performance.now() - introStart) / (INTRO_SECONDS * 1000)),
+  };
+}
+function startRecording() {
+  if (!viewer || !replay) return toast("Simulate or import a match first.", true);
+  if (!recordingSupported())
+    return toast("This browser cannot record video.", true);
+  recorder = new MatchRecorder({
+    source: () => viewer.renderer.domElement,
+    state: recorderState,
+  });
+  try {
+    recorder.start();
+  } catch (error) {
+    recorder = null;
+    return toast(error.message, true);
+  }
+  viewer.onRender = () => recorder?.capture();
+  setRecordingUI(true);
+  playWithIntro();
+  toast("Recording from the start. The video is saved when the match ends.");
+}
+async function finishRecording() {
+  clearTimeout(recorderStop);
+  recorderStop = null;
+  const active = recorder;
+  recorder = null;
+  if (!active?.recording) return;
+  setRecordingUI(false);
+  $("#record").disabled = true;
+  const clip = await active.stop();
+  if (viewer) viewer.onRender = null;
+  $("#record").disabled = false;
+  if (!clip?.blob.size) return toast("Recording produced no video.", true);
+  const name = recordingFilename(replay, clip.extension);
+  download(name, clip.blob, clip.blob.type);
+  toast("Video saved: " + name);
+}
+// A new match cancels a running intro and closes the clip already recorded.
+function interruptPlayback() {
+  cancelIntro();
+  if (recorder?.recording) finishRecording();
+}
+$("#record").onclick = () =>
+  recorder?.recording ? finishRecording() : startRecording();
+$("#play").onclick = () => {
+  cancelIntro();
+  viewer?.toggle();
 };
-$("#timeline").oninput = (e) => viewer?.seek(+e.target.value);
+$("#watch-again").onclick = playWithIntro;
+$("#timeline").oninput = (e) => {
+  cancelIntro();
+  viewer?.seek(+e.target.value);
+};
 $("#speed").onchange = (e) => {
   if (viewer) viewer.speed = +e.target.value;
 };
@@ -494,6 +605,7 @@ function simulateMatch() {
   const value = Number($("#seed").value);
   if (!Number.isInteger(value) || value < 0 || value > 4294967295)
     return toast("Enter an integer seed between 0 and 4294967295.", true);
+  interruptPlayback();
   if (viewer) viewer.playing = false;
   $("#stage-loading").hidden = false;
   $("#stage-loading b").textContent = "Computing match";
@@ -520,6 +632,7 @@ function startRumble() {
     return toast("Enter an integer seed between 0 and 4294967295.", true);
   if (bots.length < 3) return toast("A rumble needs at least three controllers.", true);
   if (bots.length > 12) return toast("A rumble supports at most 12 controllers.", true);
+  interruptPlayback();
   if (viewer) viewer.playing = false;
   $("#stage-loading").hidden = false;
   $("#stage-loading b").textContent = "Computing rumble";
@@ -558,6 +671,7 @@ function setLiveUI(active) {
     : "NO MANUAL CONTROL";
   for (const id of ["#play", "#timeline", "#step-back", "#step-forward", "#speed", "#export-replay", "#import-replay"])
     $(id).disabled = active || !replay;
+  $("#record").disabled = active || !replay || !recordingSupported();
   viewer?.setFocus(active ? LIVE_PLAYER : null);
   if (!active && heldKeys.size) heldKeys.clear();
 }
@@ -565,6 +679,7 @@ function startLiveMatch() {
   const seed = Number($("#seed").value);
   if (!Number.isInteger(seed) || seed < 0 || seed > 4294967295)
     return toast("Enter an integer seed between 0 and 4294967295.", true);
+  interruptPlayback();
   if (viewer) viewer.playing = false;
   previousReplay = liveActive ? previousReplay : replay;
   $("#stage-loading").hidden = false;
@@ -904,6 +1019,7 @@ $("#export-ranking").onclick = () => {
 };
 function stepFrame(direction, count = 1) {
   if (!viewer || !replay || operation === "match") return;
+  cancelIntro();
   viewer.playing = false;
   viewer.seek(
     (Math.round(Math.min(viewer.time, viewer.duration) * 60) +
@@ -923,10 +1039,12 @@ document.addEventListener("keydown", (e) => {
     return;
   if (e.code === "Space") {
     e.preventDefault();
+    cancelIntro();
     viewer?.toggle();
   }
   if (e.code === "Home") {
     e.preventDefault();
+    cancelIntro();
     if (viewer) viewer.playing = false;
     viewer?.seek(0);
   }
