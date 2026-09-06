@@ -320,10 +320,14 @@ export class ArenaViewer {
     return this.replay ? this.replay.result.ticks / 60 : 0;
   }
   get playbackDuration() {
-    return (
-      this.duration +
-      (this.replay?.events.some((e) => e.type === "ring-out" || e.type === "hole") ? 1.5 : 0)
-    );
+    if (!this.replay) return 0;
+    // Falls and the deciding flip animate after the last simulated tick.
+    const tail = this.replay.events.some((e) => e.type === "ring-out" || e.type === "hole")
+      ? 1.5
+      : this.replay.result.reason === "flips"
+        ? 1
+        : 0;
+    return this.duration + tail;
   }
   resetCamera() {
     this.clearCameraInertia();
