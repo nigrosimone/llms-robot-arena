@@ -162,7 +162,7 @@ export function applyTerrain(match, before, fallen) {
       !["recharge", "flame"].includes(cell.type)) continue;
     if (cell.type === "recharge") {
       if ((cooldowns[cell.id] ?? 0) > tick) continue;
-      const entrants = [0, 1].filter(i => !fallen[i] && robots[i].energy < S.ENERGY_MAX &&
+      const entrants = robots.map((_, i) => i).filter(i => !fallen[i] && robots[i].energy < S.ENERGY_MAX &&
         !cellContains(cell, before[i]) && crossesCell(cell, before[i], robots[i]));
       if (!entrants.length) continue;
       // Simultaneous arrivals share one charge; neither robot index has priority.
@@ -174,7 +174,7 @@ export function applyTerrain(match, before, fallen) {
       }
       cooldowns[cell.id] = tick + Math.round(S.RECHARGE_COOLDOWN / S.DT);
     } else if (flamePhase(cell, tick).state === "flaming") {
-      for (let i = 0; i < 2; i++) {
+      for (let i = 0; i < robots.length; i++) {
         if (fallen[i] || !cellContains(cell, robots[i])) continue;
         const amount = Math.min(robots[i].energy, S.FLAME_DAMAGE * S.DT);
         robots[i].energy -= amount;

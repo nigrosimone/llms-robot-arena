@@ -39,9 +39,9 @@ export function floorWearAt(replay, tick) {
     cached = { tick: 0, wear: {} };
     playbackCache.set(replay, cached);
   }
-  for (; cached.tick < tick; cached.tick++) {
-    addFloorLoad(cached.wear, replay.floorLoads[cached.tick * 2], cached.tick);
-    addFloorLoad(cached.wear, replay.floorLoads[cached.tick * 2 + 1], cached.tick);
-  }
+  const count = replay.floorLoads.length / replay.result.ticks;
+  for (; cached.tick < tick; cached.tick++)
+    for (let i = 0; i < count; i++)
+      addFloorLoad(cached.wear, replay.floorLoads[cached.tick * count + i], cached.tick);
   return cached.wear;
 }

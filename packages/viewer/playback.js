@@ -17,15 +17,17 @@ export function samplePlayback(replay, time) {
   const lo = Math.floor(tick),
     hi = Math.min(replay.result.ticks, lo + 1),
     alpha = tick - lo;
+  const robots = replay.initialFrame.length / 6;
+  const stride = robots * 6;
   const values = (k) =>
     k === 0
       ? replay.initialFrame
-      : replay.frames.subarray((k - 1) * 12, k * 12);
+      : replay.frames.subarray((k - 1) * stride, k * stride);
   const a = values(lo),
     b = values(hi);
   const events = replay.events.filter((e) => e.tick < lo);
   const extent = (k) => (k === 0 ? 8 : replay.arenaExtents[k - 1]);
-  const states = [0, 1].map((i) => {
+  const states = Array.from({ length: robots }, (_, i) => {
     const offset = i * 6;
     const robotEvents = events.filter((e) => e.robot === i);
     const flips = robotEvents.filter((e) => e.type === "flip");
@@ -67,6 +69,7 @@ export function samplePlayback(replay, time) {
       rotation,
       axis: flip?.axis ?? [0, 1],
       ringOut: Boolean(out),
+      out: status === 3,
       hole: out?.type === "hole",
       fall,
       fallAxis: [-dy, dx],

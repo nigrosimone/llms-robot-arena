@@ -457,10 +457,7 @@ main {
 .robot-label i {
   display: block;
   height: 100%;
-  background: var(--lime);
-}
-.robot-1.robot-label i {
-  background: var(--orange);
+  background: var(--robot, var(--lime));
 }
 .playback {
   height: 65px;
@@ -525,7 +522,8 @@ input[type="range"] {
   width: 3px;
   background: var(--orange);
 }
-#event-marks > .mark-ring-out {
+#event-marks > .mark-ring-out,
+#event-marks > .mark-eliminated {
   background: #ed6f65;
 }
 .robot-stats {
@@ -533,6 +531,23 @@ input[type="range"] {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   margin-top: 17px;
+}
+/* A rumble fills the grid with as many cards as the roster allows. */
+.robot-stats.many {
+  grid-template-columns: repeat(auto-fit, minmax(215px, 1fr));
+}
+.robot-stats.many .robot-card {
+  padding: 14px 16px 12px;
+}
+.robot-stats.many .robot-ident {
+  margin-bottom: 14px;
+}
+.robot-stats.many .robot-avatar {
+  width: 34px;
+  height: 34px;
+}
+.robot-stats.many .robot-ident h2 {
+  font-size: 1rem;
 }
 .robot-card {
   background: var(--panel);
@@ -547,19 +562,14 @@ input[type="range"] {
   margin-bottom: 21px;
 }
 .robot-avatar {
-  color: var(--lime);
-  background: #c3f1790c;
+  color: var(--robot, var(--lime));
+  background: color-mix(in srgb, var(--robot, var(--lime)) 5%, transparent);
   width: 43px;
   height: 43px;
   display: grid;
   place-items: center;
-  border: 1px solid #52623b;
+  border: 1px solid color-mix(in srgb, var(--robot, var(--lime)) 42%, #2b3235);
   border-radius: 4px;
-}
-.robot-1 .robot-avatar {
-  color: var(--orange);
-  background: #ee956b0c;
-  border-color: #715340;
 }
 .robot-ident .eyebrow {
   font-size: 0.6875rem;
@@ -612,13 +622,10 @@ input[type="range"] {
   overflow: hidden;
 }
 .energy-track > span {
-  background: var(--lime);
+  background: var(--robot, var(--lime));
   height: 100%;
   display: block;
   transition: width 0.1s linear;
-}
-.robot-1 .energy-track > span {
-  background: var(--orange);
 }
 .energy-track > span.low {
   background: #ff695e;
@@ -938,6 +945,27 @@ progress::-webkit-progress-value {
 .result-banner > span:not(.eyebrow) {
   font: 13px var(--mono);
   color: #b0bbb9;
+}
+.result-standings {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: 620px;
+  font: 12px var(--mono);
+  color: #c3cbce;
+}
+.result-standings span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #161d21b3;
+}
+.result-standings b {
+  color: var(--lime);
 }
 .live-hud {
   position: absolute;

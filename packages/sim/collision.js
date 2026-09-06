@@ -89,7 +89,16 @@ export function leverage(angle) {
       ? S.LEVERAGE_SIDE
       : S.LEVERAGE_REAR;
 }
+// Every unordered pair is resolved once, in index order, so a rumble stays
+// deterministic. With two robots this is the single (0, 1) pair as before.
 export function resolveContact(robots, tick, events, lastContacts) {
+  for (let i = 0; i < robots.length; i++)
+    for (let j = i + 1; j < robots.length; j++)
+      if (robots[i].status !== "out" && robots[j].status !== "out")
+        resolvePair(robots, i, j, tick, events, lastContacts);
+}
+function resolvePair(all, i, j, tick, events, lastContacts) {
+  const robots = [all[i], all[j]];
   const [a, b] = robots,
     hit = contact(a, b);
   if (!hit) return;
@@ -105,15 +114,16 @@ export function resolveContact(robots, tick, events, lastContacts) {
   a.y -= (depth * n.y) / 2;
   b.x += (depth * n.x) / 2;
   b.y += (depth * n.y) / 2;
-  for (let i = 0; i < 2; i++)
-    lastContacts[i] = {
+  [i, j].forEach((robot, k) => {
+    lastContacts[robot] = {
       tick,
-      selfWedge: wedges[i],
-      opponentWedge: wedges[1 - i],
+      selfWedge: wedges[k],
+      opponentWedge: wedges[1 - k],
       closingSpeed,
       x: c.x,
       y: c.y,
     };
+  });
   if (closingSpeed > 0.02)
     events.push({ type: "impact", tick, x: c.x, y: c.y, closingSpeed, wedges });
   if (wedges[0] !== wedges[1]) {
@@ -141,8 +151,8 @@ export function resolveContact(robots, tick, events, lastContacts) {
       events.push({
         type: "flip",
         tick,
-        robot: target,
-        attacker,
+        robot: [i, j][target],
+        attacker: [i, j][attacker],
         score,
         x: c.x,
         y: c.y,

@@ -37,10 +37,15 @@ export class FollowCamera {
 
   update(states, dt = 0, snap = false) {
     if (!states.length) return;
-    // Do not chase a defeated robot below the visible ground during its fall.
-    const centers = states.map(s => new Vector3(s.x, s.y, Math.max(-3.5, s.z ?? 0)));
-    const driven = centers[this.focus] ? states[this.focus] : null;
-    const framed = driven ? [centers[this.focus]] : centers;
+    // Do not chase a defeated robot below the visible ground during its fall,
+    // and stop framing robots a rumble has already eliminated.
+    const inPlay = states.filter(s => !s.out);
+    const framedStates = inPlay.length ? inPlay : states;
+    const centers = framedStates.map(s => new Vector3(s.x, s.y, Math.max(-3.5, s.z ?? 0)));
+    const driven = states[this.focus] && !states[this.focus].out ? states[this.focus] : null;
+    const framed = driven
+      ? [new Vector3(driven.x, driven.y, Math.max(-3.5, driven.z ?? 0))]
+      : centers;
     const midpoint = new Vector3();
     for (const center of framed) midpoint.add(center);
     midpoint.multiplyScalar(1 / framed.length);

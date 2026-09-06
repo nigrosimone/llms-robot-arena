@@ -28,7 +28,7 @@ export async function runMatch({
     }));
     const m = createMatch(seed, mirrored, refs);
     while (!m.result) {
-      const snapshots = [sensorsFor(m, 0), sensorsFor(m, 1)];
+      const snapshots = m.robots.map((_, i) => sensorsFor(m, i));
       const out = await Promise.all(
         clients.map((c, i) =>
           c.request({ type: "tick", sensors: snapshots[i] }),

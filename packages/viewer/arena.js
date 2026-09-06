@@ -4,7 +4,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { samplePlayback } from "./playback.js";
 import { TerrainView, deckGeometry, decalGeometry } from "./terrain.js";
 import { FollowCamera } from "./camera.js";
-const COLORS = [0xafd965, 0xf09163];
+import { robotColor } from "./palette.js";
 function material(color, metalness = 0.4, roughness = 0.5) {
   return new THREE.MeshStandardMaterial({ color, metalness, roughness });
 }
@@ -258,11 +258,9 @@ export class ArenaViewer {
     ground.position.z = -3.7;
     ground.receiveShadow = true;
     scene.add(ground);
-    this.robots = COLORS.map((color) => {
-      const r = robot(color);
-      scene.add(r.root);
-      return r;
-    });
+    this.robots = [];
+    this.labels = [];
+    this.setRobotCount(2);
     const sparkGeom = new THREE.BufferGeometry();
     sparkGeom.setAttribute(
       "position",
@@ -279,13 +277,6 @@ export class ArenaViewer {
       }),
     );
     scene.add(this.sparks);
-    this.labels = COLORS.map((_, i) => {
-      const el = document.createElement("div");
-      el.className = "robot-label robot-" + i;
-      el.innerHTML = "<b></b><span><i></i></span>";
-      container.appendChild(el);
-      return el;
-    });
     this.resize = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
       if (!width || !height) return;
@@ -298,8 +289,30 @@ export class ArenaViewer {
     this.animate = this.animate.bind(this);
     this.raf = requestAnimationFrame(this.animate);
   }
+  // A rumble brings more than two robots: meshes and labels follow the roster.
+  setRobotCount(count) {
+    while (this.robots.length > count) {
+      const model = this.robots.pop();
+      this.scene.remove(model.root);
+      this.labels.pop().remove();
+    }
+    while (this.robots.length < count) {
+      const index = this.robots.length,
+        color = robotColor(index);
+      const model = robot(color.mesh);
+      this.scene.add(model.root);
+      this.robots.push(model);
+      const el = document.createElement("div");
+      el.className = "robot-label robot-" + index;
+      el.style.setProperty("--robot", color.css);
+      el.innerHTML = "<b></b><span><i></i></span>";
+      this.container.appendChild(el);
+      this.labels.push(el);
+    }
+  }
   load(replay, { live = false } = {}) {
     this.replay = replay;
+    this.setRobotCount(replay.bots.length);
     this.deckKey = null;
     this.terrain.load(replay.arenaCells ?? []);
     this.time = 0;
@@ -410,7 +423,7 @@ export class ArenaViewer {
     this.terrain.draw(sample.cells, sample.time);
     this.edge.material.color.set(this.time >= 60 ? 0xeb9864 : 0xb7d885);
     const flips = states.map((s) => s.flips);
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < this.robots.length; i++) {
       const {
         x,
         y,
@@ -457,11 +470,12 @@ export class ArenaViewer {
       el.style.left = (labelX / width) * 100 + "%";
       el.style.top = (-projected.y * 0.5 + 0.5) * 100 + "%";
       el.querySelector("i").style.width = (energy / sample.energyMax * 100) + "%";
-      el.style.opacity = projected.z > 1 || fall > 0.7 ? "0" : "1";
+      el.style.opacity = projected.z > 1 || fall > 0.7 || states[i].out ? "0" : "1";
       el.classList.toggle("low", lowEnergy);
       el.classList.toggle("recovering", status === 2);
     }
     // Keep both energy bars and names legible at close contact, also on mobile.
+    if (this.labels.length !== 2) return this.drawEffects(sample, past, states, half, flips);
     const [first, second] = this.labels;
     const dx = Math.abs(parseFloat(first.style.left) - parseFloat(second.style.left)) * this.container.clientWidth / 100;
     const dy = Math.abs(parseFloat(first.style.top) - parseFloat(second.style.top)) * this.container.clientHeight / 100;
@@ -469,6 +483,9 @@ export class ArenaViewer {
       const upper = parseFloat(first.style.top) <= parseFloat(second.style.top) ? first : second;
       upper.style.top = `calc(${upper.style.top} - ${32 - dy}px)`;
     }
+    return this.drawEffects(sample, past, states, half, flips);
+  }
+  drawEffects(sample, past, states, half, flips) {
     const impact = past
       .filter(
         (e) => e.type === "impact" && this.time - (e.tick + 1) / 60 < 0.45,

@@ -12,7 +12,8 @@ export function parseReplay(text) {
   if (text.length > 20 * 1024 * 1024)
     throw new Error("Replay too large (maximum 20 MB).");
   const r = JSON.parse(text),
-    count = r?.result?.ticks;
+    count = r?.result?.ticks,
+    robots = Array.isArray(r?.bots) ? r.bots.length : 0;
   if (
     !r ||
     !(
@@ -26,7 +27,8 @@ export function parseReplay(text) {
     !Number.isInteger(count) ||
     count < 1 ||
     count > 7200 ||
-    ![0, 1, null].includes(r.result.winner) ||
+    !(robots >= 2 && robots <= 12) ||
+    ![...Array(robots).keys(), null].includes(r.result.winner) ||
     !["ring-out", "hole", "flips", "disqualification", "timeout"].includes(
       r.result.reason,
     )
@@ -69,12 +71,12 @@ export function parseReplay(text) {
   } else if (r.result.reason === "hole") throw new Error("Invalid legacy result.");
   const floorWear = {};
   if (weightRules) {
-    if (!Array.isArray(r.floorLoads) || r.floorLoads.length !== count * 2 ||
+    if (!Array.isArray(r.floorLoads) || r.floorLoads.length !== count * robots ||
       !r.floorLoads.every(index => Number.isInteger(index) && index >= -1 && index < 256))
       throw new Error("Invalid floor loads.");
     const cells = new Map(r.arenaCells.map(cell => [floorIndex(cell), cell]));
     for (let tick = 0; tick < count; tick++) {
-      for (const index of r.floorLoads.slice(tick * 2, tick * 2 + 2)) {
+      for (const index of r.floorLoads.slice(tick * robots, tick * robots + robots)) {
         if (index === -1) continue;
         const cell = cells.get(index);
         if (!cell || isHole(cell, tick, floorWear)) throw new Error("Invalid floor load on missing or open cell.");
@@ -84,7 +86,7 @@ export function parseReplay(text) {
   }
   if (
     !Array.isArray(r.frames) ||
-    r.frames.length !== count * 12 ||
+    r.frames.length !== count * robots * 6 ||
     !r.frames.every(Number.isFinite) ||
     !Array.isArray(r.arenaExtents) ||
     r.arenaExtents.length !== count ||
@@ -93,13 +95,11 @@ export function parseReplay(text) {
     throw new Error("Missing or invalid frames.");
   if (
     !Array.isArray(r.initialFrame) ||
-    r.initialFrame.length !== 12 ||
+    r.initialFrame.length !== robots * 6 ||
     !r.initialFrame.every(Number.isFinite)
   )
     throw new Error("Invalid initial frame.");
   if (
-    !Array.isArray(r.bots) ||
-    r.bots.length !== 2 ||
     r.bots.some(
       (b) =>
         !b ||
@@ -132,6 +132,7 @@ export function parseReplay(text) {
           "collapse-warning",
           "collapse",
           "recovery",
+          "eliminated",
           "violation",
           "engine-violation",
         ].includes(e.type),
@@ -142,7 +143,8 @@ export function parseReplay(text) {
   for (const e of r.events) {
     if (e.tick < previousTick) throw new Error("Events are out of order.");
     previousTick = e.tick;
-    if (!["impact", "collapse-warning", "collapse"].includes(e.type) && ![0, 1].includes(e.robot))
+    if (!["impact", "collapse-warning", "collapse"].includes(e.type) &&
+      !(Number.isInteger(e.robot) && e.robot >= 0 && e.robot < robots))
       throw new Error("Invalid event robot.");
     if (
       e.type === "impact" &&
@@ -183,7 +185,7 @@ export function parseReplay(text) {
         throw new Error("Invalid collapse event.");
     }
   }
-  if (!["exhibition", "one-shot", "iterative", "manual"].includes(r.mode))
+  if (!["exhibition", "one-shot", "iterative", "manual", "rumble"].includes(r.mode))
     throw new Error("Invalid mode.");
   if (
     !Array.isArray(r.stateHashes) ||
@@ -203,16 +205,16 @@ export function parseReplay(text) {
         Math.abs(frames[i + 2]) > Math.PI + 0.000001 ||
         frames[i + 3] < 0 ||
         frames[i + 3] > energyMax ||
-        ![0, 1, 2].includes(frames[i + 4]) ||
+        ![0, 1, 2, 3].includes(frames[i + 4]) ||
         frames[i + 5] < 0 ||
         frames[i + 5] > 4.01
       )
         throw new Error("Invalid robot state.");
   if (
     !Array.isArray(r.finalStates) ||
-    r.finalStates.length !== 2 ||
+    r.finalStates.length !== robots ||
     !Array.isArray(r.violations) ||
-    r.violations.length !== 2
+    r.violations.length !== robots
   )
     throw new Error("Missing summary.");
   return {

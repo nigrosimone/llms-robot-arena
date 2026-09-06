@@ -3,6 +3,7 @@ import { renderReport } from "../tournament/report.js";
 import { ArenaViewer } from "./arena.js";
 import { stringifyReplay, parseReplay } from "../sim/replay.js";
 import builtins from "arena:bots";
+import { robotColor } from "./palette.js";
 import { botName, botDetails } from "../bot-catalog.js";
 import { sortedBotOptions, controllerExtension, controllerFilename } from "./controllers.js";
 import { exhibitionSchedule } from "../tournament/exhibition.js";
@@ -93,12 +94,12 @@ document.querySelector("#app").innerHTML = `
      <div class="stage-note"><span id="pressure-tag">RAISED PLATFORM</span><span id="camera-hint">Auto camera · follows both robots</span><span id="collapse-warning" role="status" aria-live="polite" hidden></span></div>
      <div class="camera-actions"><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint">Manual camera</label><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
      <div id="stage-loading" class="stage-loading"><span class="loader"></span><b>Preparing replay</b><span id="loading-detail">Simulation comes before every frame.</span><progress id="simulation-progress" value="0" max="1"></progress><button id="cancel" class="button outline" hidden>Cancel</button></div>
-     <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><div class="result-actions"><button id="watch-again" class="button accent">${icon("reset")}Watch again</button><button id="random-match" class="button outline">${icon("swap")}Random seed</button></div></div>
+     <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><div id="result-standings" class="result-standings" hidden></div><div class="result-actions"><button id="watch-again" class="button accent">${icon("reset")}Watch again</button><button id="random-match" class="button outline">${icon("swap")}Random seed</button></div></div>
      <div id="live-hud" class="live-hud" hidden><strong>YOU DRIVE ROBOT A</strong><span><b>W</b> <b>S</b> thrust · <b>A</b> <b>D</b> turn</span><button id="live-stop" class="button quiet">Leave match</button></div>
     </div>
     <div class="playback"><button id="step-back" class="icon-button" aria-label="Previous frame" title="Previous frame (←)">‹</button><button id="play" class="play-button" aria-label="Play" disabled>${icon("play", 20)}</button><button id="step-forward" class="icon-button" aria-label="Next frame" title="Next frame (→)">›</button><span id="elapsed" class="mono">00:00</span><div class="scrubber"><div id="event-marks"></div><input type="range" id="timeline" aria-label="Replay position" min="0" max="120" step="any" value="0" disabled></div><span id="duration" class="mono secondary">02:00</span><select id="speed" aria-label="Playback speed"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></div>
     <div class="terrain-legend" aria-label="Arena cells"><span><i class="legend-recharge"></i>Recharge +60</span><span><i class="legend-hole"></i>Hole: instant loss</span><span><i class="legend-flame"></i>Grate: warning then flame</span><span><i class="legend-wear"></i>Cracks: weight damage</span><span><i class="legend-collapse"></i>Red flash: floor collapse</span></div>
-    <div class="robot-stats">${[0, 1].map((i) => `<article class="robot-card robot-${i}"><div class="robot-ident"><span class="robot-avatar">${icon("arena", 26)}</span><div><span class="eyebrow">ROBOT ${i ? "B" : "A"}</span><h2 id="robot-name-${i}">${esc(botName(builtins[i]))}</h2><span class="bot-provider" id="robot-provider-${i}">${esc(botDetails(builtins[i]))}</span></div><span id="robot-status-${i}" class="status-tag">ACTIVE</span></div><div class="energy-row"><span>${icon("bolt", 14)}Energy</span><strong><span id="energy-${i}">${S.ENERGY_MAX}</span><small> / <span id="energy-max-${i}">${S.ENERGY_MAX}</span></small></strong></div><div class="energy-track"><span id="energy-bar-${i}" style="width:100%"></span></div><div class="robot-bottom"><span>Flips taken</span><div class="flip-pips" id="flips-${i}"><i></i><i></i><b>0 / 2</b></div></div></article>`).join("")}</div>
+    <div class="robot-stats" id="robot-stats"></div>
    </div>
    <aside class="match-sidebar">
     <div class="side-head"><h2>Set up match</h2>${icon("settings")}</div>
@@ -106,6 +107,7 @@ document.querySelector("#app").innerHTML = `
      <div class="seed-row"><div><label for="seed" class="field-label">SEED</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="0"></div><div><label for="spawn" class="field-label">SPAWN</label><select id="spawn"><option value="normal">Standard</option><option value="mirror">Mirrored</option></select></div></div>
      <button id="simulate" class="button accent run-button">${icon("play")}Simulate match${icon("arrow")}</button><p class="field-note">The entire match is computed before playback.</p>
      <button id="play-manual" class="button outline run-button">${icon("bolt")}Play yourself vs Robot B${icon("arrow")}</button><p class="field-note">Manual matches run in real time with the keyboard. They are exhibitions: not deterministic and never ranked.</p>
+     <button id="rumble" class="button outline run-button">${icon("trophy")}Royal rumble: everyone in${icon("arrow")}</button><p class="field-note">Every controller spawns in the same arena and the last one standing wins. Controllers still see one opponent, the closest. Rumbles are exhibitions and are never ranked.</p>
     </div>
     <div class="mode-box"><span class="eyebrow">CURRENT MODE</span><div><span class="mode-symbol">E</span><strong id="current-mode">Local exhibition</strong></div><p id="mode-note">Exhibitions use a deterministic budget. Controller provenance is recorded in each replay.</p></div>
     <div class="event-section"><div class="side-head"><h2>Event log</h2><span class="count" id="event-count">0</span></div><div id="event-log" class="event-log"><p class="empty-note">Events will appear during playback.</p></div></div>
@@ -164,6 +166,7 @@ function refreshBotOptions() {
   updateTournamentFormat();
 }
 refreshBotOptions();
+renderRobotCards(builtins.slice(0, 2));
 $("#bot-b").value = "1";
 document.querySelectorAll("[data-tab]").forEach((btn) =>
   btn.addEventListener("click", () => {
@@ -177,6 +180,15 @@ document.querySelectorAll("[data-tab]").forEach((btn) =>
     });
   }),
 );
+// One card per robot: a duel keeps two, a rumble grows the grid.
+function renderRobotCards(entries) {
+  $("#robot-stats").classList.toggle("many", entries.length > 2);
+  $("#robot-stats").innerHTML = entries
+    .map(
+      (bot, i) => `<article class="robot-card robot-${i}" style="--robot:${robotColor(i).css}"><div class="robot-ident"><span class="robot-avatar">${icon("arena", 26)}</span><div><span class="eyebrow">ROBOT ${String.fromCharCode(65 + i)}</span><h2 id="robot-name-${i}">${esc(botName(bot))}</h2><span class="bot-provider" id="robot-provider-${i}">${esc(botDetails(bot))}</span></div><span id="robot-status-${i}" class="status-tag">ACTIVE</span></div><div class="energy-row"><span>${icon("bolt", 14)}Energy</span><strong><span id="energy-${i}">${S.ENERGY_MAX}</span><small> / <span id="energy-max-${i}">${S.ENERGY_MAX}</span></small></strong></div><div class="energy-track"><span id="energy-bar-${i}" style="width:100%"></span></div><div class="robot-bottom"><span>Flips taken</span><div class="flip-pips" id="flips-${i}"><i></i><i></i><b>0 / 2</b></div></div></article>`,
+    )
+    .join("");
+}
 function renderFrame(frame) {
   lastFrame = frame;
   const { time, states, half, events, ended } = frame;
@@ -207,8 +219,8 @@ function renderFrame(frame) {
     $("#energy-max-" + i).textContent = energyMax;
     $("#energy-bar-" + i).style.width = (r.energy / energyMax * 100) + "%";
     $("#energy-bar-" + i).classList.toggle("low", r.energy < energyMax * 0.2);
-    $("#robot-status-" + i).textContent = r.hole ? "FELL THROUGH" : r.ringOut ? "RING-OUT" : ["ACTIVE", "FLIPPED", "RECOVERING"][r.status];
-    $("#robot-status-" + i).classList.toggle("danger", r.status === 1 || r.ringOut);
+    $("#robot-status-" + i).textContent = r.hole ? "FELL THROUGH" : r.ringOut ? "RING-OUT" : ["ACTIVE", "FLIPPED", "RECOVERING", "OUT"][r.status];
+    $("#robot-status-" + i).classList.toggle("danger", r.status === 1 || r.ringOut || r.out);
     $("#robot-status-" + i).classList.toggle("recovering", r.status === 2);
     $("#flips-" + i).innerHTML =
       `<i class="${r.flips > 0 ? "filled" : ""}"></i><i class="${r.flips > 1 ? "filled" : ""}"></i><b>${r.flips} / 2</b>`;
@@ -242,6 +254,8 @@ function renderFrame(frame) {
                       ? `${botName(replay.bots[e.robot])} recharged +${e.amount.toFixed(1)}`
                     : e.type === "fire-damage"
                       ? `${botName(replay.bots[e.robot])} taking fire damage`
+                    : e.type === "eliminated"
+                      ? `${botName(replay.bots[e.robot])} is out (${e.reason})`
                     : e.type === "recovery"
                       ? `${botName(replay.bots[e.robot])} self-rights`
                       : e.type === "violation"
@@ -261,6 +275,11 @@ function renderFrame(frame) {
         : winner.id === "human"
           ? "You win."
           : botName(winner) + " wins.";
+    $("#result-standings").hidden = !replay.result.standings;
+    if (replay.result.standings)
+      $("#result-standings").innerHTML = replay.result.standings
+        .map((robot, place) => `<span><b>${place + 1}</b>${esc(botName(replay.bots[robot]))}</span>`)
+        .join("");
     $("#result-reason").textContent =
       {
         ["ring-out"]: "Ring-out",
@@ -281,7 +300,7 @@ function renderFrame(frame) {
 }
 function renderEventMarks(r) {
   $("#event-marks").innerHTML = r.events
-    .filter((e) => ["flip", "ring-out", "hole", "recharge", "collapse-warning", "collapse"].includes(e.type))
+    .filter((e) => ["flip", "ring-out", "hole", "recharge", "collapse-warning", "collapse", "eliminated"].includes(e.type))
     .map(
       (e) =>
         `<span class="mark-${e.type}" style="left:${((e.tick + 1) / r.result.ticks) * 100}%" title="${e.type}"></span>`,
@@ -300,10 +319,7 @@ function loadReplay(r, autoplay = false) {
   $("#duration").textContent = clock(r.result.ticks / 60);
   $("#replay-seed").textContent =
     `SEED ${String(r.seed).padStart(2, "0")} ${r.mirrored ? "· M" : ""}`;
-  r.bots.forEach((b, i) => {
-    $("#robot-name-" + i).textContent = botName(b);
-    $("#robot-provider-" + i).textContent = botDetails(b);
-  });
+  renderRobotCards(r.bots);
   $("#current-mode").textContent =
     r.mode === "one-shot"
       ? "One-shot benchmark"
@@ -311,7 +327,9 @@ function loadReplay(r, autoplay = false) {
         ? "Iterative benchmark"
         : r.mode === "manual"
           ? "Manual duel"
-          : "Local exhibition";
+          : r.mode === "rumble"
+            ? "Royal rumble"
+            : "Local exhibition";
   $("#mode-note").textContent = r.mode === "manual"
     ? "A human drove one robot in real time. The match is not deterministic and cannot be reproduced from its seed."
     : `${r.runtime?.budgetMode === "wall" ? "2 ms wall-clock budget." : "Deterministic instruction budget."} ${r.mode === "exhibition" ? "Exhibition of the selected controllers. Provenance is recorded in exported metadata." : "See exported metadata for provenance."}`;
@@ -495,9 +513,27 @@ function simulateMatch() {
   startOperation("match", { bots: [bots[a], bots[b]], seed: value, mirrored });
 }
 $("#simulate").onclick = simulateMatch;
+// Everyone at once: the same match runner, with the whole roster as robots.
+function startRumble() {
+  const value = Number($("#seed").value);
+  if (!Number.isInteger(value) || value < 0 || value > 4294967295)
+    return toast("Enter an integer seed between 0 and 4294967295.", true);
+  if (bots.length < 3) return toast("A rumble needs at least three controllers.", true);
+  if (bots.length > 12) return toast("A rumble supports at most 12 controllers.", true);
+  if (viewer) viewer.playing = false;
+  $("#stage-loading").hidden = false;
+  $("#stage-loading b").textContent = "Computing rumble";
+  $("#loading-detail").textContent = `Starting ${bots.length} isolated controllers…`;
+  $("#simulation-progress").value = 0;
+  $("#cancel").hidden = false;
+  $("#result-banner").hidden = true;
+  startOperation("match", { bots, seed: value, mode: "rumble" });
+}
+$("#rumble").onclick = startRumble;
 $("#random-match").onclick = () => {
   // Same pairing, new draw: the seed decides spawn jitter and terrain layout.
-  const manual = replay?.mode === "manual";
+  const manual = replay?.mode === "manual",
+    rumble = replay?.mode === "rumble";
   const indexes = (replay?.bots ?? []).map((b) => bots.findIndex((c) => c.id === b.id));
   if (manual) {
     if (indexes[1] >= 0) $("#bot-b").value = String(indexes[1]);
@@ -508,6 +544,7 @@ $("#random-match").onclick = () => {
   $("#seed").value = String(Math.floor(Math.random() * 4294967296));
   $("#spawn").value = Math.random() < 0.5 ? "normal" : "mirror";
   if (manual) startLiveMatch();
+  else if (rumble) startRumble();
   else simulateMatch();
 };
 // Manual duel: the keyboard drives robot A, the selected controller drives B.
@@ -573,10 +610,7 @@ function beginLiveMatch(data) {
   $("#event-marks").innerHTML = "";
   $("#replay-seed").textContent =
     `SEED ${String(data.seed).padStart(2, "0")} ${data.mirrored ? "· M" : ""}`;
-  data.bots.forEach((b, i) => {
-    $("#robot-name-" + i).textContent = botName(b);
-    $("#robot-provider-" + i).textContent = botDetails(b);
-  });
+  renderRobotCards(data.bots);
   $("#current-mode").textContent = "Manual duel";
   $("#mode-note").textContent =
     "You drive one robot in real time. The match is not deterministic and cannot be reproduced from its seed.";
