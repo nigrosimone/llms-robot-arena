@@ -15,7 +15,7 @@
     "harness": "Claude Code",
     "provider": "Anthropic",
     "file": "packages/bots/fable-5-1-max.js",
-    "provenance": "local submission"
+    "provenance": "iterative"
   },
   {
     "id": "opus-5-1-max",

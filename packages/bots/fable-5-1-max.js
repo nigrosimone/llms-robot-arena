@@ -1,14 +1,15 @@
 // fable-5-1-max (rules 0.2.2)
-// Doctrine: never fall (edge, holes, collapses), never show the flank at speed, spend little,
-// pick up charges when they are worth 60, and punish clear openings: exhausted, flipped or
-// rear-exposed opponents. Written for a cheap tick: arithmetic wrap, one pass over cells.
+// Doctrine: the wedge stays on the opponent at all times. A flank push costs the pinned robot
+// about 45 energy/s and the pusher a third of that, so never sit in a pin: slide out along my own
+// axis at once, and do the pinning myself when the opponent is flipped. Strike only a flank that
+// cannot be turned away in time, keep energy high with pickups, and never fall.
 export function tick(s, m) {
   const PI = Math.PI, TAU = 2 * Math.PI;
   const wrap = (a) => a - TAU * Math.round(a / TAU);
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
   const me = s.self, op = s.opponent;
   const mem = m && typeof m === "object" ? m : {};
-  const t = s.time;
+  const tick = s.tick, t = s.time;
   const h = s.arena.nextHalfExtent;
   const hSoon = Math.max(3, h - (t > 58 ? 0.08 : 0));
   const timeLeft = 120 - t;
@@ -18,38 +19,41 @@ export function tick(s, m) {
   const dist = Math.sqrt(dx * dx + dy * dy) || 1e-6;
   const ux = dx / dist, uy = dy / dist;
   const bearing = Math.atan2(dy, dx);
-  const myErr = wrap(bearing - me.heading);
-  const opErr = wrap(bearing + PI - op.heading);
-  const opAbs = Math.abs(opErr);
+  const myErr = wrap(bearing - me.heading); // where they are, relative to my heading
+  const opErr = wrap(bearing + PI - op.heading); // where I am, relative to their heading
+  const myAbs = Math.abs(myErr), opAbs = Math.abs(opErr);
   const cosH = Math.cos(me.heading), sinH = Math.sin(me.heading);
+  const oc = Math.cos(op.heading), os = Math.sin(op.heading);
   const vLong = me.vx * cosH + me.vy * sinH;
   const myTo = me.vx * ux + me.vy * uy;
   const opTo = -(op.vx * ux + op.vy * uy);
   const closing = myTo + opTo;
-  const ax = Math.abs(me.x), ay = Math.abs(me.y);
-  const myOut = ax > ay ? ax : ay;
-  const opOut = Math.max(Math.abs(op.x), Math.abs(op.y));
-  const myR = Math.sqrt(me.x * me.x + me.y * me.y);
-  const opActive = op.status === "active";
-  const opFlipped = op.status === "flipped";
-  const eAdv = me.energy - op.energy;
-  const inContact = dist < 1.25;
-  const near = dist < 4.6;
+  const myOut = Math.max(Math.abs(me.x), Math.abs(me.y));
+  const opActive = op.status === "active", opFlipped = op.status === "flipped";
+  const opCan = opActive && op.energy > 1; // can move and attack
+  const lc = s.lastContact;
+  const touching = !!lc && tick - lc.tick <= 1 && dist < 1.4;
+  const cTicks = touching ? (mem.cTicks || 0) + 1 : 0;
+  const wwTicks = touching && lc.selfWedge && lc.opponentWedge ? (mem.wwTicks || 0) + 1 : 0;
+  // Pusher profile: the share of time the opponent keeps its wedge on me. A blind charger never
+  // shows a flank to strike and cannot be shaken off by reversing (it just follows), so it gets
+  // the old doctrine instead: be pushed cheaply while there is room, lead it across holes.
+  const pf = 0.97 * (typeof mem.pf === "number" ? mem.pf : 0.5) + 0.03 * (opActive && opAbs < 0.45 ? 1 : 0);
+  const pusher = pf > 0.86 && t > 3;
 
   // ---------- One pass over the arena cells.
-  // Hazards are squares the center must never cross: holes and announced collapses.
-  const hz = []; // {x, y}
+  const hz = []; // holes and announced collapses: squares the center must never cross
   const fire = []; // grates warning or burning
   const chargers = []; // {x, y, ready, wait}
   let myCell = null, opCell = null;
+  const central = []; // cell on each of the 16 central tiles, k = (x + 1.5) + (y + 1.5) * 4
   const cells = s.arena.cells;
   for (let i = 0; i < cells.length; i++) {
     const c = cells[i];
     if (c.state === "inactive") continue;
-    const onMe = Math.abs(me.x - c.x) <= 0.5 && Math.abs(me.y - c.y) <= 0.5;
-    const onOp = Math.abs(op.x - c.x) <= 0.5 && Math.abs(op.y - c.y) <= 0.5;
-    if (onMe) myCell = c;
-    if (onOp) opCell = c;
+    if (Math.abs(me.x - c.x) <= 0.5 && Math.abs(me.y - c.y) <= 0.5) myCell = c;
+    if (Math.abs(op.x - c.x) <= 0.5 && Math.abs(op.y - c.y) <= 0.5) opCell = c;
+    if (Math.abs(c.x) < 2 && Math.abs(c.y) < 2) central[Math.round(c.x + 1.5) + Math.round(c.y + 1.5) * 4] = c;
     if (c.type === "hole" || c.state === "hole" || (c.collapseIn !== null && c.collapseIn !== undefined)) {
       if (hz.length < 24) hz.push(c);
     } else if (c.type === "flame") {
@@ -58,12 +62,12 @@ export function tick(s, m) {
       chargers.push({ x: c.x, y: c.y, ready: c.state === "ready", wait: c.state === "ready" ? 0 : c.timeUntilChange ?? 8 });
     }
   }
-  // Segment (ax,ay)->(bx,by) crosses the square of cell c grown by margin g.
+  // Segment (x0,y0)->(x1,y1) crosses the square of cell c grown by margin g.
   const hits = (c, x0, y0, x1, y1, g) => {
     const r = 0.5 + g;
-    // Starting inside the grown square: only moving deeper counts as blocked.
     const sx0 = Math.abs(x0 - c.x), sy0 = Math.abs(y0 - c.y);
     if (sx0 <= r && sy0 <= r) {
+      // Starting inside the grown square: only moving deeper counts as blocked.
       const sx1 = Math.abs(x1 - c.x), sy1 = Math.abs(y1 - c.y);
       return (sx1 <= 0.52 && sy1 <= 0.52) || Math.max(sx1, sy1) < Math.max(sx0, sy0) - 0.02;
     }
@@ -89,9 +93,7 @@ export function tick(s, m) {
     if (sy > 1e-6) r = Math.min(r, (lim - py) / sy);
     if (sy < -1e-6) r = Math.min(r, (-lim - py) / sy);
     for (let i = 0; i < hz.length; i++) {
-      const c = hz[i];
-      // Ray-square entry distance (square grown by 0.1).
-      const q = 0.6;
+      const c = hz[i], q = 0.6;
       let tmin = -1e9, tmax = 1e9;
       if (Math.abs(sx) < 1e-9) { if (px < c.x - q || px > c.x + q) continue; }
       else { const a = (c.x - q - px) / sx, b = (c.x + q - px) / sx; tmin = Math.max(tmin, Math.min(a, b)); tmax = Math.min(tmax, Math.max(a, b)); }
@@ -102,28 +104,32 @@ export function tick(s, m) {
     return r;
   };
   const insideSoon = (x, y, margin) => Math.abs(x) < hSoon - margin && Math.abs(y) < hSoon - margin;
+  const roomF = roomAlong(me.x, me.y, cosH, sinH, hSoon), roomB = roomAlong(me.x, me.y, -cosH, -sinH, hSoon);
 
-  // ---------- Steering helpers (hazard aware).
-  const faceAngle = (ang, gain) => clamp(wrap(ang - me.heading) * gain - me.omega * 0.7, -1, 1);
-  // Errors under about 7 degrees are corrected with turn <= 0.05 (cheap); larger with a capped PD.
-  const faceCtl = (ang, gain, cap) => {
-    const e = wrap(ang - me.heading);
-    if (Math.abs(e) < 0.12 && Math.abs(me.omega) < 0.45) return clamp(e * 1.2 - me.omega * 0.4, -0.05, 0.05);
-    return clamp(e * gain - me.omega * 0.7, -cap, cap);
-  };
+  // ---------- Steering helpers.
+  // PD heading controller; saturates for anything beyond about 0.3 rad.
+  const face = (ang, gain, kd) => clamp(wrap(ang - me.heading) * (gain || 3.2) - me.omega * (kd || 0.9), -1, 1);
+  // Tracking a moving opponent: feed the bearing rate forward so the nose does not lag a
+  // target crossing at speed (a lag of half a radian at impact is a flank).
+  const bRate = ((op.vx - me.vx) * -uy + (op.vy - me.vy) * ux) / Math.max(dist, 0.8);
+  const track = (ang, gain, kd) => clamp(wrap(ang - me.heading) * (gain || 3.5) + (bRate - me.omega) * (kd || 0.9) + bRate / 3, -1, 1);
   // Pick a safe travel direction toward a goal; null when everything nearby is blocked.
   const safeDir = (gx, gy, avoidFire) => {
     const gdx = gx - me.x, gdy = gy - me.y;
     const gd = Math.sqrt(gdx * gdx + gdy * gdy);
     if (gd < 0.03) return null;
     const base = Math.atan2(gdy, gdx);
-    const L = Math.min(gd, 2.0) + 0.35;
     const offs = [0, 0.45, -0.45, 0.9, -0.9, 1.4, -1.4, 2.0, -2.0, 2.6, -2.6];
-    for (let i = 0; i < offs.length; i++) {
-      const a = base + offs[i];
-      const ex = me.x + Math.cos(a) * L, ey = me.y + Math.sin(a) * L;
-      if (!insideSoon(ex, ey, 0.35)) continue;
-      if (!blocked(me.x, me.y, ex, ey, 0.22, avoidFire)) return a;
+    // Second pass: shorter step and any endpoint no further out than I already am, so a hole
+    // between me and the center never leaves me frozen at the edge.
+    for (let pass = 0; pass < 2; pass++) {
+      const L = pass === 0 ? Math.min(gd, 2.0) + 0.35 : 1.0;
+      for (let i = 0; i < offs.length; i++) {
+        const a = base + offs[i];
+        const ex = me.x + Math.cos(a) * L, ey = me.y + Math.sin(a) * L;
+        if (!insideSoon(ex, ey, 0.35) && (pass === 0 || Math.max(Math.abs(ex), Math.abs(ey)) > myOut - 0.05 || !insideSoon(ex, ey, 0.1))) continue;
+        if (!blocked(me.x, me.y, ex, ey, pass === 0 ? 0.22 : 0.12, avoidFire)) return a;
+      }
     }
     return null;
   };
@@ -140,52 +146,42 @@ export function tick(s, m) {
     return { turn: clamp(e * 3 - me.omega * 0.7, -1, 1), thrust: Math.abs(e) < 0.4 ? power : Math.abs(e) < 1 ? power * 0.3 : 0 };
   };
 
-  // Aim point: lead a little so the contact stays inside the wedge.
-  const lead = clamp(dist / 8, 0.02, 0.2);
+  // Time to impact at full thrust from here, and the aim point led by it so the contact lands
+  // inside my wedge even against an orbiting target.
+  const contactD = Math.max(0, dist - 0.72);
+  const v0 = Math.max(0, myTo);
+  const tImp = (-v0 + Math.sqrt(v0 * v0 + 2 * 6.5 * contactD)) / 6.5;
+  const lead = clamp(tImp * 0.9, 0.05, 0.6);
   const aimX = op.x + op.vx * lead, aimY = op.y + op.vy * lead;
-  const aimBearing = near ? Math.atan2(aimY - me.y, aimX - me.x) : bearing;
+  const aimBearing = Math.atan2(aimY - me.y, aimX - me.x);
   const aimErr = wrap(aimBearing - me.heading);
 
-  const opDanger = opActive && op.energy > 4;
-  const dangerClose = opDanger && (dist < 3.5 || (closing > 1.5 && dist < 5.5));
+  let thrust = 0, turn = 0, mode = "hold", until = 0, dir = mem.dir || 0;
+  let nextHome = typeof mem.home === "number" ? mem.home : -1;
+  const committed = (name) => mem.mode === name && tick < (mem.until || 0);
+  const memory = () => ({ mode, until, dir, rev, home: nextHome, cTicks, wwTicks, pf });
 
-  // Recovery with hysteresis: at low energy only defend; there is no passive regeneration,
-  // so this mostly means moving to a charger cheaply.
-  let recovering = !!mem.rec;
-  if (me.energy < 20) recovering = true;
-  if (me.energy > 45) recovering = false;
-  // Hunting with hysteresis: an exhausted opponent never recovers without a charger.
-  let huntT = mem.hunt ? (mem.huntT || 0) + 1 : 0;
-  let hunting = !!mem.hunt && opActive && op.energy < 12 && me.energy > 40 && huntT < 480 && myOut < hSoon - 1.1;
-  const huntCd = mem.huntCd || 0;
-  if (!hunting && opActive && op.energy < 6 && !recovering && me.energy >= 60 && s.tick > huntCd && myOut < hSoon * 0.6 && opOut < hSoon - 1.4 && dist < 5) { hunting = true; huntT = 0; }
-  const nextCd = mem.hunt && !hunting ? s.tick + 480 : huntCd;
-
-  let thrust = 0, turn = 0, mode = "hold";
-  let nextMode = "hold", nextUntil = 0;
-  const committed = (name) => mem.mode === name && s.tick < (mem.until || 0);
+  if (me.status === "flipped") return { actions: { thrust: 0, turn: 0 }, memory: memory() };
 
   // ---------- 0a. Coasting into a hazard: brake before anything else.
   const speed0 = Math.abs(vLong);
   const dir0x = vLong >= 0 ? cosH : -cosH, dir0y = vLong >= 0 ? sinH : -sinH;
   const stop0 = (speed0 > 0 ? speed0 / 1.6 - 3.125 * Math.log(1 + 0.2 * speed0) : 0) + 0.15;
-  const insideHz0 = hz.some((c) => Math.abs(me.x - c.x) <= 0.5 && Math.abs(me.y - c.y) <= 0.5);
-  const holeAhead0 = speed0 > 0.12 && !insideHz0 && blocked(me.x, me.y, me.x + dir0x * (stop0 + 0.2), me.y + dir0y * (stop0 + 0.2), 0.04, false);
+  const insideHz = hz.some((c) => Math.abs(me.x - c.x) <= 0.5 && Math.abs(me.y - c.y) <= 0.5);
   let urgent = false;
-  if (holeAhead0) {
+  if (speed0 > 0.12 && !insideHz && blocked(me.x, me.y, me.x + dir0x * (stop0 + 0.2), me.y + dir0y * (stop0 + 0.2), 0.04, false)) {
     urgent = true; mode = "brake";
     thrust = -Math.sign(vLong);
     turn = 0;
   }
 
-  // ---------- 0. My own tile: announced collapse or fire means leave now.
+  // ---------- 0b. My own tile: announced collapse or fire means leave now.
   if (myCell && !urgent) {
     const collapsing = myCell.collapseIn !== null && myCell.collapseIn !== undefined;
     const burning = myCell.type === "flame" && (myCell.state === "flaming" || (myCell.state === "warning" && myCell.timeUntilChange !== null && myCell.timeUntilChange < 0.9));
     if (collapsing || burning) {
       urgent = true;
       mode = "exit";
-      // Leave through the nearest side that is safe, preferring my own axis (no turning needed).
       const offX = me.x - myCell.x, offY = me.y - myCell.y;
       const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
       let best = null, bestScore = -1e9;
@@ -196,7 +192,10 @@ export function tick(s, m) {
         if (!insideSoon(ex, ey, 0.3)) continue;
         if (blocked(me.x, me.y, ex, ey, 0.1, false)) continue;
         const along = Math.abs(sx * cosH + sy * sinH); // 1 when aligned with my axis
-        const score = -need * 2 + along * 1.5 - (Math.abs(ex - op.x) + Math.abs(ey - op.y) < 1.2 ? 1 : 0);
+        // The opponent is a wall: a flipped or stalled one does not move out of my way.
+        const opAlong = (op.x - me.x) * sx + (op.y - me.y) * sy, opSide = Math.abs((op.x - me.x) * sy - (op.y - me.y) * sx);
+        const wall = opAlong > 0 && opAlong < need + 1.2 && opSide < 1.0;
+        const score = -need * 2 + along * 1.5 - (wall ? 6 : 0);
         if (score > bestScore) { bestScore = score; best = { sx, sy, need }; }
       }
       if (best) {
@@ -212,164 +211,288 @@ export function tick(s, m) {
     }
   }
 
-  // ---------- 1. Opponent flipped: push it into a hole or over the edge, drain it, or wait behind.
-  if (mode === "hold" && opFlipped) {
-    const oc = Math.cos(op.heading), osn = Math.sin(op.heading);
-    const dPlus = roomAlong(op.x, op.y, oc, osn, h), dMinus = roomAlong(op.x, op.y, -oc, -osn, h);
-    const stuck = op.energy < 25 ? 1e3 : 0; // no charger, no self-righting
-    const tLeft = op.statusTimer + stuck;
+  // ---------- 1. Helpless opponent (flipped, or out of energy): ring it out along its axis if
+  // there is time, otherwise pin a flipped one, or set up the flip on an exhausted one.
+  let stuckFoe = false;
+  const exhausted = !opFlipped && op.energy <= 0.5;
+  if (mode === "hold" && (opFlipped || exhausted)) {
+    const stuck = exhausted || op.energy < 25; // cannot move, or cannot self-right without a pickup
+    const tLeft = stuck ? 1e3 : op.statusTimer;
+    const dPlus = roomAlong(op.x, op.y, oc, os, h), dMinus = roomAlong(op.x, op.y, -oc, -os, h);
     const pushPlus = dPlus <= dMinus;
-    const pdx = pushPlus ? oc : -oc, pdy = pushPlus ? osn : -osn;
+    const pdx = pushPlus ? oc : -oc, pdy = pushPlus ? os : -os;
     const pushDist = pushPlus ? dPlus : dMinus;
-    const standX = op.x - pdx * 1.25, standY = op.y - pdy * 1.25;
+    const standX = op.x - pdx * 1.2, standY = op.y - pdy * 1.2;
     const standD = Math.sqrt((standX - me.x) ** 2 + (standY - me.y) ** 2);
-    const behind = (me.x - op.x) * pdx + (me.y - op.y) * pdy < -0.45;
+    const behind = (me.x - op.x) * pdx + (me.y - op.y) * pdy < -0.5;
     const pushHeading = Math.atan2(pdy, pdx);
-    const alignedToPush = Math.abs(wrap(pushHeading - me.heading)) < 0.35;
-    const tReposition = standD / 2.2 + (behind && alignedToPush ? 0 : 0.8);
-    // Pushing them along the ray must not take me into a hazard myself.
-    const myRoom = roomAlong(me.x, me.y, pdx, pdy, h);
-    const canRingOut = tReposition + pushDist / 2.3 + 0.3 < tLeft && me.energy > 20 + pushDist * 6 && myRoom > pushDist + 0.4;
-    const canDrain = inContact && Math.abs(myErr) < 0.55 && me.energy > 90 && eAdv > 40 && op.energy > 2 && op.energy < 60;
-    if (canRingOut) {
-      mode = "push";
-      if (behind && dist < 1.5 && alignedToPush) { turn = faceAngle(bearing, 3); thrust = 1; }
-      else if (behind && dist < 1.5) { turn = faceAngle(pushHeading, 3); thrust = 0.5; }
+    const aligned = Math.abs(wrap(pushHeading - me.heading)) < 0.4;
+    const tRepos = standD / 2.2 + (behind && aligned ? 0.1 : 1.0);
+    // Never push them across a ready charger: a pickup funds their self-righting.
+    let chargerOnPath = false;
+    for (let i = 0; i < chargers.length; i++) if (chargers[i].ready && hits(chargers[i], op.x, op.y, op.x + pdx * pushDist, op.y + pdy * pushDist, 0)) chargerOnPath = true;
+    // I follow 0.8 m behind their center on the same line, so my own room is theirs plus that.
+    const feasible = !chargerOnPath && pushDist < 9 && me.energy > 12 + pushDist * 5 && insideSoon(standX, standY, 0.4) && !blocked(standX, standY, standX + pdx * 0.5, standY + pdy * 0.5, 0.1, false) && (behind || !blocked(me.x, me.y, standX, standY, 0.15, true));
+    const canRingOut = feasible && tRepos + 0.8 + pushDist / 2.2 < tLeft;
+    if (canRingOut || (committed("push") && feasible)) {
+      mode = "push"; until = tick + 30;
+      if (behind && dist < 1.6) { turn = face(aligned ? bearing : pushHeading, 4, 0.8); thrust = aligned || myAbs < 0.5 ? 1 : 0.4; }
       else {
         const d = driveTo(standX, standY, standD > 1.2 ? 1 : 0.6, false, true);
         turn = d.turn; thrust = d.thrust;
-        if (dist < 1.1 && Math.abs(myErr) < 0.9) thrust = -0.4;
+        if (dist < 1.1 && myAbs < 0.9 && !behind) thrust = -0.5; // do not shove them the wrong way
       }
-    } else if (canDrain) {
-      mode = "drain"; turn = faceAngle(bearing, 3); thrust = 1;
-    } else {
-      mode = "wait";
-      const rearX = op.x - oc * 2.3, rearY = op.y - osn * 2.3;
-      const rearD = Math.sqrt((rearX - me.x) ** 2 + (rearY - me.y) ** 2);
-      if (rearD > 0.5 && !recovering && insideSoon(rearX, rearY, 0.6) && op.statusTimer > 0.6) {
-        const d = driveTo(rearX, rearY, rearD > 1.5 ? 0.7 : 0.4, false, true);
+    } else if (exhausted) {
+      // Cannot turn: any hit outside its wedge at speed flips it, and a flip at zero energy is
+      // final. Back off to striking distance on its flank; section 3 fires the strike.
+      if (opAbs < 0.8 || (dist < 2.2 && myAbs > 0.6)) {
+        mode = "circle";
+        const px = -os, py = oc;
+        const side = (me.x - op.x) * px + (me.y - op.y) * py >= 0 ? 1 : -1;
+        const d = driveTo(op.x + px * side * 2.4, op.y + py * side * 2.4, 0.7, false, true);
         turn = d.turn; thrust = d.thrust;
-        if (dist < 1.2 && Math.abs(myErr) < 1.0) thrust = -0.5;
-      } else turn = faceCtl(bearing, 2, 0.4);
-    }
-  }
-
-  // ---------- 2. Hunt an exhausted opponent: orbit to its rear, then strike.
-  if (mode === "hold" && hunting) {
-    mode = "hunt";
-    const rel = wrap(bearing + PI - op.heading);
-    const side = rel >= 0 ? 1 : -1;
-    const rx = -ux, ry = -uy;
-    const tx = -ry * side, ty = rx * side;
-    if (inContact && Math.abs(myErr) < 1.1) {
-      thrust = -0.7; turn = faceCtl(bearing, 2, 0.3);
+      } else if (dist < 2.2) {
+        mode = "backoff"; turn = face(bearing, 4, 0.8); thrust = roomB > 1.5 ? -0.8 : 0;
+      }
+    } else if (stuck) {
+      stuckFoe = true; // harmless for the rest of the match: play safe, keep energy
+    } else if (tLeft > 0.45 && (me.energy > 60 || op.energy - 45 * tLeft < 25)) {
+      // Pin: wedge on their side, perpendicular to their heading, full thrust. A lateral push
+      // barely moves them (grip) but costs them about 45 energy/s.
+      mode = "pin";
+      const px = -os, py = oc;
+      let side = (me.x - op.x) * px + (me.y - op.y) * py >= 0 ? 1 : -1;
+      let sx = op.x + px * side * 1.1, sy = op.y + py * side * 1.1;
+      if (!insideSoon(sx, sy, 0.4) || blocked(op.x, op.y, sx, sy, 0.1, true)) { side = -side; sx = op.x + px * side * 1.1; sy = op.y + py * side * 1.1; }
+      const sd = Math.sqrt((sx - me.x) ** 2 + (sy - me.y) ** 2);
+      const wedgeOn = touching && lc.selfWedge;
+      if (wedgeOn && roomF > 0.8) { turn = face(bearing, 4, 0.8); thrust = 1; }
+      else if (dist < 1.35 && myAbs < 0.7 && roomF > 0.8) { turn = face(bearing, 4, 0.8); thrust = 0.9; }
+      else if (sd < 0.3 || (dist < 1.5 && myAbs < 1.2)) { turn = face(bearing, 4, 0.8); thrust = myAbs < 0.4 && roomF > 0.8 ? 0.6 : 0; }
+      else { const d = driveTo(sx, sy, sd > 1.5 ? 1 : 0.6, false, true); turn = d.turn; thrust = d.thrust; }
     } else {
-      const radial = clamp((dist - 2.3) * 0.9, -1, 1);
-      const gx = me.x + (tx - rx * radial) * 1.5, gy = me.y + (ty - ry * radial) * 1.5;
-      const d = driveTo(gx, gy, 0.6, false, true);
-      turn = d.turn; thrust = d.thrust;
+      // Self-righting imminent: hold 1.5 m off with the wedge on them, ready for the next strike.
+      mode = "guard";
+      const gx = op.x - ux * 1.5, gy = op.y - uy * 1.5;
+      const gd = Math.sqrt((gx - me.x) ** 2 + (gy - me.y) ** 2);
+      if (gd > 0.3) { const d = driveTo(gx, gy, 0.6, true, true); turn = d.turn; thrust = d.thrust; }
+      else { turn = face(bearing, 4, 0.8); thrust = 0; }
     }
   }
 
-  // ---------- 3. Strike window: hit their side or rear before they can rotate it away.
-  if ((mode === "hold" || mode === "hunt") && near && !opFlipped && !recovering && opActive) {
-    const contactD = Math.max(0, dist - 0.72);
-    const v0 = Math.max(0, myTo);
-    const acc = 7;
-    const tImp = contactD > 0 ? (-v0 + Math.sqrt(v0 * v0 + 2 * acc * contactD)) / acc : 0;
-    const vImp = Math.min(5, v0 + acc * tImp) * 0.92;
-    const closeImp = vImp + Math.min(opTo, 0) + Math.max(0, opTo) * 0.5;
-    const wToward = -Math.sign(opErr) * op.omega;
-    const E = op.energy + (op.energy > 0 ? 1.5 : 0.3), T = tImp + 0.05;
-    const tau = Math.max(0, Math.min(T, E / 3));
-    const ex = Math.exp(-1.8 * tau);
-    const w = 3 * (1 - ex);
-    const reach = 3 * tau - 1.6667 * (1 - ex) + (w * (1 - Math.exp(-1.8 * (T - tau)))) / 1.8 + Math.max(0, wToward) * Math.min(T, 0.5);
-    const angleAtImpact = opAbs - reach;
-    const lev = angleAtImpact > 2.53 ? 0.85 : angleAtImpact > 1.34 ? 1 : angleAtImpact > 0.8 ? 0.6 : 0;
-    const safeTarget = insideSoon(aimX, aimY, 0.6) && !blocked(me.x, me.y, aimX, aimY, 0.15, false);
-    const aimOk = Math.abs(aimErr) < (opAbs > 1.9 ? 0.9 : 0.5);
-    const canFlip = lev > 0 && closeImp * lev * Math.cos(Math.min(0.5, Math.abs(aimErr))) > 2.95 && aimOk && safeTarget && me.energy > 30 && dist < 4;
-    const huntStrike = mode === "hunt" && opAbs > 2.5 && dist < 3.2 && dist > 1.4 && Math.abs(aimErr) < 0.25 && safeTarget && op.energy < 12;
-    if (canFlip || huntStrike || (committed("strike") && opAbs > 1.35 && dist < 3 && Math.abs(aimErr) < 0.8 && safeTarget)) {
-      mode = "strike";
-      turn = clamp(aimErr * 4 - me.omega * 0.8, -1, 1);
+  // ---------- 2. Contact with an active opponent.
+  const slideOn = committed("slide"), pivotOn = committed("pivot");
+  if (mode === "hold" && !opFlipped && (touching || slideOn || pivotOn)) {
+    const myW = touching && lc.selfWedge, opW = touching && lc.opponentWedge;
+    if (myW && !opW) {
+      // My wedge on their flank: push while it drains them (about 45/s against a third for me)
+      // or moves them toward a drop; otherwise back off and set up a real strike.
+      const roomOp = roomAlong(op.x, op.y, cosH, sinH, hSoon);
+      const shove = roomOp < 2.5 && roomF > roomOp + 0.9;
+      const clear = roomF > 1.0 && !blocked(me.x, me.y, me.x + cosH * 0.9, me.y + sinH * 0.9, 0.1, false);
+      turn = face(bearing, 4, 0.8);
+      // A drain costs me a third of what it costs them, but they recharge: only worth it with an
+      // energy lead, near their exhaustion, or into a drop. Otherwise back off for a real strike.
+      const worth = shove || (op.energy > 8 && ((me.energy > op.energy + 40 && me.energy > 120) || op.energy < 30));
+      if (clear && worth) { mode = "push"; until = 0; thrust = 1; }
+      else { mode = "backoff"; until = 0; thrust = roomB > 1.5 ? -0.8 : 0; }
+    } else if (slideOn) {
+      // Keep sliding, no steering, until the contact has been broken for a few ticks.
+      if (!touching && (!lc || tick - lc.tick >= 8) && dist > 1.3) { mode = "brace"; turn = face(bearing, 4, 0.8); thrust = Math.abs(vLong) > 0.5 ? -Math.sign(vLong) * 0.6 : 0; }
+      else { mode = "slide"; until = mem.until; thrust = (dir > 0 ? roomF : roomB) > 0.9 ? dir : 0; turn = 0; }
+    } else if (pivotOn && dist < 2.5 && (touching || !lc || tick - lc.tick < 6 || myTo < -1)) {
+      mode = "pivot"; until = mem.until;
+      if (roomB > 2.1 + Math.max(0, -vLong) * 0.5) { turn = dir; thrust = -1; }
+      else { turn = face(bearing, 4, 0.8); thrust = 1; }
+    } else if (pusher && myAbs < 1.0 && touching) {
+      // A blind pusher: let it carry me at a trickle of thrust (it pays more than I do) and hold
+      // the line with full thrust only when the edge is close.
+      mode = "brace"; turn = face(bearing, 4, 0.8);
+      const roomBack = roomAlong(me.x, me.y, -ux, -uy, hSoon);
+      thrust = roomBack < 2.4 + Math.max(0, -vLong) * 0.6 ? 1 : 0.05;
+    } else if (myAbs < 1.0 && ((myTo < -0.5 && opTo > -0.2) || cTicks >= 3)) {
+      // Pushed from the front. Face to face the contact locks my rotation; reversing hard while
+      // turning breaks it in a tick (measured: about 15 energy against 45 for holding and 100
+      // for a thrust stall). Without room behind me the stall is all that keeps me on the platform.
+      const need = 2.1 + Math.max(0, -vLong) * 0.5;
+      mode = "pivot"; until = tick + 18;
+      const roomL = roomAlong(me.x, me.y, -sinH, cosH, hSoon), roomR = roomAlong(me.x, me.y, sinH, -cosH, hSoon);
+      dir = roomL >= roomR ? 1 : -1;
+      if (roomB > need) { turn = dir; thrust = -1; }
+      else { turn = face(bearing, 4, 0.8); thrust = 1; }
+    } else if (opW && !myW && myAbs >= 1.0) {
+      // Pinned on the side or rear: slide out along my own axis without steering (measured:
+      // a straight reverse costs about 9 energy, steering while sliding 45, stopping to face
+      // them 130). Backward is cheaper because their wedge then slides off my front sector.
+      mode = "slide"; until = tick + 45;
+      const need = 1.6 + Math.abs(vLong) * 0.5;
+      dir = roomB > need ? -1 : roomF > need ? 1 : 0;
+      thrust = dir; turn = 0;
+    } else {
+      // A brief bounce: keep the wedge on them and kill any backward drift.
+      mode = "brace"; turn = face(bearing, 4, 0.8);
+      thrust = vLong < -0.4 && roomF > 1 ? 0.6 : 0;
+    }
+  }
+
+  // ---------- 3. Strike: hit a flank they cannot turn away before impact.
+  if (mode === "hold" && !opFlipped && dist < 4.6 && me.status === "active") {
+    const vImp = Math.min(5, v0 + 6.5 * tImp);
+    const vClose = vImp + opTo;
+    // Their plausible rotation toward me before impact: a reaction delay, then three quarters
+    // of the physical maximum. At 5 m/s any sector but the wedge itself flips, so a front-sector
+    // prediction still scores.
+    const T = Math.max(0, tImp - 0.15);
+    let reach = 0.75 * (T < 0.55 ? 2.7 * T * T : 3 * T - 0.82);
+    if (op.energy < 6) reach *= op.energy / 6;
+    const wTo = -Math.sign(opErr) * op.omega;
+    const angAt = opAbs - reach - Math.max(0, wTo) * Math.min(T, 0.3);
+    const lev = angAt > 2.53 ? 0.85 : angAt > 1.22 ? 1 : angAt > 0.65 ? 0.6 : 0;
+    const score = vClose * Math.cos(Math.min(Math.abs(aimErr), 0.6)) * lev;
+    const pathOk = insideSoon(aimX, aimY, 0.6) && !blocked(me.x, me.y, aimX, aimY, 0.12, false) && roomAlong(me.x, me.y, Math.cos(aimBearing), Math.sin(aimBearing), hSoon) > dist + 1.0;
+    const immune = op.status === "recovering" && op.statusTimer > tImp;
+    // A side-on target inside 2.8 m cannot bring its wedge round in time: the hit is cheap for
+    // me whatever happens and usually a flip, so take it even when the score is marginal.
+    const cheap = opAbs > 1.25 && dist < 2.8 && opTo < 1.0 && angAt > 0.75 && me.energy > 100;
+    const go = lev > 0 && (score > 2.7 || cheap) && Math.abs(aimErr) < 0.7 && pathOk && !immune && me.energy > 40;
+    const keep = committed("strike") && lev > 0 && Math.abs(aimErr) < 0.9 && pathOk && !immune && opAbs > 0.9;
+    if (go || keep) {
+      mode = "strike"; until = committed("strike") ? mem.until : tick + 40;
+      turn = track(aimBearing, 4, 0.7);
       thrust = Math.abs(aimErr) < 0.5 ? 1 : 0.3;
-      nextMode = "strike"; nextUntil = committed("strike") ? mem.until : s.tick + 45;
-    } else if (mem.mode === "strike" && mode !== "hunt" && dist < 2 && closing > 2 && opAbs < 1.35) {
-      thrust = -1; turn = faceAngle(aimBearing, 4);
+    } else if (mem.mode === "strike" && dist < 2.2 && closing > 1.5 && opAbs < 0.9) {
+      mode = "abort"; thrust = -1; turn = track(aimBearing, 4, 0.7);
     }
   }
 
-  // ---------- 4. Shove: they stand next to a hole or the edge with me on the inside line.
-  if (mode === "hold" && near && !opFlipped && !recovering && opActive) {
-    const behindOp = roomAlong(op.x, op.y, ux, uy, hSoon); // free distance behind them along my push line
-    const shoveOK = behindOp < 0.9 && dist < 2.6 && Math.abs(myErr) < 0.35 && me.energy > 40 && roomAlong(me.x, me.y, ux, uy, hSoon) > dist + 0.9;
-    const shoveEnergy = eAdv > 60 && me.energy > 90 && opOut > hSoon - 1.5 && myOut < opOut - 0.7 && dist < 3 && Math.abs(myErr) < 0.5;
-    if (shoveOK || shoveEnergy || (committed("shove") && dist < 2.2 && me.energy > 30)) {
-      mode = "shove";
-      turn = clamp(aimErr * 4 - me.omega * 0.8, -1, 1);
-      thrust = Math.abs(aimErr) < 0.35 ? 1 : 0.2;
-      nextMode = "shove"; nextUntil = committed("shove") ? mem.until : s.tick + (shoveOK ? 50 : 100);
-    }
-  }
-
-  // ---------- 5. Hold: face them, manage energy and position, absorb pushes wisely.
-  let resisting = false, leaving = false, nextHome, slideUntil = 0, slideSide = mem.slideSide || 1, backUntil = 0, shieldX = null, shieldY = null, sideUntil = 0, sideDir = 0;
-  const opSpeed = Math.sqrt(op.vx * op.vx + op.vy * op.vy);
-  let chargeTarget = null;
+  // ---------- 4. Hold: face them, manage energy and position.
   if (mode === "hold") {
-    turn = faceCtl(aimBearing, dangerClose ? 3.5 : 2, dangerClose ? 1 : opDanger ? 0.6 : 0.3);
+    const threat = opCan && !stuckFoe && (dist < 6.5 || (closing > 2.5 && dist < 9));
+    // Ambush: a hole already on the line between us while they come at me. Standing still keeps
+    // it there; a blind charge drops in, a careful one has to go round.
+    let lineHole = false;
+    if (opCan && opTo > 0.8 && dist > 2.0 && !touching) {
+      for (let i = 0; i < hz.length; i++) {
+        const c = hz[i];
+        if (c.state !== "hole") continue;
+        const along = (c.x - op.x) * -ux + (c.y - op.y) * -uy;
+        if (along < 1.0 || along > dist - 0.9) continue;
+        const perp = Math.abs((c.x - op.x) * uy - (c.y - op.y) * ux);
+        if (perp < 0.45) { lineHole = true; break; }
+      }
+    }
+    turn = threat ? track(aimBearing, 3.5, 0.9) : clamp(face(bearing, 1.2, 0.9), -0.35, 0.35);
 
-    // Energy plan: a pickup is worth its full 60 only below 240. Late in the match the last
-    // pickup should land as late as possible: every idle second costs 0.5.
+    // Energy plan: hold a post 1.25 m from a charger on the opponent's side of it. A pickup is
+    // then a short reverse with the wedge still on them, and the post itself is central ground.
     let best = null, bestCost = 1e9;
     for (let i = 0; i < chargers.length; i++) {
       const c = chargers[i];
-      if (!insideSoon(c.x, c.y, -0.3)) continue;
-      const cdx = c.x - me.x, cdy = c.y - me.y;
-      const cd = Math.sqrt(cdx * cdx + cdy * cdy);
+      if (!insideSoon(c.x, c.y, 0.7)) continue;
+      if (!c.ready && c.wait > 4.5) continue;
+      const cd = Math.sqrt((c.x - me.x) ** 2 + (c.y - me.y) ** 2);
       const od = Math.sqrt((c.x - op.x) ** 2 + (c.y - op.y) ** 2);
-      const eta = cd / 2.2 + 0.4;
-      if (!c.ready && c.wait > eta + 1.5) continue; // not ready when I would arrive
-      if (blocked(me.x, me.y, c.x, c.y, 0.2, true) && cd > 1.5) continue;
-      let cost = cd + Math.max(0, c.wait - eta) * 1.5;
-      if (opDanger && od < cd - 0.5 && od < 3) cost += 4; // they will get there first
-      if (opDanger && od < 1.6) cost += 3; // contested ground
-      if (cost < bestCost) { bestCost = cost; best = { ...c, cd, od, eta }; }
+      let vx = op.x - c.x, vy = op.y - c.y;
+      if (!threat || dist > 7) { vx = -c.x; vy = -c.y; } // nobody near: post on the center side
+      const vl = Math.sqrt(vx * vx + vy * vy) || 1;
+      const px = c.x + (vx / vl) * 1.25, py = c.y + (vy / vl) * 1.25;
+      if (!insideSoon(px, py, 0.6) || blocked(c.x, c.y, px, py, 0.05, false)) continue;
+      const pd = Math.sqrt((px - me.x) ** 2 + (py - me.y) ** 2);
+      const off = Math.abs(wrap(Math.atan2(py - me.y, px - me.x) - bearing));
+      const exposure = Math.min(off, PI - off); // 0 when the route runs along the line between us
+      let cost = pd + c.wait * 0.6 + Math.max(Math.abs(c.x), Math.abs(c.y)) * 0.15;
+      if (opCan && od < 1.6 && od < cd) cost += 4; // they are on it
+      if (threat && dist < 5 && pd > 0.5) cost += exposure * 2;
+      if (pd > 1 && blocked(me.x, me.y, px, py, 0.2, true)) cost += 3;
+      if (cost < bestCost) { bestCost = cost; best = { x: c.x, y: c.y, ready: c.ready, wait: c.wait, cd, od, px, py, pd, exposure }; }
     }
-    const wantFull = me.energy <= 240;
-    const finale = timeLeft < 9;
-    const deny = opDanger && op.energy < 110 && best && best.od < 4 && best.cd < best.od && best.cd < 5;
-    let goCharge = false;
-    if (best && !dangerClose) {
-      if (finale) {
-        // Aim the crossing at about 0.6 s before the end; wait at 1.3 m until then.
-        const tNeeded = best.cd > 1.3 ? (best.cd - 1.3) / 2 + 1.0 : 0.9;
-        goCharge = timeLeft < tNeeded + 0.6 || (best.cd > 1.4 && timeLeft > 2) || (opDanger && best.od < 2.2 && best.od < best.cd + 1);
-        if (best.cd <= 1.4 && !goCharge && timeLeft >= tNeeded + 0.6) { chargeTarget = null; }
-      } else if ((wantFull || deny) && best.cd < 7) goCharge = true;
-      else if (me.energy <= 280 && best.cd < 1.6 && best.ready) goCharge = true;
+    const finale = timeLeft < 4.5;
+    const atPost = !!best && best.pd < 0.55;
+    const wantE = me.energy <= 240 || (finale && me.energy < 296) || (me.energy <= 285 && atPost && !threat);
+    // A flank shown to a charging opponent is a flip: lateral moves need distance and a slow foe.
+    // Running dry is a certain loss, though, so the lower the energy the more exposure is taken.
+    const charging = opTo > 2.5 && opAbs < 0.8;
+    const canMove = !lineHole && (!threat || (dist > 3.5 && opTo < 1.2) || (dist > 6 && opTo < 3) || (!!best && best.exposure < 0.5 && dist > 2) || (me.energy < 110 && dist > 1.8 && opTo < 1)) && !(opCan && opTo > 1.5 && me.energy > 150);
+    const grab = !!best && best.ready && !charging && (
+      (me.energy <= 240 && best.cd < 2.2 && (dist > 2.0 || best.exposure < 0.9)) ||
+      (me.energy <= 150 && best.cd < 4 && dist > 1.5) ||
+      (me.energy <= 150 && best.cd < 5.5 && opTo < -0.8) || // they are leaving: refuel, do not chase
+      (me.energy <= 80 && best.cd < 6));
+    // Hole shield: with the opponent coming from a distance, stand just beyond a hole on its
+    // line. A blind charge drops in (this alone decides a third of the matches against the
+    // reference controller); a careful one has to go round, which buys time and angles.
+    let shX = null, shY = null, shD = 1e9;
+    if (opCan && !lineHole && opTo > 0.5 && dist > 2.2 && me.energy > 100 && (pusher || dist > 4 || t < 4)) {
+      for (let i = 0; i < hz.length; i++) {
+        const c = hz[i];
+        if (c.state !== "hole") continue;
+        const vx0 = c.x - op.x, vy0 = c.y - op.y, vl = Math.sqrt(vx0 * vx0 + vy0 * vy0) || 1;
+        if (vl > dist + 1.5 || vl < 1.2) continue;
+        const px = c.x + (vx0 / vl) * 1.5, py = c.y + (vy0 / vl) * 1.5;
+        if (!insideSoon(px, py, 0.8)) continue;
+        let bad = false;
+        for (let k = 0; k < hz.length; k++) if (k !== i && Math.abs(hz[k].x - px) < 1.1 && Math.abs(hz[k].y - py) < 1.1) bad = true;
+        if (bad) continue;
+        const dme = Math.sqrt((px - me.x) ** 2 + (py - me.y) ** 2);
+        if (dme > (opTo > 1.2 ? 7 : 4) || dme > vl - 0.3 || dme > dist * 0.8) continue; // there before them
+        if (dme > 0.5 && blocked(me.x, me.y, px, py, 0.2, true)) continue;
+        if (dme < shD) { shD = dme; shX = px; shY = py; }
+      }
     }
-    if (goCharge) {
-      mode = "charge";
-      chargeTarget = best;
-      // Drive through the center of the cell; the pickup happens on entry.
-      const gx = best.x + (best.x - me.x) * 0.15, gy = best.y + (best.y - me.y) * 0.15;
-      const power = best.cd > 3 ? 0.7 : 0.5;
-      const d = driveTo(gx, gy, power, opDanger && dist < 6, true);
+    if (shX !== null && shD > 0.35) {
+      mode = "shield";
+      const d = driveTo(shX, shY, dist > 3 ? 0.95 : 0.75, dist < 3, true);
       turn = d.turn; thrust = d.thrust;
-      if (!best.ready && best.cd < 1.3 && best.wait > 0.35) { thrust = 0; turn = faceCtl(aimBearing, 2, 0.3); } // hold off the cell until ready
-    } else {
-      // Position: a fresh central tile away from holes, nudged toward the opponent so a push
-      // carries me across the arena. Switch tiles when mine wears down or becomes unsafe.
+    } else if (lineHole && !(grab && me.energy <= 150)) {
+      mode = "ambush"; turn = track(aimBearing, 3.5, 0.9); thrust = Math.abs(vLong) > 0.3 ? -Math.sign(vLong) * 0.5 : 0;
+    } else if (best && wantE && best.ready && best.cd < 2.2 && (atPost || canMove || grab) && (!threat || dist > 1.5 || grab)) {
+      // Collect: through the cell center and out again; reverse keeps the wedge on them.
+      mode = "collect";
+      const d = driveTo(best.x + (best.x - me.x) * 0.2, best.y + (best.y - me.y) * 0.2, 0.8, threat, true);
+      turn = d.turn; thrust = d.thrust;
+    } else if (best && grab && best.cd < 6) {
+      // Low and the cell is close but not ready or not quite in reach: go for it anyway.
+      mode = "collect";
+      const d = driveTo(best.x + (best.x - me.x) * 0.2, best.y + (best.y - me.y) * 0.2, 0.8, threat, true);
+      turn = d.turn; thrust = d.thrust;
+      if (!best.ready && best.cd < 1.3 && best.wait > 0.3) { thrust = 0; turn = track(aimBearing, 3.5, 0.9); } // hold off the cell until ready
+    } else if (best && !atPost && canMove && (wantE || !threat || best.pd < 3)) {
+      mode = "post";
+      const d = driveTo(best.px, best.py, best.pd > 2 ? 0.8 : 0.5, threat, true);
+      turn = d.turn; thrust = d.thrust;
+    } else if (threat) {
+      // Range control: never let a circling opponent inside 1.7 m, meet a charge with a little
+      // reverse, close in slowly otherwise. The wedge stays on them throughout.
+      const incoming = opTo > 2 && opAbs < 0.8;
+      if (pusher && dist < 3.4 && opTo > 1.2 && myOut < hSoon - 2.2) {
+        // Back away along a clear path with the wedge on it: its straight line meets the holes
+        // before it meets me.
+        mode = "flee";
+        const d = driveTo(me.x - ux * 2.5, me.y - uy * 2.5, 0.8, true, true);
+        if (d.thrust !== 0 || d.turn !== 0) { turn = d.turn; thrust = d.thrust; }
+        else { turn = track(aimBearing, 3.5, 0.9); thrust = 0; }
+      } else if (incoming && opTo > 3.5 && dist < 1.9 && opAbs < 0.6 && roomB > 3.0 && !pusher) {
+        // A full-speed charge: reverse hard while turning so it grazes past instead of pushing
+        // me (measured: one tick of contact). Reversing also keeps any hit below the flip score.
+        mode = "pivot"; until = tick + 18;
+        const roomL = roomAlong(me.x, me.y, -sinH, cosH, hSoon), roomR = roomAlong(me.x, me.y, sinH, -cosH, hSoon);
+        dir = roomL >= roomR ? 1 : -1;
+        turn = dir; thrust = -1;
+      }
+      // Yielding ground is how one ends up at the edge: reverse only from a central position.
+      else if (incoming) thrust = Math.abs(vLong) > 0.3 ? -Math.sign(vLong) * 0.5 : 0; // meet a charge standing still
+      else if (dist < 1.5 && roomB > 2.5 && myOut < hSoon - 2.5 && myAbs < 1.0) thrust = -0.5;
+      else if (dist > 3.2 && myAbs < 0.5 && opTo < 0.5 && myOut < hSoon - 1.6 && roomF > dist) thrust = 0.35;
+      else thrust = Math.abs(vLong) > 0.4 ? -Math.sign(vLong) * 0.4 : 0;
+      // Do not wear my tile through: alone it lasts 12 s, shared 6 s.
       const shared = opCell && myCell && opCell.id === myCell.id;
-      // Leave a tile before it fails: alone it lasts 12 s, shared only 6 s.
-      const worn = !!(myCell && myCell.integrity < (shared ? 0.55 : 0.25));
+      if (myCell && myCell.integrity < (shared ? 0.45 : 0.2) && thrust === 0) thrust = roomF >= roomB ? 0.5 : -0.5;
+    } else {
+      // Far or harmless: sit on a fresh central tile away from hazards.
       const tileScore = (hx, hy) => {
         if (!insideSoon(hx, hy, 0.7)) return -1e9;
         let sc = -0.7 * Math.max(Math.abs(hx), Math.abs(hy));
-        let sides = 0; // hazards on the four edge neighbours: two or more risk an island
+        let sides = 0;
         for (let i = 0; i < hz.length; i++) {
           const ddx = Math.abs(hz[i].x - hx), ddy = Math.abs(hz[i].y - hy);
           if (ddx < 0.6 && ddy < 0.6) return -1e9;
@@ -377,196 +500,76 @@ export function tick(s, m) {
         }
         if (sides >= 2) sc -= 12; else if (sides === 1) sc -= 1;
         for (let i = 0; i < fire.length; i++) if (Math.abs(fire[i].x - hx) < 0.6 && Math.abs(fire[i].y - hy) < 0.6) sc -= 3;
-        for (let i = 0; i < cells.length; i++) {
-          const c = cells[i];
-          if (Math.abs(c.x - hx) < 0.6 && Math.abs(c.y - hy) < 0.6) { sc -= 5 * (1 - c.integrity); if (c.type === "recharge") sc -= 1.5; if (c.type === "flame") sc -= 2; }
-        }
+        const c = central[Math.round(hx + 1.5) + Math.round(hy + 1.5) * 4];
+        if (c) { sc -= 5 * (1 - c.integrity); if (c.type === "recharge") sc -= 1.5; if (c.type === "flame") sc -= 2; }
         if (Math.abs(op.x - hx) < 0.6 && Math.abs(op.y - hy) < 0.6) sc -= 3;
         return sc;
       };
-      let home = typeof mem.home === "number" ? mem.home : -1;
+      let home = nextHome;
       let hx = home >= 0 ? (home % 4) - 1.5 : 1e9, hy = home >= 0 ? Math.floor(home / 4) - 1.5 : 1e9;
       const onHome = home >= 0 && Math.abs(me.x - hx) <= 0.5 && Math.abs(me.y - hy) <= 0.5;
+      const worn = !!(myCell && myCell.integrity < 0.25);
       const curScore = home >= 0 ? tileScore(hx, hy) : -1e9;
-      const reeval = home < 0 || curScore < -50 || (worn && onHome) || s.tick % 12 === 0;
-      let bk = -1, bs = -1e9, bx = 0, by = 0;
-      if (reeval) for (let k = 0; k < 16; k++) {
-        const cx = (k % 4) - 1.5, cy = Math.floor(k / 4) - 1.5;
-        if (worn && Math.abs(me.x - cx) <= 0.5 && Math.abs(me.y - cy) <= 0.5) continue;
-        const sc = tileScore(cx, cy) - 0.3 * (Math.abs(cx - me.x) + Math.abs(cy - me.y));
-        if (sc > bs) { bs = sc; bk = k; bx = cx; by = cy; }
-      }
-      // Relocate when the current tile is worn, unsafe, or clearly worse than the best option.
-      if (bk >= 0 && (home < 0 || curScore < -50 || (worn && onHome) || bs > curScore + 3.5)) { home = bk; hx = bx; hy = by; }
-      // Hole shield: with the opponent far and coming, stand just beyond a hole on its line.
-      if (reeval && opDanger && dist > 1.6 && opTo > 0.6 && hz.length) {
-        let sx0 = 0, sy0 = 0, sbest = 1e9;
-        for (let i = 0; i < hz.length; i++) {
-          const c = hz[i];
-          const vx0 = c.x - op.x, vy0 = c.y - op.y, vl = Math.sqrt(vx0 * vx0 + vy0 * vy0) || 1;
-          if (vl > dist + 1.5 || vl < 1.2) continue;
-          const px = c.x + (vx0 / vl) * 1.5, py = c.y + (vy0 / vl) * 1.5;
-          const tsc = tileScore(Math.floor(px) + 0.5, Math.floor(py) + 0.5);
-          if (tsc < -50 || !insideSoon(px, py, 0.8)) continue;
-          const dme = Math.sqrt((px - me.x) ** 2 + (py - me.y) ** 2);
-          if (dme > (opTo > 1.2 ? 7 : 4) || dme > vl - 0.3) continue;
-          if (dme < sbest) { sbest = dme; sx0 = px; sy0 = py; }
+      if (home < 0 || curScore < -50 || (worn && onHome) || tick % 12 === 0) {
+        let bk = -1, bs = -1e9, bx = 0, by = 0;
+        for (let k = 0; k < 16; k++) {
+          const cx = (k % 4) - 1.5, cy = Math.floor(k / 4) - 1.5;
+          if (worn && Math.abs(me.x - cx) <= 0.5 && Math.abs(me.y - cy) <= 0.5) continue;
+          const sc = tileScore(cx, cy) - 0.3 * (Math.abs(cx - me.x) + Math.abs(cy - me.y));
+          if (sc > bs) { bs = sc; bk = k; bx = cx; by = cy; }
         }
-        if (sbest < 1e9) { hx = sx0; hy = sy0; shieldX = sx0; shieldY = sy0; }
-      } else if (!reeval && typeof mem.shx === "number" && opDanger && dist > 1.4 && opTo > 0.4) { hx = mem.shx; hy = mem.shy; shieldX = hx; shieldY = hy; }
+        if (bk >= 0 && (home < 0 || curScore < -50 || (worn && onHome) || bs > curScore + 3.5)) { home = bk; hx = bx; hy = by; }
+      }
       nextHome = home;
-      const shift = opDanger ? Math.min(0.25, dist / 20) : 0;
-      const goalX = hx + ux * shift, goalY = hy + uy * shift;
-      const goalD = Math.sqrt((goalX - me.x) ** 2 + (goalY - me.y) ** 2);
-      const wantD = dangerClose && !worn ? 1.2 : 0.35;
-      const leave = (inContact || (mem.leaving && dist < 2.2)) && !opDanger && me.energy > 8 && (myOut > hSoon * 0.45 || goalD > 1.5 || mem.leaving);
-      leaving = !!leave;
-      if (leave) { thrust = -0.5; turn = faceCtl(bearing, 2, 0.3); }
-      else if (goalD > wantD && !recovering) {
-        if (!dangerClose || worn) {
-          const d = driveTo(goalX, goalY, goalD > 2.5 ? 0.6 : 0.4, opDanger && dist < 7, true);
-          turn = d.turn; thrust = d.thrust;
-        } else if (myR > 1.6) {
-          const toC = wrap(Math.atan2(goalY - me.y, goalX - me.x) - me.heading);
-          if (Math.abs(toC) < 0.8 && !blocked(me.x, me.y, me.x + cosH, me.y + sinH, 0.2, false)) thrust = 0.3;
-          else if (Math.abs(wrap(toC + PI)) < 0.8 && !blocked(me.x, me.y, me.x - cosH, me.y - sinH, 0.2, false)) thrust = -0.3;
-        }
-      } else if (goalD > wantD && recovering && !opDanger) {
-        const gb = Math.atan2(goalY - me.y, goalX - me.x);
-        const toC = wrap(gb - me.heading);
-        if (Math.abs(toC) < 0.6 && !blocked(me.x, me.y, me.x + cosH * 0.8, me.y + sinH * 0.8, 0.2, false)) thrust = 0.05;
-        else if (Math.abs(wrap(toC + PI)) < 0.6 && !blocked(me.x, me.y, me.x - cosH * 0.8, me.y - sinH * 0.8, 0.2, false)) thrust = -0.05;
-      }
-    }
-    if (!inContact && s.tick < (mem.slideUntil || 0) && opDanger && dist < 2.4) {
-      // Finish the sideways slide away from the push line, then face them again.
-      mode = "slide"; slideUntil = mem.slideUntil; slideSide = mem.slideSide || 1;
-      const d = driveTo(me.x - uy * 1.8 * slideSide + ux * 0.3, me.y + ux * 1.8 * slideSide + uy * 0.3, 0.8, true, true);
-      turn = d.turn; thrust = d.thrust;
-    }
-    // A charger coming at me: step behind a hole if one is at hand, otherwise brace.
-    const incoming = opTo > 1.5 && dist < 6 && opAbs < 1.0 && opDanger;
-    if (incoming && !inContact && mode === "hold") {
-      if (shieldX !== null && Math.hypot(shieldX - me.x, shieldY - me.y) > 0.4) {
-        // Lead the chaser across the hole: run there forward while it is far (rear exposure only
-        // at near-zero closing speed), reverse with the wedge on it when it is close.
-        mode = "shield";
-        const d = driveTo(shieldX, shieldY, dist > 3 ? 0.95 : 0.75, dist < 3, true);
-        turn = d.turn; thrust = d.thrust;
-      } else if ((s.tick < (mem.sideUntil || 0)) || (dist > 3.6 && dist < 4.8 && opTo > 2.5 && opSpeed <= 4.2 && opSpeed > 2.5 && !recovering && s.tick > (mem.sideCd || 0))) {
-        // Sidestep: a chaser that is not at full speed cannot follow a late 90-degree dodge; it
-        // passes by and has to turn around, and the room behind me is too short to yield anyway.
-        mode = "sidestep";
-        let sd = mem.sideDir || 0;
-        if (s.tick >= (mem.sideUntil || 0)) {
-          const lFree = !blocked(me.x, me.y, me.x - uy * 2.5, me.y + ux * 2.5, 0.2, true) && insideSoon(me.x - uy * 2.5, me.y + ux * 2.5, 0.6);
-          const rFree = !blocked(me.x, me.y, me.x + uy * 2.5, me.y - ux * 2.5, 0.2, true) && insideSoon(me.x + uy * 2.5, me.y - ux * 2.5, 0.6);
-          const lRoom = lFree ? roomAlong(me.x, me.y, -uy, ux, hSoon) : 0, rRoom = rFree ? roomAlong(me.x, me.y, uy, -ux, hSoon) : 0;
-          sd = lRoom >= rRoom ? 1 : -1;
-          if (Math.max(lRoom, rRoom) < 2.2) sd = 0;
-          sideUntil = sd ? s.tick + 40 : 0; sideDir = sd;
-        } else { sideUntil = mem.sideUntil; sideDir = sd; }
-        if (sd) {
-          const a = Math.atan2(ux * sd, -uy * sd);
-          const e = wrap(a - me.heading);
-          turn = clamp(e * 4 - me.omega * 0.8, -1, 1); thrust = Math.abs(e) < 0.55 ? 1 : 0;
-        } else { turn = faceAngle(aimBearing, 4); thrust = 0; }
-      } else if (dist < 3.4 && opTo > 1.2 && !recovering) {
-        // Keep the wedge on them and back away along a clear path; a chaser that follows a
-        // straight line will meet the holes before it meets me.
-        mode = "flee";
-        const d = driveTo(me.x - ux * 2.5, me.y - uy * 2.5, 0.8, true, true);
-        if (d.thrust !== 0 || d.turn !== 0) { turn = d.turn; thrust = d.thrust; }
-        else { turn = faceAngle(aimBearing, 4); thrust = 0; }
-      } else if (opTo > 2 && dist < 5) {
-        turn = faceAngle(aimBearing, 4);
-        thrust = myTo > 0.3 ? -Math.sign(vLong) * 0.8 : 0;
-      }
-    }
-    // In contact: let them push me while they burn energy; resist as much as the room requires,
-    // and never let a hole open up behind me.
-    if (inContact && opDanger) {
-      mode = "hold";
-      const forward = Math.abs(myErr) < PI / 2;
-      const sgn = forward ? 1 : -1;
-      const roomBack = roomAlong(me.x, me.y, -ux, -uy, hSoon) - 0.9;
-      const pushing = opTo > 0.05 || -myTo > 0.15 || closing > 0.3;
-      turn = faceCtl(aimBearing, 3, 1);
-      // Sustained contact bleeds both sides through impact costs, the pusher more than me.
-      // Yield while there is room; slide out sideways (a committed manoeuvre) when it runs out.
-      thrust = sgn * 0.05;
-      const wornHere = !!(myCell && myCell.integrity < 0.55);
-      if (pushing && roomBack < 1.5) { thrust = sgn; resisting = true; } // last resort: hold the line at the edge
-      const committedSlide = s.tick < (mem.slideUntil || 0) && !pushing;
-      if (committedSlide || (wornHere && !pushing && s.tick > (mem.slideCd || 0))) {
-        let side = mem.slideSide || 1;
-        if (!committedSlide) {
-          const leftFree = !blocked(me.x, me.y, me.x - uy * 1.5, me.y + ux * 1.5, 0.15, false);
-          const rightFree = !blocked(me.x, me.y, me.x + uy * 1.5, me.y - ux * 1.5, 0.15, false);
-          const left = leftFree ? roomAlong(me.x, me.y, -uy, ux, hSoon) : 0, right = rightFree ? roomAlong(me.x, me.y, uy, -ux, hSoon) : 0;
-          side = left >= right ? 1 : -1;
-          slideUntil = s.tick + 45;
-        } else slideUntil = mem.slideUntil;
-        slideSide = side;
-        const a = Math.atan2(ux * side, -uy * side);
-        const e = wrap(a - me.heading);
-        if (Math.abs(e) < PI / 2) { turn = clamp(e * 4 - me.omega * 0.8, -1, 1); thrust = Math.abs(e) < 1.0 ? 1 : 0.2; }
-        else { const er = wrap(e + PI); turn = clamp(er * 4 - me.omega * 0.8, -1, 1); thrust = Math.abs(er) < 1.0 ? -1 : -0.2; }
-        mode = "slide";
-      }
-    } else if (inContact && !leaving && mode === "hold") {
-      if (Math.abs(thrust) <= 0.05) thrust = Math.abs(myErr) < PI / 2 ? 0.05 : -0.05;
+      const goalD = Math.sqrt((hx - me.x) ** 2 + (hy - me.y) ** 2);
+      if (goalD > 0.35) { const d = driveTo(hx, hy, goalD > 2.5 ? 0.6 : 0.4, opCan && dist < 8, true); turn = d.turn; thrust = d.thrust; }
     }
   }
 
-  // ---------- 6. Recovery: minimal spending unless a charger is the plan.
-  if (recovering && mode === "hold" && !resisting) {
-    if (!inContact && Math.abs(thrust) > 0.05 && !leaving) thrust = 0;
-    if (dangerClose) turn = faceCtl(aimBearing, 2.5, 0.7);
-    else turn = clamp(turn, -0.05, 0.05);
-  }
-  if (recovering && mode === "wait") { thrust = 0; turn = clamp(turn, -0.05, 0.05); }
-
-  // ---------- 7. Safety override: never leave the square, never coast into a hole.
+  // ---------- 5. Safety override: never leave the square, never coast into a hole.
   if (!urgent) {
     const speed = Math.abs(vLong);
     const dirx = vLong >= 0 ? cosH : -cosH, diry = vLong >= 0 ? sinH : -sinH;
-    const stop = (speed > 0 ? speed / 1.6 - 3.125 * Math.log(1 + 0.2 * speed) : 0) + 0.12;
+    // Being pushed, only drag slows the pair: my motors cannot shorten the stop.
+    const pushed = touching && myTo < -0.3 && opTo > -0.2;
+    const stop = (speed > 0 ? (pushed ? speed / 1.6 : speed / 1.6 - 3.125 * Math.log(1 + 0.2 * speed)) : 0) + (pushed ? 0.3 : 0.12);
     const sx = me.x + dirx * stop, sy = me.y + diry * stop;
     const hardLimit = hSoon - 0.3;
     const projOut = Math.max(Math.abs(sx), Math.abs(sy));
     const holeAhead = speed > 0.15 && blocked(me.x, me.y, sx + dirx * 0.2, sy + diry * 0.2, 0.05, false);
-    const softLimit = dangerClose ? hSoon - 1.4 : hSoon - 0.9;
+    const busy = mode !== "hold" && mode !== "brace" && mode !== "guard";
+    const softLimit = opCan && dist < 3.5 ? hSoon - 1.4 : hSoon - 0.9;
     if (projOut > hardLimit || holeAhead) {
-      mode = "escape";
       const movingOut = speed > 0.25 && (holeAhead || me.vx * sx + me.vy * sy > 0);
       const power = me.energy < 3 ? 0.3 : 1;
       if (movingOut) {
+        // Brake. A pivot in progress keeps its turn: turning sideways is itself the brake.
         thrust = -Math.sign(vLong) * power;
-        if (!holeAhead) {
-          const toC = Math.atan2(-me.y, -me.x);
-          turn = Math.abs(wrap(toC - me.heading)) < PI / 2 ? faceAngle(toC, 3) : faceAngle(toC + PI, 3);
+        if (mode !== "pivot") {
+          mode = "escape"; until = 0;
+          if (!holeAhead) {
+            const toC = Math.atan2(-me.y, -me.x);
+            turn = Math.abs(wrap(toC - me.heading)) < PI / 2 ? face(toC, 3, 0.7) : face(toC + PI, 3, 0.7);
+          }
         }
-      } else {
+      } else if (!touching) {
+        // In contact at the edge the contact logic keeps its commands: driving toward the
+        // center would mean driving into the pusher.
+        mode = "escape"; until = 0;
         const d = driveTo(0, 0, power, true, false);
         thrust = d.thrust; turn = d.turn;
       }
-      nextMode = "hold"; nextUntil = 0;
-    } else if (myOut > softLimit && !resisting && mode !== "strike" && mode !== "push" && mode !== "shove" && mode !== "hunt" && mode !== "charge" && mode !== "slide" && mode !== "back" && mode !== "flee" && mode !== "shield" && mode !== "sidestep" && !(inContact && opDanger)) {
+    } else if (myOut > softLimit && !busy && !touching) {
       const urgentEdge = myOut > softLimit + 0.5;
       const cb = Math.atan2(-me.y, -me.x);
       const toC = wrap(cb - me.heading);
       const fwdFree = !blocked(me.x, me.y, me.x + cosH * 1.2, me.y + sinH * 1.2, 0.2, false);
       const bwdFree = !blocked(me.x, me.y, me.x - cosH * 1.2, me.y - sinH * 1.2, 0.2, false);
-      if (recovering) {
-        if (Math.abs(toC) < 0.7 && fwdFree) thrust = 0.05;
-        else if (Math.abs(wrap(toC + PI)) < 0.7 && bwdFree) thrust = -0.05;
-        else if (!dangerClose) { thrust = 0; turn = clamp(faceAngle(Math.abs(toC) < PI / 2 ? cb : cb + PI, 1), -0.25, 0.25); }
-        if (urgentEdge && me.energy > 5) thrust = Math.abs(toC) < PI / 2 && fwdFree ? 0.4 : bwdFree ? -0.4 : 0;
-      } else if (dist < 2.5 && !urgentEdge && opDanger) {
+      if (opCan && dist < 3 && !urgentEdge) {
+        // Keep the wedge on them; creep toward the center along my own axis.
         thrust = Math.abs(toC) < PI / 2 && fwdFree ? 0.4 : bwdFree ? -0.4 : 0;
       } else {
-        const d = driveTo(0, 0, urgentEdge ? 0.8 : 0.4, dist < 5 && opDanger, true);
+        const d = driveTo(0, 0, urgentEdge ? 0.8 : 0.4, opCan && dist < 6, true);
         thrust = d.thrust; turn = d.turn;
       }
     }
@@ -576,14 +579,12 @@ export function tick(s, m) {
   if (thrust > 0.06 || thrust < -0.06) {
     const sgn = thrust > 0 ? 1 : -1;
     const ahead = 0.45 + Math.abs(vLong) * 0.35;
-    const insideHz = hz.some((c) => Math.abs(me.x - c.x) <= 0.5 && Math.abs(me.y - c.y) <= 0.5);
-    if (!insideHz && blocked(me.x, me.y, me.x + cosH * sgn * ahead, me.y + sinH * sgn * ahead, 0.08, false)) {
+    const px = me.x + cosH * sgn * ahead, py = me.y + sinH * sgn * ahead;
+    const outAhead = Math.max(Math.abs(px), Math.abs(py));
+    if ((!insideHz && blocked(me.x, me.y, px, py, 0.08, false)) || (outAhead > hSoon - 0.25 && outAhead > myOut)) {
       thrust = vLong * sgn > 0.2 ? -sgn * 0.6 : 0;
     }
   }
 
-  return {
-    actions: { thrust: clamp(thrust, -1, 1), turn: clamp(turn, -1, 1) },
-    memory: { mode: nextMode, until: nextUntil, rec: recovering, hunt: hunting, huntT, huntCd: nextCd, rev, leaving, home: nextHome === undefined ? mem.home || 0 : nextHome, slideUntil, slideSide, slideCd: slideUntil > 0 ? slideUntil + 60 : (mem.slideCd || 0), backUntil, shx: shieldX, shy: shieldY, sideUntil, sideDir, sideCd: sideUntil > 0 ? sideUntil + 90 : (mem.sideCd || 0) },
-  };
+  return { actions: { thrust: clamp(thrust, -1, 1), turn: clamp(turn, -1, 1) }, memory: memory() };
 }
