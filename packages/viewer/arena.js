@@ -21,15 +21,15 @@ function box(parent, w, d, h, x, y, z, mat) {
 // tells the robots apart at a glance.
 function shade(color, lightness) {
   const hsl = new THREE.Color(color).getHSL({}, THREE.SRGBColorSpace);
-  return new THREE.Color().setHSL(hsl.h, hsl.s * 0.9, lightness, THREE.SRGBColorSpace);
+  return new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 1.1), lightness, THREE.SRGBColorSpace);
 }
 function robot(color) {
   const root = new THREE.Group(),
     body = new THREE.Group();
   root.add(body);
-  const metal = material(shade(color, 0.12), 0.75, 0.38),
+  const metal = material(shade(color, 0.26), 0.5, 0.5),
     shell = material(color, 0.48, 0.4),
-    tread = material(shade(color, 0.06), 0.15, 0.8);
+    tread = material(0x101719, 0.15, 0.8);
   box(body, 0.63, 0.49, 0.22, -0.06, 0, 0.19, shell);
   box(body, 0.52, 0.35, 0.06, -0.06, 0, 0.33, metal);
   box(body, 0.25, 0.045, 0.01, -0.08, 0, 0.365, shell);
