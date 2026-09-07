@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createMatch, step, closeReplay } from "../packages/sim/index.js";
 import { parseReplay, stringifyReplay } from "../packages/sim/replay.js";
-import { samplePlayback, freshEvents, burnIntensity } from "../packages/viewer/playback.js";
+import {
+  samplePlayback,
+  freshEvents,
+  burnIntensity,
+  matchIntensity,
+} from "../packages/viewer/playback.js";
 
 // Generate public engine data without loading any controller implementation.
 const fixture = createMatch(0, false, ["a", "b"].map(id => ({
@@ -135,4 +140,28 @@ test("a robot burns while the flame keeps damaging it and cools down after", () 
   assert.ok(burnIntensity(events, 0, 61 / 60 + 0.2) < 1);
   assert.equal(burnIntensity(events, 0, 61 / 60 + 0.4), 0);
   assert.equal(burnIntensity(events, 1, 61 / 60), 0);
+});
+test("the soundtrack intensity rises with contact, damage and sudden death", () => {
+  const far = [{ x: -7, y: -7, energy: 100 }, { x: 7, y: 7, energy: 100 }];
+  const close = [{ x: 0, y: 0, energy: 100 }, { x: 0.6, y: 0, energy: 100 }];
+  const calm = matchIntensity({ events: [], states: far, time: 10 });
+  assert.ok(calm > 0 && calm < 0.2);
+  assert.ok(matchIntensity({ events: [], states: close, time: 10 }) > calm);
+  const brawl = matchIntensity({
+    events: Array.from({ length: 8 }, (_, i) => ({ type: "impact", tick: 540 + i, closingSpeed: 5 })),
+    states: close,
+    time: 10,
+  });
+  assert.ok(brawl > 0.6);
+  // Old impacts stop counting once they leave the window.
+  assert.ok(matchIntensity({
+    events: [{ type: "impact", tick: 60, closingSpeed: 5 }],
+    states: far,
+    time: 40,
+  }) < 0.2);
+  assert.ok(matchIntensity({ events: [], states: far, time: 100 }) > calm);
+  // Robots down to a third of their battery push it up as well.
+  assert.ok(matchIntensity({ events: [], states: far, time: 10, energyMax: 300 }) > calm);
+  // Nobody left standing: no infinities leaking into the filter.
+  assert.ok(Number.isFinite(matchIntensity({ events: [], states: [], time: 10 })));
 });

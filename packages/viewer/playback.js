@@ -111,3 +111,31 @@ export function burnIntensity(events, robot, time) {
   if (!last) return 0;
   return Math.max(0, 1 - (time - (last.tick + 1) / 60) / 0.35);
 }
+
+// How hectic the match is right now (0..1). It drives the soundtrack filter:
+// contact, damage and the shrinking arena all push it up. Events are ordered by
+// tick, so only the tail of the list is read.
+export function matchIntensity({ events, states, time, energyMax = 100, window = 3 }) {
+  let hits = 0,
+    speed = 0;
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (time - (events[i].tick + 1) / 60 > window) break;
+    if (events[i].type !== "impact") continue;
+    hits++;
+    speed = Math.max(speed, events[i].closingSpeed ?? 0);
+  }
+  const alive = states.filter((s) => !s.out && !s.ringOut);
+  let closest = Infinity;
+  for (let i = 0; i < alive.length; i++)
+    for (let j = i + 1; j < alive.length; j++)
+      closest = Math.min(closest, Math.hypot(alive[i].x - alive[j].x, alive[i].y - alive[j].y));
+  const unit = (n) => Math.max(0, Math.min(1, n));
+  return unit(
+    0.12 +
+      0.34 * unit(hits / 6) +
+      0.16 * unit(speed / 5) +
+      0.18 * unit(1 - closest / 6) +
+      0.12 * unit(1 - Math.min(...alive.map((s) => s.energy)) / energyMax) +
+      0.2 * unit((time - 60) / 25),
+  );
+}

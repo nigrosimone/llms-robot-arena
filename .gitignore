@@ -6,3 +6,6 @@ artifacts/
 !.env.example
 results/
 /match-*.json
+
+# Local soundtrack files: never committed.
+packages/viewer/public/music/

@@ -1,5 +1,7 @@
 // Match sound. Every cue is synthesized with Web Audio: nothing to download,
 // and the same graph feeds the recorder, so the cues land in the saved video.
+// The music under them is a file, filtered live by the state of the match.
+import { Soundtrack } from "./soundtrack.js";
 
 // One cue per replay event, plus the intensity of the sound it plays with.
 export function eventCue(event) {
@@ -23,6 +25,8 @@ export class MatchAudio {
     this.enabled = true;
     this.ctx = null;
     this.ended = false;
+    // The intro card runs over the music too, before the match starts.
+    this.intro = false;
     // Told whenever the sound becomes audible or stops being so.
     this.onchange = null;
   }
@@ -68,6 +72,7 @@ export class MatchAudio {
     source.loop = true;
     source.connect(band).connect(this.flame).connect(this.master);
     source.start();
+    this.track = new Soundtrack(ctx, this.master);
     // A context built inside a gesture is already running and sends no event.
     if (ctx.state !== "running") ctx.resume();
     this.onchange?.();
@@ -159,7 +164,20 @@ export class MatchAudio {
     }
   }
   // Called once per rendered frame with the events the playhead just crossed.
-  frame(events, { burning = 0, ended = false } = {}) {
+  // The music bed: it plays under the intro card and while the replay runs, and
+  // the filter opens with the fight.
+  bed({ playing = false, intensity = 0 } = {}) {
+    if (!this.audible) return;
+    this.track.update({ on: playing || this.intro, intensity, level: 0.42 });
+  }
+  // A new take restarts the track, so every clip opens the same way. The
+  // offset picks where in the file that is.
+  restartTrack(offset = 0) {
+    this.resume();
+    this.track?.restart(offset);
+  }
+  frame(events, { burning = 0, ended = false, playing = false, intensity = 0 } = {}) {
+    this.bed({ playing, intensity });
     // The end of the match is tracked even in silence: turning the sound on
     // later must not replay the closing cue.
     const wasEnded = this.ended;

@@ -1,7 +1,7 @@
 import { botName } from "../bot-catalog.js";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { samplePlayback, freshEvents, burnIntensity } from "./playback.js";
+import { samplePlayback, freshEvents, burnIntensity, matchIntensity } from "./playback.js";
 import { ParticleField } from "./particles.js";
 import { TerrainView, deckGeometry, decalGeometry } from "./terrain.js";
 import { FollowCamera } from "./camera.js";
@@ -539,7 +539,17 @@ export class ArenaViewer {
     this.sparks.update(step);
     this.smoke.update(step);
     const ended = !this.live && this.time >= this.playbackDuration;
-    this.audio?.frame(fresh, { burning: this.playing ? burning : 0, ended });
+    this.audio?.frame(fresh, {
+      burning: this.playing ? burning : 0,
+      ended,
+      playing: this.playing,
+      intensity: matchIntensity({
+        events: past,
+        states,
+        time: this.time,
+        energyMax: sample.energyMax,
+      }),
+    });
     const uiTick = Math.floor(this.time * 60 + 1e-9);
     if (
       uiTick !== this.lastUI ||

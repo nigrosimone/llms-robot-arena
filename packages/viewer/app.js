@@ -400,11 +400,13 @@ function showIntro(r) {
     `<span class="intro-eyebrow">AUTONOMOUS COMBAT LAB</span><span class="intro-title">${esc(card.title)}</span>${fighters}<span class="intro-seed">${esc(card.seed)}</span>`;
   $("#match-intro").hidden = false;
   introStart = performance.now();
+  audio.intro = true;
 }
 function cancelIntro() {
   clearTimeout(introTimer);
   introTimer = null;
   introStart = null;
+  audio.intro = false;
   $("#match-intro").hidden = true;
 }
 function playWithIntro() {
@@ -412,6 +414,7 @@ function playWithIntro() {
   cancelIntro();
   viewer.playing = false;
   viewer.seek(0);
+  audio.restartTrack();
   showIntro(replay);
   introTimer = setTimeout(() => {
     cancelIntro();
