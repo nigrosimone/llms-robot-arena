@@ -75,7 +75,8 @@ export async function runLiveMatch({
       if (stopped()) break;
       const events = m.events.length,
         hashes = m.stateHashes.length,
-        loads = m.floorLoads.length;
+        loads = m.floorLoads.length,
+        cells = m.cells.length;
       step(
         m,
         out,
@@ -87,6 +88,9 @@ export async function runLiveMatch({
         frame: m.frames.slice((m.tick - 1) * 12, m.tick * 12),
         extent: m.arenaExtents[m.tick - 1],
         loads: m.floorLoads.slice(loads),
+        // Stepping on a fresh tile creates its floor cell. Without these the
+        // viewer has nothing to wear down, and later nothing to open a hole in.
+        cells: structuredClone(m.cells.slice(cells)),
         events: m.events.slice(events),
         hashes: m.stateHashes.slice(hashes),
       });

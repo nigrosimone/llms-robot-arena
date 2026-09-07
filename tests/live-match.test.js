@@ -54,6 +54,13 @@ test("a manual match streams every tick and closes an exportable replay", async 
     streamed.flatMap((u) => u.events),
     replay.events,
   );
+  // Driving over a fresh tile creates its floor cell: the stream must carry it,
+  // or the viewer cannot show the floor wearing down under a manual match.
+  assert.ok(streamed.some((u) => u.cells.length));
+  assert.deepEqual(
+    [...ticks[0].arenaCells, ...streamed.flatMap((u) => u.cells)],
+    replay.arenaCells,
+  );
   assert.doesNotThrow(() => parseReplay(stringifyReplay(replay)));
 });
 

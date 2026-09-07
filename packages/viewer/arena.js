@@ -434,6 +434,8 @@ export class ArenaViewer {
     [[-half, -half], [half, -half], [half, half], [-half, half]].forEach(([x, y], i) => edge.setXYZ(i, x, y, 0.04));
     edge.needsUpdate = true;
     this.edge.geometry.computeBoundingSphere();
+    if (this.terrain.cells.length < (r.arenaCells?.length ?? 0))
+      this.terrain.add(r.arenaCells.slice(this.terrain.cells.length));
     this.terrain.draw(sample.cells, sample.time);
     this.edge.material.color.set(this.time >= 60 ? 0xeb9864 : 0xb7d885);
     const flips = states.map((s) => s.flips);

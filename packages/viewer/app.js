@@ -769,6 +769,7 @@ function appendLiveTick(data) {
   r.frames.set(data.frame, (data.tick - 1) * 12);
   r.arenaExtents[data.tick - 1] = data.extent;
   r.floorLoads.push(...data.loads);
+  if (data.cells?.length) r.arenaCells.push(...data.cells);
   r.events.push(...data.events);
   r.stateHashes.push(...data.hashes);
   r.result.ticks = data.tick;

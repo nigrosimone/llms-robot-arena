@@ -61,6 +61,11 @@ export class TerrainView {
   }
   load(cells) {
     this.clear();
+    this.add(cells);
+  }
+  // A manual match creates floor tiles as the robots drive over them, so the
+  // list grows while it plays.
+  add(cells) {
     for (const cell of cells) {
       const group = new THREE.Group();
       group.position.set(cell.x, cell.y, 0);
