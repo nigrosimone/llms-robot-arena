@@ -17,6 +17,7 @@ import {
   INTRO_SECONDS,
   OUTRO_SECONDS,
 } from "./recorder.js";
+import { MatchAudio } from "./audio.js";
 const icons = {
   arena: "M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10",
   code: "m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18",
@@ -37,6 +38,8 @@ const icons = {
   settings: "M4 7h16M4 17h16M8 4v6m8 4v6",
   swap: "M4 7h16l-4-4M20 17H4l4 4",
   record: "M12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z",
+  sound: "M4 9h4l5-4v14l-5-4H4V9Zm12 0a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12",
+  mute: "M4 9h4l5-4v14l-5-4H4V9Zm12 1 6 6m0-6-6 6",
   stop: "M6 6h12v12H6Z",
 };
 const icon = (name, size = 18) =>
@@ -107,7 +110,7 @@ document.querySelector("#app").innerHTML = `
      <div class="stage-header"><div class="record-tag"><span class="record-dot"></span><span id="record-label">REPLAY</span> <span id="replay-seed">SEED 00</span></div><div class="stage-clock"><b id="match-clock">00:00</b><span>/ 02:00</span></div><span class="arena-size" id="arena-size">16.0 × 16.0 M</span></div>
      <div id="viewport"></div>
      <div class="stage-note"><span id="pressure-tag">RAISED PLATFORM</span><span id="camera-hint">Auto camera · follows both robots</span><span id="collapse-warning" role="status" aria-live="polite" hidden></span></div>
-     <div class="camera-actions"><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint">Manual camera</label><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
+     <div class="camera-actions"><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint">Manual camera</label><button id="sound" class="icon-button" aria-label="Mute sound" title="Sound" aria-pressed="true">${icon("sound")}</button><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
      <div id="stage-loading" class="stage-loading"><span class="loader"></span><b>Preparing replay</b><span id="loading-detail">Simulation comes before every frame.</span><progress id="simulation-progress" value="0" max="1"></progress><button id="cancel" class="button outline" hidden>Cancel</button></div>
      <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><div id="result-standings" class="result-standings" hidden></div><div class="result-actions"><button id="watch-again" class="button accent">${icon("reset")}Watch again</button><button id="random-match" class="button outline">${icon("swap")}Random seed</button></div></div>
      <div id="match-intro" class="match-intro" aria-hidden="true" hidden></div>
@@ -353,8 +356,19 @@ function loadReplay(r, autoplay = false) {
     $("#timeline").disabled = true;
   }
 }
+// Sound is synthesized in the browser and mixed into the recorded clip. A
+// browser only lets it start after an interaction, and the first match plays
+// on its own, so any gesture on the page wakes it. The sound button is left
+// out: a click there must not both wake the sound and mute it.
+const audio = new MatchAudio();
+const wakeAudio = (event) => {
+  if (!event.target?.closest?.("#sound")) audio.resume();
+};
+addEventListener("pointerdown", wakeAudio, true);
+addEventListener("keydown", wakeAudio, true);
 try {
   viewer = new ArenaViewer($("#viewport"), renderFrame);
+  viewer.audio = audio;
 } catch (e) {
   $("#stage-loading b").textContent = "WebGL 2 is unavailable.";
   $("#loading-detail").textContent =
@@ -425,9 +439,11 @@ function startRecording() {
   if (!viewer || !replay) return toast("Simulate or import a match first.", true);
   if (!recordingSupported())
     return toast("This browser cannot record video.", true);
+  audio.resume();
   recorder = new MatchRecorder({
     source: () => viewer.renderer.domElement,
     state: recorderState,
+    sound: audio.stream,
   });
   try {
     recorder.start();
@@ -476,6 +492,18 @@ $("#speed").onchange = (e) => {
   if (viewer) viewer.speed = +e.target.value;
 };
 $("#reset-camera").onclick = () => viewer?.resetCamera();
+function renderSoundButton() {
+  const button = $("#sound"),
+    on = audio.audible;
+  button.innerHTML = icon(on ? "sound" : "mute");
+  button.setAttribute("aria-pressed", String(on));
+  button.setAttribute("aria-label", on ? "Mute sound" : "Unmute sound");
+  button.classList.toggle("muted", !on);
+}
+audio.onchange = renderSoundButton;
+renderSoundButton();
+// Blocked sound is not muted sound: the first click here turns it on.
+$("#sound").onclick = () => audio.setEnabled(!audio.audible);
 $("#manual-camera").disabled = !viewer;
 $("#manual-camera").onchange = (e) => {
   viewer?.setManualCamera(e.target.checked);

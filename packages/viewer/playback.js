@@ -93,3 +93,21 @@ export function samplePlayback(replay, time) {
     cells: cellSnapshots(replay.arenaCells ?? [], terrainTick, half, cooldowns, floorWearAt(replay, lo)),
   };
 }
+
+// Events the playhead crossed between two rendered frames. A seek or a replay
+// change moves time by more than a frame, and then nothing is replayed.
+export function freshEvents(events, from, to) {
+  if (from == null || to <= from || to - from > 0.5) return [];
+  return events.filter((e) => {
+    const at = (e.tick + 1) / 60;
+    return at > from && at <= to;
+  });
+}
+
+// How hard a robot is burning right now: flame cells damage it every tick, so
+// the last fire-damage event decides both the plume and the fire loop.
+export function burnIntensity(events, robot, time) {
+  const last = events.filter((e) => e.type === "fire-damage" && e.robot === robot).at(-1);
+  if (!last) return 0;
+  return Math.max(0, 1 - (time - (last.tick + 1) / 60) / 0.35);
+}

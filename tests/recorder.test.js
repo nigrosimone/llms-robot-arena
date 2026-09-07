@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { eventCue } from "../packages/viewer/audio.js";
 import {
   pickRecordingType,
   recordingFilename,
@@ -20,6 +21,23 @@ test("recording prefers mp4 and falls back to webm", () => {
     "webm",
   );
   assert.equal(pickRecordingType(() => false), null);
+});
+
+test("a clip with sound asks for a container that carries an audio codec", () => {
+  assert.equal(pickRecordingType(() => true, true).mime, "video/mp4;codecs=avc1.4d002a,mp4a.40.2");
+  assert.equal(
+    pickRecordingType((mime) => mime.includes("opus"), true).mime,
+    "video/webm;codecs=vp9,opus",
+  );
+  // No container takes the audio track: the clip is still recorded, silent.
+  assert.equal(pickRecordingType((mime) => mime === "video/mp4;codecs=avc1.4d002a", true).mime, "video/mp4;codecs=avc1.4d002a");
+});
+
+test("every replay event that deserves a sound maps to one cue", () => {
+  assert.deepEqual(eventCue({ type: "impact", closingSpeed: 2.5 }), { cue: "impact", strength: 0.5 });
+  assert.equal(eventCue({ type: "hole", robot: 0 }).cue, "fall");
+  assert.equal(eventCue({ type: "collapse", cell: "floor-1" }).cue, "collapse");
+  assert.equal(eventCue({ type: "violation", robot: 0 }), null);
 });
 
 test("the file name carries both controllers and the seed", () => {

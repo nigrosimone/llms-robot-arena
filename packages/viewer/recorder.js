@@ -11,16 +11,21 @@ const WIDTH = 1280,
 const SANS = '"DM Sans", system-ui, sans-serif';
 const MONO = '"IBM Plex Mono", monospace';
 const DISPLAY = '"Barlow Condensed", "Arial Narrow", sans-serif';
-// MP4 first: it is the format social platforms accept without conversion.
+// MP4 first: it is the format social platforms accept without conversion. Each
+// entry also names the codec pair to ask for when the clip carries sound.
 const TYPES = [
-  { mime: "video/mp4;codecs=avc1.4d002a", extension: "mp4" },
-  { mime: "video/mp4", extension: "mp4" },
-  { mime: "video/webm;codecs=vp9", extension: "webm" },
-  { mime: "video/webm;codecs=vp8", extension: "webm" },
-  { mime: "video/webm", extension: "webm" },
+  { mime: "video/mp4;codecs=avc1.4d002a", sound: "video/mp4;codecs=avc1.4d002a,mp4a.40.2", extension: "mp4" },
+  { mime: "video/mp4", sound: "video/mp4;codecs=avc1,mp4a.40.2", extension: "mp4" },
+  { mime: "video/webm;codecs=vp9", sound: "video/webm;codecs=vp9,opus", extension: "webm" },
+  { mime: "video/webm;codecs=vp8", sound: "video/webm;codecs=vp8,opus", extension: "webm" },
+  { mime: "video/webm", sound: "video/webm", extension: "webm" },
 ];
-export function pickRecordingType(supported) {
-  return TYPES.find((type) => supported(type.mime)) ?? null;
+export function pickRecordingType(supported, withSound = false) {
+  const type = TYPES.map((entry) => ({
+    mime: withSound ? entry.sound : entry.mime,
+    extension: entry.extension,
+  })).find((entry) => supported(entry.mime));
+  return type ?? (withSound ? pickRecordingType(supported) : null);
 }
 export function recordingSupported() {
   return (
@@ -224,9 +229,11 @@ function drawIntro(ctx, { replay }, progress) {
 export class MatchRecorder {
   // source() returns the rendered WebGL canvas, state() the replay and the
   // frame the viewer is showing, so recording never drives the simulation.
-  constructor({ source, state, width = WIDTH, height = HEIGHT, fps = FPS }) {
+  constructor({ source, state, sound = null, width = WIDTH, height = HEIGHT, fps = FPS }) {
     this.source = source;
     this.state = state;
+    // The synthesized match sound, as a live MediaStream, or null for a silent clip.
+    this.sound = sound;
     this.fps = fps;
     this.canvas = document.createElement("canvas");
     this.canvas.width = width;
@@ -238,11 +245,16 @@ export class MatchRecorder {
     return Boolean(this.media);
   }
   start() {
-    const type = pickRecordingType((mime) => MediaRecorder.isTypeSupported(mime));
+    const track = this.sound?.getAudioTracks?.()[0] ?? null;
+    const type = pickRecordingType(
+      (mime) => MediaRecorder.isTypeSupported(mime),
+      Boolean(track),
+    );
     if (!type) throw Error("This browser cannot record video.");
     this.type = type;
     this.chunks = [];
     const stream = this.canvas.captureStream(this.fps);
+    if (track) stream.addTrack(track);
     this.media = new MediaRecorder(stream, {
       mimeType: type.mime,
       videoBitsPerSecond: 8_000_000,

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createMatch, step, closeReplay } from "../packages/sim/index.js";
 import { parseReplay, stringifyReplay } from "../packages/sim/replay.js";
-import { samplePlayback } from "../packages/viewer/playback.js";
+import { samplePlayback, freshEvents, burnIntensity } from "../packages/viewer/playback.js";
 
 // Generate public engine data without loading any controller implementation.
 const fixture = createMatch(0, false, ["a", "b"].map(id => ({
@@ -112,4 +112,27 @@ test("flip and self-right use the recorded impact axis and smooth half-second an
     ) < 1e-9,
   );
   assert.equal(samplePlayback(replay, 5).states[0].rotation, 0);
+});
+test("effect cues fire once, on the frame that crosses the event", () => {
+  const events = [
+    { tick: 5, type: "impact" },
+    { tick: 11, type: "flip", robot: 0 },
+  ];
+  assert.deepEqual(freshEvents(events, 0.05, 0.2).map((e) => e.type), ["impact", "flip"]);
+  assert.deepEqual(freshEvents(events, 0.1, 0.2).map((e) => e.type), ["flip"]);
+  // Nothing replays after a seek, a rewind or a fresh replay.
+  assert.deepEqual(freshEvents(events, 0.2, 0.2), []);
+  assert.deepEqual(freshEvents(events, 1.5, 0.2), []);
+  assert.deepEqual(freshEvents(events, null, 0.2), []);
+  assert.deepEqual(freshEvents(events, 0.1, 5), []);
+});
+test("a robot burns while the flame keeps damaging it and cools down after", () => {
+  const events = [
+    { tick: 59, type: "fire-damage", robot: 0 },
+    { tick: 60, type: "fire-damage", robot: 0 },
+  ];
+  assert.equal(burnIntensity(events, 0, 61 / 60), 1);
+  assert.ok(burnIntensity(events, 0, 61 / 60 + 0.2) < 1);
+  assert.equal(burnIntensity(events, 0, 61 / 60 + 0.4), 0);
+  assert.equal(burnIntensity(events, 1, 61 / 60), 0);
 });

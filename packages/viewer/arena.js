@@ -1,7 +1,8 @@
 import { botName } from "../bot-catalog.js";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { samplePlayback } from "./playback.js";
+import { samplePlayback, freshEvents, burnIntensity } from "./playback.js";
+import { ParticleField } from "./particles.js";
 import { TerrainView, deckGeometry, decalGeometry } from "./terrain.js";
 import { FollowCamera } from "./camera.js";
 import { robotColor } from "./palette.js";
@@ -16,13 +17,19 @@ function box(parent, w, d, h, x, y, z, mat) {
   parent.add(m);
   return m;
 }
+// Same hue as the shell, far darker: the plating still reads as metal but it
+// tells the robots apart at a glance.
+function shade(color, lightness) {
+  const hsl = new THREE.Color(color).getHSL({}, THREE.SRGBColorSpace);
+  return new THREE.Color().setHSL(hsl.h, hsl.s * 0.9, lightness, THREE.SRGBColorSpace);
+}
 function robot(color) {
   const root = new THREE.Group(),
     body = new THREE.Group();
   root.add(body);
-  const metal = material(0x232a2d, 0.75, 0.38),
+  const metal = material(shade(color, 0.12), 0.75, 0.38),
     shell = material(color, 0.48, 0.4),
-    tread = material(0x101719, 0.15, 0.8);
+    tread = material(shade(color, 0.06), 0.15, 0.8);
   box(body, 0.63, 0.49, 0.22, -0.06, 0, 0.19, shell);
   box(body, 0.52, 0.35, 0.06, -0.06, 0, 0.33, metal);
   box(body, 0.25, 0.045, 0.01, -0.08, 0, 0.365, shell);
@@ -90,6 +97,9 @@ export class ArenaViewer {
     this.onRender = null;
     this.last = 0;
     this.lastUI = -1;
+    // Sound and particles fire once, when the playhead crosses the event.
+    this.cueTime = 0;
+    this.audio = null;
     const scene = (this.scene = new THREE.Scene());
     scene.background = new THREE.Color(0x12171b);
     scene.fog = new THREE.FogExp2(0x12171b, 0.016);
@@ -263,26 +273,18 @@ export class ArenaViewer {
     this.robots = [];
     this.labels = [];
     this.setRobotCount(2);
-    const sparkGeom = new THREE.BufferGeometry();
-    sparkGeom.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(new Float32Array(180), 3),
-    );
-    this.sparks = new THREE.Points(
-      sparkGeom,
-      new THREE.PointsMaterial({
-        color: 0xffd788,
-        size: 0.08,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-      }),
-    );
-    scene.add(this.sparks);
+    this.sparks = new ParticleField(scene, { count: 520 });
+    this.smoke = new ParticleField(scene, {
+      count: 320,
+      blending: THREE.NormalBlending,
+    });
     this.resize = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
       if (!width || !height) return;
       renderer.setSize(width, height);
+      const buffer = height * renderer.getPixelRatio();
+      this.sparks.setHeight(buffer);
+      this.smoke.setHeight(buffer);
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
       this.draw(0, true);
@@ -318,6 +320,7 @@ export class ArenaViewer {
     this.deckKey = null;
     this.terrain.load(replay.arenaCells ?? []);
     this.time = 0;
+    this.resetEffects();
     // A live match grows while it plays: playback follows the simulated ticks.
     this.live = live;
     this.playing = live;
@@ -329,7 +332,15 @@ export class ArenaViewer {
   }
   seek(t) {
     this.time = t >= this.duration ? this.playbackDuration : Math.max(0, t);
+    this.resetEffects();
     this.draw(0, true);
+  }
+  // Nothing from the old position may leak into the new one.
+  resetEffects() {
+    this.cueTime = this.time;
+    this.sparks.clear();
+    this.smoke.clear();
+    this.audio?.reset();
   }
   get duration() {
     return this.replay ? this.replay.result.ticks / 60 : 0;
@@ -478,7 +489,8 @@ export class ArenaViewer {
       el.classList.toggle("recovering", status === 2);
     }
     // Keep both energy bars and names legible at close contact, also on mobile.
-    if (this.labels.length !== 2) return this.drawEffects(sample, past, states, half, flips);
+    if (this.labels.length !== 2)
+      return this.drawEffects(sample, past, states, half, flips, dt);
     const [first, second] = this.labels;
     const dx = Math.abs(parseFloat(first.style.left) - parseFloat(second.style.left)) * this.container.clientWidth / 100;
     const dy = Math.abs(parseFloat(first.style.top) - parseFloat(second.style.top)) * this.container.clientHeight / 100;
@@ -486,30 +498,30 @@ export class ArenaViewer {
       const upper = parseFloat(first.style.top) <= parseFloat(second.style.top) ? first : second;
       upper.style.top = `calc(${upper.style.top} - ${32 - dy}px)`;
     }
-    return this.drawEffects(sample, past, states, half, flips);
+    return this.drawEffects(sample, past, states, half, flips, dt);
   }
-  drawEffects(sample, past, states, half, flips) {
-    const impact = past
-      .filter(
-        (e) => e.type === "impact" && this.time - (e.tick + 1) / 60 < 0.45,
-      )
-      .at(-1);
-    this.sparks.material.opacity = impact
-      ? Math.max(0, 1 - (this.time - (impact.tick + 1) / 60) / 0.45)
-      : 0;
-    if (impact) {
-      const age = this.time - (impact.tick + 1) / 60,
-        arr = this.sparks.geometry.attributes.position.array;
-      for (let i = 0; i < 60; i++) {
-        const angle = i * 2.39996,
-          velocity = (0.2 + (i % 7) * 0.13) * Math.min(5, impact.closingSpeed);
-        arr[i * 3] = impact.x + Math.cos(angle) * age * velocity;
-        arr[i * 3 + 1] = impact.y + Math.sin(angle) * age * velocity;
-        arr[i * 3 + 2] =
-          0.15 + Math.sin(i) * age * 0.8 + age * 2 - age * age * 6;
-      }
-      this.sparks.geometry.attributes.position.needsUpdate = true;
+  drawEffects(sample, past, states, half, flips, dt = 0) {
+    // Particles run on playback time, so they slow down and freeze with it.
+    const step = this.playing ? dt * this.speed : 0;
+    const fresh = freshEvents(past, this.cueTime, this.time);
+    this.cueTime = this.time;
+    for (const event of fresh)
+      if (event.type === "impact") this.spawnImpact(event);
+    let burning = 0;
+    for (let i = 0; i < states.length; i++) {
+      const state = states[i];
+      if (state.out || state.ringOut) continue;
+      const heat = burnIntensity(past, i, this.time);
+      burning += heat;
+      if (!step) continue;
+      if (heat > 0) this.spawnFire(state, heat, step);
+      const damage = 1 - state.energy / (sample.energyMax * 0.3);
+      if (damage > 0) this.spawnDamageSmoke(state, damage, step);
     }
+    this.sparks.update(step);
+    this.smoke.update(step);
+    const ended = !this.live && this.time >= this.playbackDuration;
+    this.audio?.frame(fresh, { burning: this.playing ? burning : 0, ended });
     const uiTick = Math.floor(this.time * 60 + 1e-9);
     if (
       uiTick !== this.lastUI ||
@@ -525,9 +537,100 @@ export class ArenaViewer {
         flips,
         events: past,
         cells: sample.cells,
-        ended: !this.live && this.time >= this.playbackDuration,
+        ended,
       });
     }
+  }
+  // Contact throws sparks along the deck and lifts a little dust with them.
+  spawnImpact(event) {
+    const speed = Math.min(6, event.closingSpeed ?? 1);
+    for (let i = 0; i < 20 + Math.round(speed * 7); i++) {
+      const angle = Math.random() * Math.PI * 2,
+        velocity = (0.6 + Math.random() * 1.5) * (0.6 + speed * 0.4);
+      this.sparks.emit({
+        x: event.x,
+        y: event.y,
+        z: 0.16 + Math.random() * 0.14,
+        vx: Math.cos(angle) * velocity,
+        vy: Math.sin(angle) * velocity,
+        vz: 0.7 + Math.random() * 2.6,
+        life: 0.3 + Math.random() * 0.5,
+        size: 0.05 + Math.random() * 0.05,
+        endSize: 0.012,
+        color: Math.random() < 0.35 ? 0xfff3cc : 0xffab33,
+        gravity: -7,
+        drag: 1.3,
+      });
+    }
+    for (let i = 0; i < 6; i++)
+      this.smoke.emit({
+        x: event.x + (Math.random() - 0.5) * 0.3,
+        y: event.y + (Math.random() - 0.5) * 0.3,
+        z: 0.14,
+        vx: (Math.random() - 0.5) * 0.7,
+        vy: (Math.random() - 0.5) * 0.7,
+        vz: 0.35 + Math.random() * 0.4,
+        life: 0.5 + Math.random() * 0.4,
+        size: 0.18,
+        endSize: 0.55,
+        color: 0x7c756c,
+        alpha: 0.3,
+        drag: 2.2,
+      });
+  }
+  // A robot standing in a flame burns: a plume out of the shell plus smoke.
+  spawnFire(state, heat, dt) {
+    const flames = Math.floor(80 * heat * dt + Math.random());
+    for (let i = 0; i < flames; i++)
+      this.sparks.emit({
+        x: state.x + (Math.random() - 0.5) * 0.55,
+        y: state.y + (Math.random() - 0.5) * 0.55,
+        z: 0.2 + Math.random() * 0.25,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        vz: 1.1 + Math.random() * 1.3,
+        life: 0.35 + Math.random() * 0.35,
+        size: 0.16 + Math.random() * 0.16,
+        endSize: 0.03,
+        color: Math.random() < 0.4 ? 0xffd977 : 0xff5a1e,
+        alpha: 0.9,
+        drag: 1.5,
+      });
+    const puffs = Math.floor(22 * heat * dt + Math.random());
+    for (let i = 0; i < puffs; i++)
+      this.smoke.emit({
+        x: state.x + (Math.random() - 0.5) * 0.4,
+        y: state.y + (Math.random() - 0.5) * 0.4,
+        z: 0.5 + Math.random() * 0.3,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        vz: 1 + Math.random() * 0.7,
+        life: 1 + Math.random() * 0.8,
+        size: 0.22,
+        endSize: 0.95,
+        color: 0x4a443e,
+        alpha: 0.42,
+        drag: 0.9,
+      });
+  }
+  // A nearly flat battery smokes on its own, even away from the grates.
+  spawnDamageSmoke(state, damage, dt) {
+    const puffs = Math.floor(9 * Math.min(1, damage) * dt + Math.random() * 0.6);
+    for (let i = 0; i < puffs; i++)
+      this.smoke.emit({
+        x: state.x + (Math.random() - 0.5) * 0.3,
+        y: state.y + (Math.random() - 0.5) * 0.3,
+        z: 0.4,
+        vx: (Math.random() - 0.5) * 0.25,
+        vy: (Math.random() - 0.5) * 0.25,
+        vz: 0.7 + Math.random() * 0.5,
+        life: 0.9 + Math.random() * 0.6,
+        size: 0.14,
+        endSize: 0.6,
+        color: 0x6d655d,
+        alpha: 0.3,
+        drag: 1,
+      });
   }
   dispose() {
     cancelAnimationFrame(this.raf);

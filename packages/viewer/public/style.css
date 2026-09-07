@@ -427,6 +427,7 @@ main {
   background: #161d2199;
   border-color: #3a464b;
 }
+.camera-actions .icon-button.muted { color: #6b7679; }
 .robot-label {
   position: absolute;
   pointer-events: none;
