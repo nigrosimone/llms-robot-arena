@@ -423,6 +423,17 @@ main {
 .camera-toggle:has(input:checked) { color: var(--lime); border-color: #6a8252; }
 .camera-toggle:has(input:focus-visible) { outline: 2px solid var(--lime); outline-offset: 3px; }
 .camera-toggle input { width: 14px; height: 14px; margin: 0; accent-color: var(--lime); }
+.camera-actions select {
+  min-height: 34px;
+  padding: 6px 8px;
+  font: 12px var(--mono);
+  color: var(--muted);
+  background: #161d21e6;
+  border: 1px solid #3a464b;
+  border-radius: 4px;
+  max-width: 190px;
+}
+.camera-actions select:disabled { opacity: 0.5; }
 .camera-actions .icon-button {
   background: #161d2199;
   border-color: #3a464b;
@@ -1932,6 +1943,11 @@ tbody tr:last-child td {
     right: 13px;
     bottom: 18px;
     gap: 5px;
+  }
+  .camera-actions select {
+    min-height: 30px;
+    max-width: 128px;
+    font-size: 11px;
   }
   .camera-actions .icon-button {
     height: 30px;

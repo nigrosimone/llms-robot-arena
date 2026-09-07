@@ -5,7 +5,21 @@ const AUTO_DIRECTION = [17, -22, 23];
 const CHASE_PITCH = 0.7;
 const CHASE_DISTANCE = 13;
 const CHASE_LOOKAHEAD = 1.4;
-
+// How far the target leans toward the chased robot when the shot must also
+// hold its rival: enough to feel like its point of view, not so much that the
+// other robot ends up behind the camera.
+const CHASE_BIAS = 0.4;
+// A duel has one rival, a rumble has eleven. Framing them all would push the
+// camera so far back that the point of view would be lost, so the shot holds
+// the chased robot and the rival that matters: the closest one.
+const nearestTo = (center, others) =>
+  others.reduce(
+    (best, other) => {
+      const gap = Math.hypot(other.x - center.x, other.y - center.y);
+      return gap < best.gap ? { center: other, gap } : best;
+    },
+    { center: null, gap: Infinity },
+  ).center;
 // Presentation only: follow the sampled poses without changing replay state.
 export class FollowCamera {
   constructor(camera) {
@@ -18,6 +32,7 @@ export class FollowCamera {
     this.distance = 11;
     this.minDistance = 11;
     this.focus = null;
+    this.withRival = false;
     this.initialized = false;
   }
 
@@ -27,10 +42,13 @@ export class FollowCamera {
     this.up.crossVectors(this.direction, this.right).normalize();
   }
 
-  // Manual mode drives one robot: the camera sits behind it, turns with it and
-  // frames only that robot, the way a third-person view does.
-  setFocus(index = null) {
+  // The camera sits behind one robot and turns with it, the way a third-person
+  // view does. Driving manually frames only that robot; watching a replay from
+  // its point of view also holds its closest rival, which is the point of
+  // offering the view at all.
+  setFocus(index = null, { withRival = false } = {}) {
     this.focus = index;
+    this.withRival = withRival;
     this.minDistance = index === null ? 11 : CHASE_DISTANCE;
     if (index === null) this.setDirection(new Vector3(...AUTO_DIRECTION));
   }
@@ -43,9 +61,16 @@ export class FollowCamera {
     const framedStates = inPlay.length ? inPlay : states;
     const centers = framedStates.map(s => new Vector3(s.x, s.y, Math.max(-3.5, s.z ?? 0)));
     const driven = states[this.focus] && !states[this.focus].out ? states[this.focus] : null;
-    const framed = driven
-      ? [new Vector3(driven.x, driven.y, Math.max(-3.5, driven.z ?? 0))]
-      : centers;
+    const drivenCenter = driven
+      ? new Vector3(driven.x, driven.y, Math.max(-3.5, driven.z ?? 0))
+      : null;
+    let framed = centers;
+    if (driven) {
+      const rival = this.withRival
+        ? nearestTo(drivenCenter, centers.filter((center) => !center.equals(drivenCenter)))
+        : null;
+      framed = rival ? [drivenCenter, rival] : [drivenCenter];
+    }
     const midpoint = new Vector3();
     for (const center of framed) midpoint.add(center);
     midpoint.multiplyScalar(1 / framed.length);
@@ -54,7 +79,9 @@ export class FollowCamera {
     if (driven) {
       const heading = driven.heading ?? 0;
       const forward = new Vector3(Math.cos(heading), Math.sin(heading), 0);
-      // Look ahead of the robot, and swing behind it as it turns.
+      // Lean toward the chased robot, then look ahead of it and swing behind
+      // it as it turns. The fit below still has to hold everything framed.
+      if (framed.length > 1) midpoint.lerp(drivenCenter, CHASE_BIAS);
       midpoint.addScaledVector(forward, CHASE_LOOKAHEAD);
       const behind = forward.clone().negate().setZ(CHASE_PITCH).normalize();
       const swing = snap ? 1 : 1 - Math.exp(-5 * dt);

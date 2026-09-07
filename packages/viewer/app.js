@@ -110,7 +110,7 @@ document.querySelector("#app").innerHTML = `
      <div class="stage-header"><div class="record-tag"><span class="record-dot"></span><span id="record-label">REPLAY</span> <span id="replay-seed">SEED 00</span></div><div class="stage-clock"><b id="match-clock">00:00</b><span>/ 02:00</span></div><span class="arena-size" id="arena-size">16.0 × 16.0 M</span></div>
      <div id="viewport"></div>
      <div class="stage-note"><span id="pressure-tag">RAISED PLATFORM</span><span id="camera-hint">Auto camera · follows both robots</span><span id="collapse-warning" role="status" aria-live="polite" hidden></span></div>
-     <div class="camera-actions"><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint">Manual camera</label><button id="sound" class="icon-button" aria-label="Mute sound" title="Sound" aria-pressed="true">${icon("sound")}</button><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
+     <div class="camera-actions"><select id="camera-view" aria-label="Camera view" aria-describedby="camera-hint"><option value="auto">Auto camera</option></select><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint">Manual camera</label><button id="sound" class="icon-button" aria-label="Mute sound" title="Sound" aria-pressed="true">${icon("sound")}</button><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
      <div id="stage-loading" class="stage-loading"><span class="loader"></span><b>Preparing replay</b><span id="loading-detail">Simulation comes before every frame.</span><progress id="simulation-progress" value="0" max="1"></progress><button id="cancel" class="button outline" hidden>Cancel</button></div>
      <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><div id="result-standings" class="result-standings" hidden></div><div class="result-actions"><button id="watch-again" class="button accent">${icon("reset")}Watch again</button><button id="random-match" class="button outline">${icon("swap")}Random seed</button></div></div>
      <div id="match-intro" class="match-intro" aria-hidden="true" hidden></div>
@@ -329,6 +329,7 @@ function loadReplay(r, autoplay = false) {
   $("#replay-seed").textContent =
     `SEED ${String(r.seed).padStart(2, "0")} ${r.mirrored ? "· M" : ""}`;
   renderRobotCards(r.bots);
+  renderCameraViews(r.bots);
   $("#current-mode").textContent =
     r.mode === "one-shot"
       ? "One-shot benchmark"
@@ -504,12 +505,35 @@ audio.onchange = renderSoundButton;
 renderSoundButton();
 // Blocked sound is not muted sound: the first click here turns it on.
 $("#sound").onclick = () => audio.setEnabled(!audio.audible);
+// One entry per robot: watching the match from behind it, with every robot
+// still in the shot.
+function renderCameraViews(roster = [], selected = "auto") {
+  $("#camera-view").innerHTML =
+    '<option value="auto">Auto camera</option>' +
+    roster
+      .map((bot, i) => `<option value="${i}">View from ${esc(botName(bot))}</option>`)
+      .join("");
+  $("#camera-view").value = String(selected);
+  updateCameraHint();
+}
+function updateCameraHint() {
+  const view = $("#camera-view").value;
+  $("#camera-hint").textContent = $("#manual-camera").checked
+    ? "Drag to orbit · right-drag to pan · scroll or pinch to zoom"
+    : view === "auto"
+      ? "Auto camera · follows every robot"
+      : `Behind ${$("#camera-view").selectedOptions[0].textContent.replace("View from ", "")} · its closest rival stays in frame`;
+}
+$("#camera-view").disabled = !viewer;
+$("#camera-view").onchange = (e) => {
+  viewer?.setCameraView(e.target.value === "auto" ? "auto" : Number(e.target.value));
+  updateCameraHint();
+};
 $("#manual-camera").disabled = !viewer;
 $("#manual-camera").onchange = (e) => {
   viewer?.setManualCamera(e.target.checked);
-  $("#camera-hint").textContent = e.target.checked
-    ? "Drag to orbit · right-drag to pan · scroll or pinch to zoom"
-    : "Auto camera · follows both robots";
+  $("#camera-view").disabled = e.target.checked || !viewer;
+  updateCameraHint();
 };
 $("#fullscreen").onclick = async () => {
   try {
@@ -700,6 +724,8 @@ function setLiveUI(active) {
   for (const id of ["#play", "#timeline", "#step-back", "#step-forward", "#speed", "#export-replay", "#import-replay"])
     $(id).disabled = active || !replay;
   $("#record").disabled = active || !replay || !recordingSupported();
+  // The driver keeps their own camera: the view cannot be changed mid-match.
+  $("#camera-view").disabled = active || !viewer || $("#manual-camera").checked;
   viewer?.setFocus(active ? LIVE_PLAYER : null);
   if (!active && heldKeys.size) heldKeys.clear();
 }
@@ -754,6 +780,7 @@ function beginLiveMatch(data) {
   $("#replay-seed").textContent =
     `SEED ${String(data.seed).padStart(2, "0")} ${data.mirrored ? "· M" : ""}`;
   renderRobotCards(data.bots);
+  renderCameraViews(data.bots, LIVE_PLAYER);
   $("#current-mode").textContent = "Manual duel";
   $("#mode-note").textContent =
     "You drive one robot in real time. The match is not deterministic and cannot be reproduced from its seed.";

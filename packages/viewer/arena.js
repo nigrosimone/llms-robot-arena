@@ -108,6 +108,9 @@ export class ArenaViewer {
     this.camera.position.set(17, -22, 23);
     this.followCamera = new FollowCamera(this.camera);
     this.manualCamera = false;
+    // "auto" is the wide shot that follows everyone; a number locks the view
+    // behind that robot.
+    this.cameraView = "auto";
     const renderer = (this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       alpha: false,
@@ -295,6 +298,12 @@ export class ArenaViewer {
   }
   // A rumble brings more than two robots: meshes and labels follow the roster.
   setRobotCount(count) {
+    // Loading a shorter roster must not leave the camera on a robot that is
+    // gone. No redraw here: the replay around it is still being swapped.
+    if (typeof this.cameraView === "number" && this.cameraView >= count) {
+      this.cameraView = "auto";
+      this.followCamera.setFocus(null);
+    }
     while (this.robots.length > count) {
       const model = this.robots.pop();
       this.scene.remove(model.root);
@@ -383,9 +392,16 @@ export class ArenaViewer {
       : "3D arena. Automatic camera follows both robots. Enable Manual camera to orbit and zoom.");
     this.draw(0, true);
   }
-  setFocus(index) {
-    this.followCamera.setFocus(index);
+  // Watching a replay from a robot: the shot sits behind it and still holds
+  // every robot in frame.
+  setCameraView(view, { withRival = true } = {}) {
+    this.cameraView = view;
+    this.followCamera.setFocus(view === "auto" ? null : view, { withRival });
     this.draw(0, true);
+  }
+  // Driving manually frames the player alone, the way it always has.
+  setFocus(index) {
+    this.setCameraView(index === null ? "auto" : index, { withRival: false });
   }
   toggle() {
     if (this.time >= this.duration) this.seek(0);

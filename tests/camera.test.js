@@ -111,3 +111,54 @@ test("manual focus chases the driven robot from behind and turns with it", () =>
     assert.equal(follow.target.x, 0);
   }
 });
+
+test("watching from a robot keeps its closest rival in the shot", () => {
+  for (const aspect of [0.45, 1, 1.8, 3.2]) {
+    const { camera, follow } = setup(aspect);
+    follow.setFocus(0, { withRival: true });
+    for (const opponent of [
+      { x: 7.5, y: 7.5, heading: 0 },
+      { x: -6, y: 0, heading: 0 },
+      { x: 0, y: 7, heading: 0 },
+      { x: 1.4, y: 0.3, heading: Math.PI },
+      { x: -8, y: 8, heading: 0 },
+    ]) {
+      const driven = { x: 0, y: 0, heading: 0 };
+      follow.update([driven, opponent], 0, true);
+      assertVisible(camera, [driven, opponent]);
+    }
+    // And while both of them keep moving.
+    for (let tick = 0; tick < 600; tick++) {
+      const states = [
+        { x: 6 * Math.sin(tick * 0.021), y: 6 * Math.cos(tick * 0.017), heading: tick * 0.02 },
+        { x: 7 * Math.cos(tick * 0.013), y: 7 * Math.sin(tick * 0.024), heading: -tick * 0.03 },
+      ];
+      follow.update(states, 1 / 60);
+      assertVisible(camera, states);
+    }
+  }
+});
+
+test("a rumble view stays on the chased robot and its closest rival, not on the whole roster", () => {
+  const { camera, follow } = setup(1.8);
+  follow.setFocus(0, { withRival: true });
+  // Eleven rivals spread around the arena, one of them right alongside.
+  const states = [
+    { x: 0, y: 0, heading: 0 },
+    { x: 2, y: 0.5, heading: Math.PI },
+    ...Array.from({ length: 10 }, (_, i) => ({
+      x: 7.5 * Math.cos((i / 10) * Math.PI * 2),
+      y: 7.5 * Math.sin((i / 10) * Math.PI * 2),
+      heading: 0,
+    })),
+  ];
+  follow.update(states, 0, true);
+  assertVisible(camera, [states[0], states[1]]);
+  // Framing the far side of the arena as well would push the camera away and
+  // turn the point of view into another wide shot.
+  assert.ok(follow.distance < 20, `distance: ${follow.distance}`);
+  // An eliminated neighbour is not the rival to frame.
+  const withGhost = [states[0], { ...states[1], out: true }, ...states.slice(2)];
+  follow.update(withGhost, 0, true);
+  assertVisible(camera, [withGhost[0]]);
+});
