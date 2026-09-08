@@ -1,6 +1,10 @@
 import { MathUtils, Vector3 } from "three";
 
 const AUTO_DIRECTION = [17, -22, 23];
+const AUTO_DISTANCE = 11;
+const DUEL_DISTANCE = 7.4;
+const AUTO_PITCH = Math.atan2(AUTO_DIRECTION[2], Math.hypot(...AUTO_DIRECTION.slice(0, 2)));
+const AUTO_AZIMUTH = Math.atan2(AUTO_DIRECTION[1], AUTO_DIRECTION[0]);
 // Chase view: behind the driven robot, high enough to read the floor ahead.
 const CHASE_PITCH = 0.7;
 const CHASE_DISTANCE = 13;
@@ -29,8 +33,10 @@ export class FollowCamera {
     this.right = new Vector3();
     this.up = new Vector3();
     this.setDirection(new Vector3(...AUTO_DIRECTION));
-    this.distance = 11;
-    this.minDistance = 11;
+    this.distance = AUTO_DISTANCE;
+    this.minDistance = AUTO_DISTANCE;
+    this.distanceVelocity = 0;
+    this.engagement = 0;
     this.focus = null;
     this.withRival = false;
     this.initialized = false;
@@ -49,7 +55,9 @@ export class FollowCamera {
   setFocus(index = null, { withRival = false } = {}) {
     this.focus = index;
     this.withRival = withRival;
-    this.minDistance = index === null ? 11 : CHASE_DISTANCE;
+    this.minDistance = index === null ? AUTO_DISTANCE : CHASE_DISTANCE;
+    this.engagement = 0;
+    this.distanceVelocity = 0;
     if (index === null) this.setDirection(new Vector3(...AUTO_DIRECTION));
   }
 
@@ -76,6 +84,21 @@ export class FollowCamera {
     midpoint.multiplyScalar(1 / framed.length);
     midpoint.z += 0.25;
     snap ||= !this.initialized;
+    // This is a duel-only shot: a rumble with two survivors is still a rumble.
+    // Keep the establishing view for falls and retain all existing chase views.
+    const duel = this.focus === null && states.length === 2 &&
+      states.every(s => !s.out && !s.ringOut && !(s.fall > 0));
+    if (this.focus === null) {
+      const gap = duel ? Math.hypot(states[0].x - states[1].x, states[0].y - states[1].y) : Infinity;
+      const close = MathUtils.smoothstep(5.5 - gap, 0, 4.1);
+      const blend = snap || states.length !== 2 ? 1 : 1 - Math.exp(-2.5 * dt);
+      this.engagement += (close - this.engagement) * blend;
+      // A gentle descending dolly makes contact feel closer while preserving
+      // the screen direction of combat. There are no orbit cuts or shakes.
+      const pitch = MathUtils.lerp(AUTO_PITCH, MathUtils.degToRad(33), this.engagement);
+      this.setDirection(new Vector3(Math.cos(AUTO_AZIMUTH) * Math.cos(pitch),
+        Math.sin(AUTO_AZIMUTH) * Math.cos(pitch), Math.sin(pitch)));
+    }
     if (driven) {
       const heading = driven.heading ?? 0;
       const forward = new Vector3(Math.cos(heading), Math.sin(heading), 0);
@@ -109,10 +132,28 @@ export class FollowCamera {
         }
       }
     }
-    const desired = Math.max(this.minDistance, required * 1.08);
-    const zoom = snap ? 1 : 1 - Math.exp(-3 * dt);
-    // Ease zoom changes, but expand immediately if either robot would be cut off.
-    this.distance = Math.max(required, this.distance + (desired - this.distance) * zoom);
+    const minimum = duel ? MathUtils.lerp(AUTO_DISTANCE, DUEL_DISTANCE, this.engagement) : this.minDistance;
+    const desired = Math.max(minimum, required * 1.08);
+    if (duel && !snap) {
+      // Critically damped motion eases into and out of the close shot without
+      // pumping at every collision. Pull back faster when the robots separate.
+      const rate = desired < this.distance ? 3 : 5;
+      const delta = this.distance - desired;
+      const decay = Math.exp(-rate * dt);
+      const travel = (this.distanceVelocity + rate * delta) * dt;
+      this.distance = desired + (delta + travel) * decay;
+      this.distanceVelocity = (this.distanceVelocity - rate * travel) * decay;
+    } else {
+      const zoom = snap ? 1 : 1 - Math.exp(-3 * dt);
+      this.distance += (desired - this.distance) * zoom;
+      this.distanceVelocity = 0;
+    }
+    // The fit is a hard safety bound even during the closest shot: both robots,
+    // their flip envelope and label anchors stay inside the viewport margins.
+    if (this.distance < required) {
+      this.distance = required;
+      this.distanceVelocity = Math.max(0, this.distanceVelocity);
+    }
     this.camera.position.copy(this.target).addScaledVector(this.direction, this.distance);
     this.camera.lookAt(this.target);
     this.camera.updateMatrixWorld();

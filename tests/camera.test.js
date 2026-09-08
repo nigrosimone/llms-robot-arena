@@ -69,7 +69,8 @@ test("seeking and resizing reframe immediately; normal playback eases toward the
   assert.ok(follow.distance > 11);
   for (let i = 0; i < 300; i++) follow.update(close, 1 / 60);
   assert.ok(Math.abs(follow.target.x - 4.5) < 0.001);
-  assert.ok(Math.abs(follow.distance - 11) < 0.001);
+  assert.ok(follow.distance < 9, `duel should close in: ${follow.distance}`);
+  assertVisible(camera, close);
 
   const opposite = [{ x: -8, y: 8 }, { x: 7, y: -8 }];
   follow.update(opposite, 0, true);
@@ -79,6 +80,104 @@ test("seeking and resizing reframe immediately; normal playback eases toward the
   camera.updateProjectionMatrix();
   follow.update(opposite, 0, true);
   assertVisible(camera, opposite);
+});
+
+test("automatic close shots are reserved for true duels, including rumble survivors", () => {
+  const close = [{ x: -0.4, y: 0 }, { x: 0.4, y: 0 }];
+  const { camera, follow } = setup(1.8);
+  follow.update(close, 0, true);
+  assert.ok(follow.distance < 9);
+  assertVisible(camera, close);
+
+  for (const count of [3, 12]) {
+    const roster = [
+      ...close,
+      ...Array.from({ length: count - 2 }, (_, i) => ({ x: 0.2, y: (i % 3 - 1) * 0.2 })),
+    ];
+    follow.update(roster, 0, true);
+    assert.ok(follow.distance >= 11, `a ${count}-robot rumble must retain its wide minimum`);
+    assertVisible(camera, roster);
+
+    const survivors = roster.map((state, i) => i < 2 ? state : { ...state, out: true });
+    follow.update(survivors, 0, true);
+    for (let i = 0; i < 300; i++) follow.update(survivors, 1 / 60);
+    assert.ok(follow.distance >= 11, `${count}-robot rumble became a close duel after eliminations`);
+    assertVisible(camera, survivors.slice(0, 2));
+  }
+});
+
+test("manual focus, chase views and falling robots disable the automatic duel zoom", () => {
+  const close = [{ x: -0.4, y: 0, heading: 0 }, { x: 0.4, y: 0, heading: Math.PI }];
+  const { camera, follow } = setup(1.8);
+  for (const withRival of [false, true]) {
+    follow.setFocus(0, { withRival });
+    follow.update(close, 0, true);
+    assert.ok(follow.distance >= 13, `focused camera zoomed into a duel: ${follow.distance}`);
+    assertVisible(camera, withRival ? close : [close[0]]);
+  }
+  follow.setFocus(null);
+  follow.update(close, 0, true);
+  assert.ok(follow.distance < 9);
+  for (const fallen of [{ out: true }, { ringOut: true }, { fall: 0.1 }]) {
+    follow.update([close[0], { ...close[1], ...fallen, z: -1 }], 0, true);
+    assert.ok(follow.distance >= 11, `falling robot kept a tight duel shot: ${follow.distance}`);
+    assertVisible(camera, [close[0]]);
+  }
+});
+
+test("close zoom eases in and fast separation keeps both robots visible in wide and portrait shots", () => {
+  for (const aspect of [0.45, 1.8]) {
+    const { camera, follow } = setup(aspect);
+    const far = [{ x: -7.8, y: -6 }, { x: 7.8, y: 6 }];
+    const close = [{ x: -0.4, y: 0 }, { x: 0.4, y: 0 }];
+    follow.update(far, 0, true);
+    const wideDistance = follow.distance;
+    follow.update(close, 1 / 60);
+    assert.ok(follow.distance < wideDistance);
+    assert.ok(follow.distance > wideDistance * 0.9, "zoom-in must not jump straight to contact");
+    for (let tick = 0; tick < 360; tick++) {
+      follow.update(close, 1 / 60);
+      assertVisible(camera, close);
+    }
+    const closeDistance = follow.distance;
+    assert.ok(closeDistance < wideDistance);
+    if (aspect > 1) assert.ok(closeDistance < 9);
+    follow.update(far, 1 / 60);
+    assert.ok(follow.distance > closeDistance);
+    assertVisible(camera, far);
+    // Alternating bursts of separation also exercise the dolly's reversal.
+    for (let tick = 0; tick < 180; tick++) {
+      const gap = tick % 60 < 30 ? 0.4 : 7.8;
+      const states = [{ x: -gap, y: -gap * 0.5 }, { x: gap, y: gap * 0.5 }];
+      follow.update(states, 1 / 60);
+      assertVisible(camera, states);
+    }
+  }
+});
+
+test("a stationary duel settles without camera jitter, pauses stay fixed and seeks reframe immediately", () => {
+  const { camera, follow } = setup(1.8);
+  const close = Object.freeze([
+    Object.freeze({ x: 3.6, y: 2 }), Object.freeze({ x: 4.4, y: 2 }),
+  ]);
+  follow.update([{ x: -8, y: -8 }, { x: 8, y: 8 }], 0, true);
+  for (let tick = 0; tick < 900; tick++) follow.update(close, 1 / 60);
+  const settled = camera.position.clone();
+  for (let tick = 0; tick < 120; tick++) {
+    follow.update(close, 1 / 60);
+    assert.ok(camera.position.distanceTo(settled) < 1e-6, "stationary shot keeps drifting");
+  }
+  const pausedPosition = camera.position.toArray();
+  const pausedRotation = camera.quaternion.toArray();
+  for (let frame = 0; frame < 30; frame++) follow.update(close, 0);
+  assert.deepEqual(camera.position.toArray(), pausedPosition);
+  assert.deepEqual(camera.quaternion.toArray(), pausedRotation);
+  follow.update([{ x: -8, y: 8 }, { x: 8, y: -8 }], 0, true);
+  follow.update(close, 0, true);
+  assert.equal(follow.target.x, 4);
+  assert.equal(follow.target.y, 2);
+  assert.ok(follow.distance < 9, `seek retained the previous wide distance: ${follow.distance}`);
+  assertVisible(camera, close);
 });
 
 test("manual focus chases the driven robot from behind and turns with it", () => {
