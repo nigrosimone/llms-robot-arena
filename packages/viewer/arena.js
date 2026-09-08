@@ -1,8 +1,8 @@
 import { botName } from "../bot-catalog.js";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { samplePlayback, freshEvents, burnIntensity, matchIntensity } from "./playback.js";
-import { ParticleField } from "./particles.js";
+import { samplePlayback, freshEvents, matchIntensity } from "./playback.js";
+import { CombatEffects } from "./effects.js";
 import { TerrainView, deckGeometry, decalGeometry } from "./terrain.js";
 import { FollowCamera } from "./camera.js";
 import { robotColor } from "./palette.js";
@@ -276,18 +276,13 @@ export class ArenaViewer {
     this.robots = [];
     this.labels = [];
     this.setRobotCount(2);
-    this.sparks = new ParticleField(scene, { count: 520 });
-    this.smoke = new ParticleField(scene, {
-      count: 320,
-      blending: THREE.NormalBlending,
-    });
+    this.effects = new CombatEffects(scene, this.arenaClip);
     this.resize = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
       if (!width || !height) return;
       renderer.setSize(width, height);
       const buffer = height * renderer.getPixelRatio();
-      this.sparks.setHeight(buffer);
-      this.smoke.setHeight(buffer);
+      this.effects.setHeight(buffer);
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
       this.draw(0, true);
@@ -347,8 +342,7 @@ export class ArenaViewer {
   // Nothing from the old position may leak into the new one.
   resetEffects() {
     this.cueTime = this.time;
-    this.sparks.clear();
-    this.smoke.clear();
+    this.effects.clear();
     this.audio?.reset();
   }
   get duration() {
@@ -454,6 +448,8 @@ export class ArenaViewer {
       this.terrain.add(r.arenaCells.slice(this.terrain.cells.length));
     this.terrain.draw(sample.cells, sample.time);
     this.edge.material.color.set(this.time >= 60 ? 0xeb9864 : 0xb7d885);
+    const accents = this.effects.draw(r, sample);
+    this.burning = accents.reduce((sum, accent) => sum + accent.heat, 0);
     const flips = states.map((s) => s.flips);
     for (let i = 0; i < this.robots.length; i++) {
       const {
@@ -492,8 +488,9 @@ export class ArenaViewer {
         status === 2 ? 0.55 + 0.25 * Math.sin(this.time * 14) : 0.35;
       model.wedgeMaterial.emissive.set(status === 2 ? 0x4a8061 : 0x000000);
       const lowEnergy = energy < sample.energyMax * 0.2;
-      model.shell.emissive.set(lowEnergy ? 0xbd2f24 : 0x000000);
-      model.shell.emissiveIntensity = lowEnergy ? 0.45 : 0;
+      const { heat, charge } = accents[i];
+      model.shell.emissive.set(heat > 0 ? 0xff5319 : charge > 0 ? 0x168eff : lowEnergy ? 0xbd2f24 : 0x000000);
+      model.shell.emissiveIntensity = heat > 0 ? heat * 0.8 : charge > 0 ? charge * 0.9 : lowEnergy ? 0.45 : 0;
       const projected = new THREE.Vector3(x, y, z + 1.25).project(this.camera),
         el = this.labels[i];
       const width = this.container.clientWidth;
@@ -519,28 +516,11 @@ export class ArenaViewer {
     return this.drawEffects(sample, past, states, half, flips, dt);
   }
   drawEffects(sample, past, states, half, flips, dt = 0) {
-    // Particles run on playback time, so they slow down and freeze with it.
-    const step = this.playing ? dt * this.speed : 0;
     const fresh = freshEvents(past, this.cueTime, this.time);
     this.cueTime = this.time;
-    for (const event of fresh)
-      if (event.type === "impact") this.spawnImpact(event);
-    let burning = 0;
-    for (let i = 0; i < states.length; i++) {
-      const state = states[i];
-      if (state.out || state.ringOut) continue;
-      const heat = burnIntensity(past, i, this.time);
-      burning += heat;
-      if (!step) continue;
-      if (heat > 0) this.spawnFire(state, heat, step);
-      const damage = 1 - state.energy / (sample.energyMax * 0.3);
-      if (damage > 0) this.spawnDamageSmoke(state, damage, step);
-    }
-    this.sparks.update(step);
-    this.smoke.update(step);
     const ended = !this.live && this.time >= this.playbackDuration;
     this.audio?.frame(fresh, {
-      burning: this.playing ? burning : 0,
+      burning: this.playing ? this.burning : 0,
       ended,
       playing: this.playing,
       intensity: matchIntensity({
@@ -568,97 +548,6 @@ export class ArenaViewer {
         ended,
       });
     }
-  }
-  // Contact throws sparks along the deck and lifts a little dust with them.
-  spawnImpact(event) {
-    const speed = Math.min(6, event.closingSpeed ?? 1);
-    for (let i = 0; i < 20 + Math.round(speed * 7); i++) {
-      const angle = Math.random() * Math.PI * 2,
-        velocity = (0.6 + Math.random() * 1.5) * (0.6 + speed * 0.4);
-      this.sparks.emit({
-        x: event.x,
-        y: event.y,
-        z: 0.16 + Math.random() * 0.14,
-        vx: Math.cos(angle) * velocity,
-        vy: Math.sin(angle) * velocity,
-        vz: 0.7 + Math.random() * 2.6,
-        life: 0.3 + Math.random() * 0.5,
-        size: 0.05 + Math.random() * 0.05,
-        endSize: 0.012,
-        color: Math.random() < 0.35 ? 0xfff3cc : 0xffab33,
-        gravity: -7,
-        drag: 1.3,
-      });
-    }
-    for (let i = 0; i < 6; i++)
-      this.smoke.emit({
-        x: event.x + (Math.random() - 0.5) * 0.3,
-        y: event.y + (Math.random() - 0.5) * 0.3,
-        z: 0.14,
-        vx: (Math.random() - 0.5) * 0.7,
-        vy: (Math.random() - 0.5) * 0.7,
-        vz: 0.35 + Math.random() * 0.4,
-        life: 0.5 + Math.random() * 0.4,
-        size: 0.18,
-        endSize: 0.55,
-        color: 0x7c756c,
-        alpha: 0.3,
-        drag: 2.2,
-      });
-  }
-  // A robot standing in a flame burns: a plume out of the shell plus smoke.
-  spawnFire(state, heat, dt) {
-    const flames = Math.floor(80 * heat * dt + Math.random());
-    for (let i = 0; i < flames; i++)
-      this.sparks.emit({
-        x: state.x + (Math.random() - 0.5) * 0.55,
-        y: state.y + (Math.random() - 0.5) * 0.55,
-        z: 0.2 + Math.random() * 0.25,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: (Math.random() - 0.5) * 0.5,
-        vz: 1.1 + Math.random() * 1.3,
-        life: 0.35 + Math.random() * 0.35,
-        size: 0.16 + Math.random() * 0.16,
-        endSize: 0.03,
-        color: Math.random() < 0.4 ? 0xffd977 : 0xff5a1e,
-        alpha: 0.9,
-        drag: 1.5,
-      });
-    const puffs = Math.floor(22 * heat * dt + Math.random());
-    for (let i = 0; i < puffs; i++)
-      this.smoke.emit({
-        x: state.x + (Math.random() - 0.5) * 0.4,
-        y: state.y + (Math.random() - 0.5) * 0.4,
-        z: 0.5 + Math.random() * 0.3,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
-        vz: 1 + Math.random() * 0.7,
-        life: 1 + Math.random() * 0.8,
-        size: 0.22,
-        endSize: 0.95,
-        color: 0x4a443e,
-        alpha: 0.42,
-        drag: 0.9,
-      });
-  }
-  // A nearly flat battery smokes on its own, even away from the grates.
-  spawnDamageSmoke(state, damage, dt) {
-    const puffs = Math.floor(9 * Math.min(1, damage) * dt + Math.random() * 0.6);
-    for (let i = 0; i < puffs; i++)
-      this.smoke.emit({
-        x: state.x + (Math.random() - 0.5) * 0.3,
-        y: state.y + (Math.random() - 0.5) * 0.3,
-        z: 0.4,
-        vx: (Math.random() - 0.5) * 0.25,
-        vy: (Math.random() - 0.5) * 0.25,
-        vz: 0.7 + Math.random() * 0.5,
-        life: 0.9 + Math.random() * 0.6,
-        size: 0.14,
-        endSize: 0.6,
-        color: 0x6d655d,
-        alpha: 0.3,
-        drag: 1,
-      });
   }
   dispose() {
     cancelAnimationFrame(this.raf);
