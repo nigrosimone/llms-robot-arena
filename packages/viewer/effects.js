@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { ParticleField } from "./particles.js";
 import { poseAt, robotHeat } from "./effect-sampling.js";
 import { flamePhase } from "../sim/terrain.js";
+import { GROUND } from "./surface.js";
 
 const WINDOW = 1.8;
 const RATE = 30;
@@ -53,12 +54,12 @@ export class CombatEffects {
     for (const ring of this.rings) ring.visible = false;
     for (const light of this.lights) light.intensity = 0;
   }
-  ring(x, y, age, { color, life = 0.8, radius = 1.4, z = 0.12, rise = 0 } = {}) {
+  ring(x, y, age, { color, life = 0.8, radius = 1.4 } = {}) {
     if (age < 0 || age >= life || this.ringCursor === this.rings.length) return;
     const ring = this.rings[this.ringCursor++];
     const progress = age / life;
     ring.visible = true;
-    ring.position.set(x, y, z + rise * progress);
+    ring.position.set(x, y, GROUND.effect);
     ring.scale.setScalar(0.24 + radius * (1 - (1 - progress) ** 2));
     ring.material.color.set(color);
     ring.material.opacity = 0.65 * (1 - progress) ** 2;
@@ -84,7 +85,7 @@ export class CombatEffects {
       const color = pickup ? 0x46bfff : 0x71ffc3;
       const strength = pickup ? 0.6 + 0.4 * clamp((event.amount ?? 60) / 60) : 0.65;
       this.ring(x, y, age, { color, radius: 1.45 * strength });
-      this.ring(pose?.x ?? x, pose?.y ?? y, age, { color, life: 1, radius: 0.55, rise: 1.1, z: 0.18 });
+      this.ring(x, y, age - 0.12, { color, life: 0.8, radius: 0.85 });
       this.light(x, y, color, 5 * clamp(1 - age / 0.4));
       this.glow.emit({ x, y, z: 0.3, age, life: 0.35, size: 0.95, endSize: 0.15, color: 0xd9f6ff });
       for (let i = 0; i < (pickup ? 76 : 40); i++) {

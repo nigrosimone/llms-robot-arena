@@ -3,7 +3,8 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { samplePlayback, freshEvents, matchIntensity } from "./playback.js";
 import { CombatEffects } from "./effects.js";
-import { TerrainView, deckGeometry, decalGeometry } from "./terrain.js";
+import { TerrainView, deckGeometry, decalGeometry, floorGridGeometry } from "./terrain.js";
+import { GROUND } from "./surface.js";
 import { FollowCamera } from "./camera.js";
 import { robotColor } from "./palette.js";
 function material(color, metalness = 0.4, roughness = 0.5) {
@@ -78,9 +79,10 @@ function robot(color) {
       transparent: true,
       opacity: 0.35,
       side: THREE.DoubleSide,
+      depthWrite: false,
     }),
   );
-  ring.position.z = 0.006;
+  ring.position.z = GROUND.effect;
   root.add(ring);
   return { root, body, shell, ring, wedgeMaterial };
 }
@@ -164,7 +166,7 @@ export class ArenaViewer {
     scene.add(rim);
     this.platform = new THREE.Group();
     scene.add(this.platform);
-    this.deck = [[0.48, -0.25, 0x333b40], [0.035, 0.005, 0x242c30], [0.25, -0.59, 0x151c20]]
+    this.deck = [[0.48, -0.25, 0x333b40], [0.035, -0.0175, 0x242c30], [0.25, -0.59, 0x151c20]]
       .map(([height, z, color]) => {
         const mesh = new THREE.Mesh(deckGeometry([], height, z), material(color, 0.55, 0.72));
         mesh.castShadow = true;
@@ -173,30 +175,15 @@ export class ArenaViewer {
         this.platform.add(mesh);
         return mesh;
       });
-    const positions = [];
-    for (let i = -8; i <= 8; i++) {
-      positions.push(i, -8, 0.025, i, 8, 0.025, -8, i, 0.025, 8, i, 0.025);
-    }
-    const grid = new THREE.BufferGeometry();
-    grid.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3),
-    );
-    this.platform.add(
-      new THREE.LineSegments(
-        grid,
-        new THREE.LineBasicMaterial({
-          color: 0x576166,
-          transparent: true,
-          opacity: 0.22,
-        }),
-      ),
-    );
+    this.grid = new THREE.LineSegments(floorGridGeometry([]), new THREE.LineBasicMaterial({
+      color: 0x576166, transparent: true, opacity: 0.22, depthWrite: false,
+    }));
+    this.platform.add(this.grid);
     const edgePoints = [
-      new THREE.Vector3(-8, -8, 0.04),
-      new THREE.Vector3(8, -8, 0.04),
-      new THREE.Vector3(8, 8, 0.04),
-      new THREE.Vector3(-8, 8, 0.04),
+      new THREE.Vector3(-8, -8, GROUND.trim),
+      new THREE.Vector3(8, -8, GROUND.trim),
+      new THREE.Vector3(8, 8, GROUND.trim),
+      new THREE.Vector3(-8, 8, GROUND.trim),
     ];
     this.edge = new THREE.LineLoop(
       new THREE.BufferGeometry().setFromPoints(edgePoints),
@@ -206,8 +193,8 @@ export class ArenaViewer {
     const trim = new THREE.MeshBasicMaterial({ color: 0xc5df89 });
     for (const x of [-1, 1])
       for (const y of [-1, 1]) {
-        box(this.platform, 1.2, 0.08, 0.035, x * 7.36, y * 7.92, 0.04, trim);
-        box(this.platform, 0.08, 1.2, 0.035, x * 7.92, y * 7.36, 0.04, trim);
+        box(this.platform, 1.2, 0.08, 0.004, x * 7.36, y * 7.92, GROUND.inlay, trim);
+        box(this.platform, 0.08, 1.2, 0.004, x * 7.92, y * 7.36, GROUND.inlay, trim);
       }
     for (let i = -7; i <= 7; i += 2)
       for (const side of [-1, 1]) {
@@ -257,7 +244,7 @@ export class ArenaViewer {
         depthWrite: false,
       }),
     );
-    decal.position.z = 0.03;
+    decal.position.z = GROUND.decal;
     this.platform.add(decal);
     this.platform.traverse(object => {
       if (object.material && object !== this.edge) {
@@ -437,11 +424,13 @@ export class ArenaViewer {
       }
       this.decal.geometry.dispose();
       this.decal.geometry = decalGeometry(holes);
+      this.grid.geometry.dispose();
+      this.grid.geometry = floorGridGeometry(holes);
       this.deckKey = deckKey;
     }
     this.arenaClip.forEach(plane => { plane.constant = half; });
     const edge = this.edge.geometry.attributes.position;
-    [[-half, -half], [half, -half], [half, half], [-half, half]].forEach(([x, y], i) => edge.setXYZ(i, x, y, 0.04));
+    [[-half, -half], [half, -half], [half, half], [-half, half]].forEach(([x, y], i) => edge.setXYZ(i, x, y, GROUND.trim));
     edge.needsUpdate = true;
     this.edge.geometry.computeBoundingSphere();
     if (this.terrain.cells.length < (r.arenaCells?.length ?? 0))

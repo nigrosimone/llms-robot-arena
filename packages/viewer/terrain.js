@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { GROUND } from "./surface.js";
+import { FloorWear } from "./floor-wear.js";
 
 // Crossed, subdivided ribbons keep the fire readable from every camera angle.
 // All grates share this geometry and one material; only a time uniform changes.
@@ -122,12 +124,31 @@ export function decalGeometry(holes) {
   return geometry;
 }
 
+// Keep lines on supported edges; an edge between two holes has no floor left.
+export function floorGridGeometry(holes) {
+  const missing = new Set(holes.map(cell => `${Math.floor(cell.x)},${Math.floor(cell.y)}`));
+  const solid = (x, y) => x >= -8 && x < 8 && y >= -8 && y < 8 && !missing.has(`${x},${y}`);
+  const positions = [];
+  for (let line = -8; line <= 8; line++) {
+    for (let span = -8; span < 8; span++) {
+      if (solid(line - 1, span) || solid(line, span))
+        positions.push(line, span, GROUND.grid, line, span + 1, GROUND.grid);
+      if (solid(span, line - 1) || solid(span, line))
+        positions.push(span, line, GROUND.grid, span + 1, line, GROUND.grid);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  return geometry;
+}
+
 export class TerrainView {
   constructor(scene, clippingPlanes) {
     this.root = new THREE.Group();
     scene.add(this.root);
     this.clippingPlanes = clippingPlanes;
     this.cells = [];
+    this.floorWear = new FloorWear(clippingPlanes);
   }
   material(color, extra = {}) {
     return new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.5,
@@ -147,11 +168,14 @@ export class TerrainView {
   clear() {
     const geometries = new Set(), materials = new Set();
     this.root.traverse(object => {
+      if (object.userData.floorWear) return;
       if (object.geometry) geometries.add(object.geometry);
       if (object.material) materials.add(object.material);
     });
     geometries.forEach(geometry => geometry.dispose());
     materials.forEach(material => material.dispose());
+    this.floorWear.dispose();
+    this.floorWear = new FloorWear(this.clippingPlanes);
     this.root.clear();
     this.cells = [];
     this.flameGeometry = null;
@@ -173,8 +197,8 @@ export class TerrainView {
       const border = this.material(color, { emissive: color, emissiveIntensity: 0.35 });
       const half = cell.size / 2;
       for (const side of [-1, 1]) {
-        this.mesh(group, new THREE.BoxGeometry(cell.size, 0.035, 0.025), border.clone(), 0, side * half, 0.046);
-        this.mesh(group, new THREE.BoxGeometry(0.035, cell.size, 0.025), border.clone(), side * half, 0, 0.046);
+        this.mesh(group, new THREE.PlaneGeometry(cell.size, 0.025), border.clone(), 0, side * half, GROUND.trim);
+        this.mesh(group, new THREE.PlaneGeometry(0.025, cell.size), border.clone(), side * half, 0, GROUND.trim);
       }
       border.dispose();
       record.borders = [...group.children];
@@ -182,53 +206,36 @@ export class TerrainView {
       group.add(record.surface);
       if (cell.type === "recharge") {
         record.pad = this.mesh(record.surface, new THREE.PlaneGeometry(0.94, 0.94),
-          this.material(0x0e3c5c, { emissive: 0x148ce2, emissiveIntensity: 0.65 }), 0, 0, 0.03);
+          this.material(0x0e3c5c, { emissive: 0x148ce2, emissiveIntensity: 0.65 }), 0, 0, GROUND.pad);
         this.mesh(record.surface, new THREE.CircleGeometry(0.405, 48),
-          this.material(0x092130, { metalness: 0.75, roughness: 0.32 }), 0, 0, 0.041);
+          this.material(0x092130, { metalness: 0.75, roughness: 0.32 }), 0, 0, GROUND.pad + 0.001);
         const plus = this.material(0xa0dcff, { emissive: 0x69c6ff, emissiveIntensity: 1.5 });
         record.symbol = plus;
-        this.mesh(record.surface, new THREE.BoxGeometry(0.42, 0.075, 0.018), plus, 0, 0, 0.055);
-        this.mesh(record.surface, new THREE.BoxGeometry(0.075, 0.42, 0.018), plus, 0, 0, 0.055);
+        this.mesh(record.surface, new THREE.PlaneGeometry(0.42, 0.075), plus, 0, 0, GROUND.inlay);
+        this.mesh(record.surface, new THREE.PlaneGeometry(0.075, 0.42), plus, 0, 0, GROUND.inlay);
         record.ring = this.mesh(record.surface, new THREE.RingGeometry(0.325, 0.345, 64),
-          this.glow(0x53dfff, 0.8), 0, 0, 0.062);
+          this.glow(0x53dfff, 0.8), 0, 0, GROUND.inlay);
         const arcs = [];
         for (let i = 0; i < 3; i++) {
           const arc = new THREE.RingGeometry(0.397, 0.423, 32, 1, i * Math.PI * 2 / 3, Math.PI * 0.45);
           arcs.push(arc);
         }
-        record.arcs = this.mesh(record.surface, mergeGeometries(arcs), this.glow(0x72ecff, 0.85), 0, 0, 0.061);
+        record.arcs = this.mesh(record.surface, mergeGeometries(arcs), this.glow(0x72ecff, 0.85), 0, 0, GROUND.inlay);
         arcs.forEach(arc => arc.dispose());
         record.halo = this.mesh(record.surface, new THREE.RingGeometry(0.325, 0.344, 48),
-          this.glow(0x67dcff, 0.2), 0, 0, 0.085);
+          this.glow(0x67dcff, 0.2), 0, 0, GROUND.trim + 0.0005);
       } else if (cell.type === "flame") {
-        record.pad = this.mesh(record.surface, new THREE.PlaneGeometry(0.96, 0.96), this.material(0x121819), 0, 0, 0.03);
+        record.pad = this.mesh(record.surface, new THREE.PlaneGeometry(0.96, 0.96), this.material(0x121819), 0, 0, GROUND.pad);
         for (let bar = -0.4; bar <= 0.4; bar += 0.16)
-          this.mesh(record.surface, new THREE.BoxGeometry(0.06, 0.94, 0.035), this.material(0x66737b), bar, 0, 0.065);
+          this.mesh(record.surface, new THREE.BoxGeometry(0.06, 0.94, 0.004), this.material(0x66737b), bar, 0, GROUND.inlay);
         this.flameGeometry ??= flameGeometry();
         this.flameMaterial ??= flameMaterial(this.clippingPlanes);
         record.flames = this.mesh(record.surface, this.flameGeometry, this.flameMaterial);
       }
       if (cell.type !== "hole") {
-        record.wear = new THREE.Group();
+        record.wear = this.floorWear.create(cell);
+        record.wear.userData.floorWear = true;
         group.add(record.wear);
-        record.tint = this.mesh(record.wear, new THREE.PlaneGeometry(0.94, 0.94),
-          this.material(0xd58c3b, { transparent: true, opacity: 0, depthWrite: false }), 0, 0, 0.09);
-        record.cracks = [];
-        for (let i = 0; i < 6; i++) {
-          const crack = this.mesh(record.wear, new THREE.BoxGeometry(0.20 + i * 0.035, 0.022, 0.008),
-            this.material(0x291d13), (i % 3 - 1) * 0.19, (Math.floor(i / 3) - 0.5) * 0.32, 0.10);
-          crack.rotation.z = i * 1.13;
-          record.cracks.push(crack);
-        }
-        record.warning = new THREE.Group();
-        group.add(record.warning);
-        record.warningPad = this.mesh(record.warning, new THREE.PlaneGeometry(0.96, 0.96),
-          this.material(0x66231f, { emissive: 0xff2515, emissiveIntensity: 1, transparent: true, opacity: 0.7 }), 0, 0, 0.115);
-        for (const angle of [-Math.PI / 4, Math.PI / 4]) {
-          const stripe = this.mesh(record.warning, new THREE.BoxGeometry(0.85, 0.06, 0.018),
-            this.material(0xffd3b2, { emissive: 0xffa57b, emissiveIntensity: 0.8 }), 0, 0, 0.13);
-          stripe.rotation.z = angle;
-        }
       }
       this.cells.push(record);
     }
@@ -246,14 +253,7 @@ export class TerrainView {
         edge.material.emissive.set(borderColor);
       }
       record.surface.visible = snapshot?.type !== "hole";
-      if (record.wear) {
-        const damage = 1 - (snapshot?.integrity ?? 1);
-        record.wear.visible = damage > 0 && snapshot?.type !== "hole";
-        record.tint.material.opacity = damage * 0.4;
-        record.cracks.forEach((crack, i) => { crack.visible = damage >= (i + 1) / 8; });
-        record.warning.visible = snapshot?.collapseIn != null;
-        record.warningPad.material.emissiveIntensity = 0.45 + 1.05 * (0.5 + 0.5 * Math.sin(time * 18));
-      }
+      if (record.wear) this.floorWear.update(record.wear, snapshot, time);
       if (record.cell.type === "recharge") {
         const ready = state === "ready";
         const pulse = 0.5 + 0.5 * Math.sin(time * 3 + record.cell.x);
@@ -265,7 +265,7 @@ export class TerrainView {
         record.arcs.rotation.z = time * 0.65;
         const phase = ((time * 0.65 + record.cell.y * 0.13) % 1 + 1) % 1;
         record.halo.visible = ready;
-        record.halo.position.z = 0.075 + phase * 0.24;
+        record.halo.position.z = GROUND.trim + 0.0005;
         record.halo.scale.setScalar(1 + phase * 0.3);
         record.halo.material.opacity = Math.sin(phase * Math.PI) * 0.28;
       } else if (record.cell.type === "flame") {

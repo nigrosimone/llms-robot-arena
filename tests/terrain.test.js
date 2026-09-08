@@ -274,7 +274,8 @@ test("collapse rendering hides future markers and restores solid floor on rewind
     const snapshots = cellSnapshots([c], tick, 8);
     view.draw(snapshots, tick / 60);
     assert.equal(view.cells[0].group.visible, tick >= 60);
-    assert.equal(view.cells[0].warning.visible, tick >= 60 && tick < 240);
+    const wear = view.cells[0].wear;
+    assert.equal(wear.visible && wear.material.uniforms.warning.value === 1, tick >= 60 && tick < 240);
     const geometry = deckGeometry([c].filter(cell => isHole(cell, tick)), 0.48, -0.25);
     const material = new MeshBasicMaterial();
     const ray = new Raycaster(new Vector3(c.x, c.y, 2), new Vector3(0, 0, -1));

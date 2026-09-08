@@ -130,10 +130,11 @@ test("chargers and grates preserve their functional state during warnings and di
     view.load(m.cells);
     view.draw(cellSnapshots(m.cells, 720, 8, {}, m.floorWear), 12);
     assert.equal(view.cells[0].surface.visible, true);
-    assert.equal(view.cells[0].warning.visible, true);
+    assert.equal(view.cells[0].wear.visible, true);
+    assert.equal(view.cells[0].wear.material.uniforms.warning.value, 1);
     view.draw(cellSnapshots(m.cells, 900, 8, {}, m.floorWear), 15);
     assert.equal(view.cells[0].surface.visible, false);
-    assert.equal(view.cells[0].warning.visible, false);
+    assert.equal(view.cells[0].wear.visible, false);
     view.clear();
   }
 });
@@ -150,7 +151,7 @@ test("random and weight collapses use the first opening without exposing a futur
     assert.equal(worn.collapseTick, undefined);
     const view = new TerrainView(new Scene(), []);
     view.load(m.cells); view.draw(sensorsFor(m, 0).arena.cells, S.DT);
-    assert.equal(view.cells[0].warning.visible, false);
+    assert.equal(view.cells[0].wear.material.uniforms.warning.value, 0);
     assert.equal(view.cells[0].borders[0].material.color.getHex(), 0x64737b);
     view.clear();
     while (!m.result) step(m, idle);
