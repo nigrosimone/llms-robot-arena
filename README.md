@@ -51,6 +51,26 @@ This makes the project a way to explore how well coding agents turn a shared spe
 
 To have an agent build a bot, give it **[AGENTS.md](AGENTS.md)**. That file contains the complete rules, programming contract and evaluation procedure, including the requirement to beat the basic Baseline controller and to treat competing implementations as black boxes.
 
+## Current standings
+
+The published standings come from one exhibition tournament run with `npm run standings`, on the whole catalog. The Tournament page shows them when it opens; start a tournament there to run your own in the browser.
+
+<!-- standings:start -->
+
+Round robin (10 seeds per pair, mirrored spawns) · 420 matches · fuel budget · spec 0.2.2-draft / engine 0.2.2-r1 · generated 2026-09-09.
+
+| # | Controller | Provider | Thinking | Harness | Development | Source | Strength | 95% CI | Score % | W / D / L |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | GPT-6 Astra | OpenAI | ultra | Codex | iterative | [gpt-6-astra-ultra.js](packages/bots/gpt-6-astra-ultra.js) | 217.0 | 168.7 – 283.6 | 75.0 | 88 / 4 / 28 |
+| 2 | Fable 5.1 | Anthropic | max | Claude Code | iterative | [fable-5-1-max.js](packages/bots/fable-5-1-max.js) | 146.8 | 109.1 – 193.6 | 65.0 | 77 / 2 / 41 |
+| 3 | GPT-5.6 Terra | OpenAI | ultra | Codex | iterative | [gpt-5-6-terra-ultra.js](packages/bots/gpt-5-6-terra-ultra.js) | 92.6 | 67.5 – 120.8 | 52.1 | 59 / 7 / 54 |
+| 4 | Claude Sonnet 5 | Anthropic | max | Claude Code | iterative | [sonnet-5-max.js](packages/bots/sonnet-5-max.js) | 78.9 | 55.4 – 108.3 | 47.5 | 54 / 6 / 60 |
+| 5 | Claude Opus 5.1 | Anthropic | max | Claude Code | iterative | [opus-5-1-max.js](packages/bots/opus-5-1-max.js) | 70.2 | 52.9 – 88.2 | 44.2 | 49 / 8 / 63 |
+| 6 | GPT-5.6 Sol | OpenAI | ultra | Codex | iterative | [gpt-5-6-sol-ultra.js](packages/bots/gpt-5-6-sol-ultra.js) | 49.8 | 36.8 – 62.6 | 34.6 | 37 / 9 / 74 |
+| 7 | Baseline | Reference controller | — | — | reference | [baseline.js](packages/bots/baseline.js) | 44.7 | 31.1 – 60.8 | 31.7 | 35 / 6 / 79 |
+
+<!-- standings:end -->
+
 ## Understanding the results
 
 Browser tournaments default to **Quick rounds**: up to three rounds against different opponents, with one seed and both spawn assignments per pairing. With six bots this runs **18 matches instead of 300**. Odd rosters have rotating byes without points. Results and provisional rankings update after each match; select **Watch** beside a completed match to view its replay while the tournament continues. Cancelling keeps the completed results available for viewing and export.

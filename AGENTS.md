@@ -654,6 +654,18 @@ The standard protocol uses 10 seeds and both spawn assignments: 20 matches per p
 
 Use `--mode one-shot --budget wall` only for a declared one-shot benchmark requiring wall-clock enforcement. A mode label is an operator declaration; it does not establish how a controller was developed. Default controllers force exhibition mode.
 
+## Published standings
+
+The standings shown on the Tournament page and in the README come from one static exhibition run:
+
+```sh
+npm run standings
+```
+
+It gates every catalog controller, plays a full round robin with the fuel budget, then writes `packages/viewer/public/standings.json` (copied into `dist/` by the build) and rewrites the README block between `<!-- standings:start -->` and `<!-- standings:end -->`. Use `--format quick` for a short run, `--bots match-bots.json` for another roster, `--out` and `--readme` for other destinations, and `--readme none` to leave the README unchanged.
+
+The page loads that file when it opens and marks it as published. Starting a tournament in the browser discards it and shows their own results instead. Regenerate and commit the file after changing the catalog, the engine or the rules; standings from different engine versions or budgets are not comparable.
+
 ## Runtime and replay compatibility
 
 - **`fuel`:** deterministic instruction limits for a fixed QuickJS build; the browser exhibition default. This is not equivalent to a 2 ms wall-clock budget.

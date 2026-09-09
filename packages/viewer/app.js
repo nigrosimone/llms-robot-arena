@@ -148,7 +148,7 @@ document.querySelector("#app").innerHTML = `
   <div id="tournament-gates" aria-label="Tournament controller checks" hidden></div>
   <div id="ranking-surface" class="ranking-surface"><div class="empty-ranking"><span>${icon("trophy", 44)}</span><h2>No verdict yet.</h2><p>Select at least two controllers and start the tournament.<br>Results and provisional rankings update after every match.</p></div></div>
   <div id="tournament-matches" class="tournament-matches"></div>
-  <p class="tournament-note">Regularized Bradley–Terry: mean strength = 100. Quick rounds sample different opponents with one seed and both spawns per pairing; they do not estimate confidence intervals. Full round robin adds 95% seed-bootstrap intervals when complete. Results remain provisional while running or after cancellation. Completed replays stay available until the next tournament or page reload. Browser results are exhibitions; the standard evaluation protocol is available through the CLI.</p>
+  <p class="tournament-note">Regularized Bradley–Terry: mean strength = 100. Quick rounds sample different opponents with one seed and both spawns per pairing; they do not estimate confidence intervals. Full round robin adds 95% seed-bootstrap intervals when complete. Results remain provisional while running or after cancellation. Completed replays stay available until the next tournament or page reload. Browser results are exhibitions; the standard evaluation protocol is available through the CLI. The published standings shown when this page opens come from a repository run; starting a tournament replaces them with your own results.</p>
  </section>
  <section id="panel-rules" class="panel" hidden>
   <div class="page-heading"><div><div class="eyebrow">SPEC ${SPEC_VERSION.replace("-draft", "")} <span>/ 04</span></div><h1>Same hardware. Different minds<span>.</span></h1></div></div>
@@ -1052,8 +1052,15 @@ function renderRanking() {
   const rows = report.ranking;
   $("#export-ranking").disabled = false;
   $("#export-report").disabled = false;
+  const heading = report.published
+    ? "Published standings"
+    : report.status === "complete" ? "Final ranking" : "Provisional ranking";
+  const format = report.format === "quick" ? "QUICK ROUNDS" : "ROUND ROBIN";
+  const tag = report.published
+    ? `PUBLISHED · ${report.records.length} MATCHES · ${format}${report.generatedAt ? " · " + esc(report.generatedAt.slice(0, 10)) : ""}`
+    : `${report.records.length} / ${report.totalMatches} MATCHES · ${format} · ${esc(report.status.toUpperCase())}`;
   $("#ranking-surface").innerHTML =
-    `<div class="ranking-header"><h2>${report.status === "complete" ? "Final ranking" : "Provisional ranking"}</h2><span class="tag">${report.records.length} / ${report.totalMatches} MATCHES · ${report.format === "quick" ? "QUICK ROUNDS" : "ROUND ROBIN"} · ${esc(report.status.toUpperCase())}</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(botName(r))}</strong><small>${esc(botDetails(r))}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci?.map((n) => n.toFixed(1)).join(" – ") ?? "—"}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
+    `<div class="ranking-header"><h2>${heading}</h2><span class="tag">${tag}</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(botName(r))}</strong><small>${esc(botDetails(r))}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci?.map((n) => n.toFixed(1)).join(" – ") ?? "—"}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
 }
 function renderTournamentMatches() {
   $("#tournament-matches").innerHTML = report.records.length
@@ -1132,6 +1139,16 @@ $("#replay-library").onchange = async (e) => {
     toast(error.message, true);
   }
 };
+// Standings published with the repository; starting a tournament replaces them.
+fetch("./standings.json")
+  .then((r) => (r.ok ? r.json() : null))
+  .then((published) => {
+    if (report || !published?.ranking?.length) return;
+    // Published records have no replays to watch, so only the ranking is shown.
+    report = { ...published, published: true };
+    renderRanking();
+  })
+  .catch(() => {});
 fetch("./replays.json")
   .then((r) => (r.ok ? r.json() : []))
   .then((names) => {
