@@ -1,4 +1,6 @@
 import { botName, botProvider } from "../bot-catalog.js";
+import { styleLabel, styleProfiles } from "./style.js";
+import { INDEX_TERMS, compositeIndex } from "./composite.js";
 // Tournament reports with controller provenance and confidence intervals.
 const fmt = (value, digits = 2) =>
   Number.isFinite(value) ? value.toFixed(digits) : "—";
@@ -55,6 +57,49 @@ export function renderCSV(ranking) {
   );
 }
 
+// Play style over the same matches, next to the roster it was measured against.
+export function renderStyleTable(ranking) {
+  const profiles = styleProfiles(ranking);
+  if (!profiles) return [];
+  const pct = (value) => fmt(value * 100, 0) + "%";
+  return [
+    "| Controller | Profile | Contact | Closing | Wedge | Engagements / min | Speed | Turn rate | Edge time | Energy / s | Recharges |",
+    "|---|---|---|---|---|---|---|---|---|---|---|",
+    ...ranking.map((r, i) =>
+      `| ${cell(botName(r))} | ${styleLabel(profiles[i])} | ${pct(r.style.contactShare)} | ${pct(r.style.closingShare)} | ${pct(r.style.wedgeShare)} | ${fmt(r.style.engagementRate, 1)} | ${fmt(r.style.speed, 2)} m/s | ${fmt(r.style.turnRate, 2)} rad/s | ${pct(r.style.edgeShare)} | ${fmt(r.style.spendRate, 1)} | ${fmt(r.style.recharges, 1)} |`,
+    ),
+  ];
+}
+
+// Static measurements of each submitted controller, when the run recorded them.
+export function renderCodeTable(bots = [], ranking = []) {
+  const order = new Map(ranking.map((row, i) => [row.id, i]));
+  const rows = bots
+    .filter((bot) => bot.code)
+    .sort((a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity));
+  if (!rows.length) return [];
+  return [
+    "| Controller | Language | Lines | Code | Comments | Functions | Cyclomatic | Max nesting | Size |",
+    "|---|---|---|---|---|---|---|---|---|",
+    ...rows.map((bot) =>
+      `| ${cell(botName(bot))} | ${cell(bot.code.language)} | ${bot.code.lines} | ${bot.code.codeLines} | ${bot.code.commentLines} | ${bot.code.functions} | ${bot.code.complexity} | ${bot.code.maxDepth} | ${fmt(bot.code.bytes / 1024, 1)} kB |`,
+    ),
+  ];
+}
+
+// Results and source folded into one number, with its terms alongside.
+export function renderIndexTable(report) {
+  const rows = compositeIndex(report);
+  if (!rows) return [];
+  return [
+    `| Controller | Craft index | ${INDEX_TERMS.map((t) => t.label).join(" | ")} |`,
+    "|---|---|" + INDEX_TERMS.map(() => "---|").join(""),
+    ...report.ranking.map((row, i) =>
+      `| ${cell(botName(row))} | ${fmt(rows[i].index, 1)} | ${INDEX_TERMS.map((t) => fmt(rows[i].terms[t.key], 2)).join(" | ")} |`,
+    ),
+  ];
+}
+
 export function renderReport(report) {
   const { ranking, records, bots, mode, budgetMode } = report;
   const lines = [
@@ -93,6 +138,29 @@ export function renderReport(report) {
       `| ${cell(botName(r))} | ${r.flipDifferential} | ${r.ringOutsInflicted} / ${r.ringOutsTaken} | ${fmt(r.meanEnergy, 1)} | ${fmt(r.meanFirstContactTick, 0)} | ${fmt(r.violationsPerMatch)} | ${r.timeouts} |`,
     ),
   );
+  const style = renderStyleTable(ranking);
+  if (style.length)
+    lines.push(
+      "",
+      "## Play style",
+      "",
+      "Measured from the recorded frames of the same matches. The profile names the axis where a controller stands out most against this roster.",
+      "",
+      ...style,
+    );
+  const code = renderCodeTable(bots, ranking);
+  if (code.length)
+    lines.push(
+      "",
+      "## Implementation",
+      "",
+      "Measured from the submitted source: cyclomatic complexity counts branches and short-circuit operators, nesting counts functions and control statements.",
+      "",
+      ...code,
+    );
+  const index = renderIndexTable(report);
+  if (index.length)
+    lines.push("", "## Craft index", "", "Craft index. One number over results and source: a weighted geometric mean of strength (45%), reliability (20%), consistency (15%), efficiency (10%) and maintainability (10%). Every term is scaled 0 to 1, the first four against this roster and maintainability against ten branches per function and four levels of nesting. It is not the ranking: strength alone decides that.", "", ...index);
   lines.push(
     "",
     "## Controller provenance",

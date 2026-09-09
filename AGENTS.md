@@ -664,6 +664,10 @@ npm run standings
 
 It gates every catalog controller, plays a full round robin with the fuel budget, then writes `packages/viewer/public/standings.json` (copied into `dist/` by the build) and rewrites the README block between `<!-- standings:start -->` and `<!-- standings:end -->`. Use `--format quick` for a short run, `--bots match-bots.json` for another roster, `--out` and `--readme` for other destinations, and `--readme none` to leave the README unchanged.
 
+Every match also measures play style from its recorded frames, in [packages/tournament/style.js](packages/tournament/style.js): time spent closing on the opponent, approach speed, time with the wedge pointed at it, time within 1.5 m, contact and engagement rate, share of contacts won with the wedge, speed, turn rate, idle time, time in the outer quarter of the arena, energy lost per second, recharges taken and burns. The averages are stored per controller in the ranking; the per-match samples are dropped, so no replay has to be kept. Six of them (aggression, pressure, wedge control, mobility, edge play, energy burn) are scaled against the best value in the roster and drawn as a radar on the Tournament page. They describe how a controller plays, not how well: comparisons only hold inside the same run.
+
+Each controller's source is also measured statically, in [packages/tournament/code-metrics.js](packages/tournament/code-metrics.js): language, total, code, comment and blank lines, functions, statements, cyclomatic complexity (branches and short-circuit operators) and maximum nesting of functions and control statements. The code is parsed, never executed, and the numbers describe the submitted implementation, not its quality.
+
 The page loads that file when it opens and marks it as published. Starting a tournament in the browser discards it and shows their own results instead. Regenerate and commit the file after changing the catalog, the engine or the rules; standings from different engine versions or budgets are not comparable.
 
 ## Runtime and replay compatibility

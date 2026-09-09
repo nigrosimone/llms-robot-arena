@@ -7,6 +7,8 @@ import { robotColor } from "./palette.js";
 import { botName, botDetails } from "../bot-catalog.js";
 import { sortedBotOptions, controllerExtension, controllerFilename } from "./controllers.js";
 import { exhibitionSchedule } from "../tournament/exhibition.js";
+import { STYLE_AXES, formatStyleValue, styleLabel, styleProfiles } from "../tournament/style.js";
+import { INDEX_TERMS, compositeIndex } from "../tournament/composite.js";
 import { readMatchSettings, matchSettingsSearch } from "./match-link.js";
 import {
   MatchRecorder,
@@ -147,6 +149,9 @@ document.querySelector("#app").innerHTML = `
   <div id="tournament-progress" class="tournament-progress" hidden><div><strong id="tournament-status">Checking controllers…</strong><button id="cancel-tournament" class="button quiet">Cancel</button></div><progress max="1" value="0"></progress></div>
   <div id="tournament-gates" aria-label="Tournament controller checks" hidden></div>
   <div id="ranking-surface" class="ranking-surface"><div class="empty-ranking"><span>${icon("trophy", 44)}</span><h2>No verdict yet.</h2><p>Select at least two controllers and start the tournament.<br>Results and provisional rankings update after every match.</p></div></div>
+  <div id="tournament-style" class="style-grid"></div>
+  <div id="tournament-code" class="tournament-matches"></div>
+  <div id="tournament-index" class="tournament-matches"></div>
   <div id="tournament-matches" class="tournament-matches"></div>
   <p class="tournament-note">Regularized Bradley–Terry: mean strength = 100. Quick rounds sample different opponents with one seed and both spawns per pairing; they do not estimate confidence intervals. Full round robin adds 95% seed-bootstrap intervals when complete. Results remain provisional while running or after cancellation. Completed replays stay available until the next tournament or page reload. Browser results are exhibitions; the standard evaluation protocol is available through the CLI. The published standings shown when this page opens come from a repository run; starting a tournament replaces them with your own results.</p>
  </section>
@@ -1041,6 +1046,9 @@ $("#run-tournament").onclick = () => {
   $("#export-ranking").disabled = true;
   $("#export-report").disabled = true;
   $("#ranking-surface").innerHTML = '<div class="empty-ranking"><h2>Checking controllers…</h2><p>The provisional ranking updates after every completed match.</p></div>';
+  $("#tournament-style").innerHTML = "";
+  $("#tournament-code").innerHTML = "";
+  $("#tournament-index").innerHTML = "";
   $("#tournament-matches").innerHTML = "";
   $("#cancel-tournament").hidden = false;
   $("#tournament-progress").hidden = false;
@@ -1061,6 +1069,49 @@ function renderRanking() {
     : `${report.records.length} / ${report.totalMatches} MATCHES · ${format} · ${esc(report.status.toUpperCase())}`;
   $("#ranking-surface").innerHTML =
     `<div class="ranking-header"><h2>${heading}</h2><span class="tag">${tag}</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(botName(r))}</strong><small>${esc(botDetails(r))}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci?.map((n) => n.toFixed(1)).join(" – ") ?? "—"}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
+  renderStyle();
+  renderCode();
+  renderIndex();
+}
+// One radar per controller: the axes are scaled against the rest of the roster,
+// so the shape compares controllers instead of measuring them absolutely.
+function radarShape(profile) {
+  const point = (index, radius) => {
+    const angle = (Math.PI * 2 * index) / STYLE_AXES.length - Math.PI / 2;
+    return [60 + radius * Math.cos(angle), 60 + radius * Math.sin(angle)];
+  };
+  const ring = radius =>
+    STYLE_AXES.map((_, i) => point(i, radius).map(n => n.toFixed(1)).join(",")).join(" ");
+  const shape = STYLE_AXES
+    .map((axis, i) => point(i, 12 + 34 * Math.min(1, Math.max(0, profile[axis.key]))).map(n => n.toFixed(1)).join(","))
+    .join(" ");
+  return `<svg viewBox="0 0 120 120" role="img" aria-hidden="true"><polygon class="radar-grid" points="${ring(46)}"/><polygon class="radar-grid" points="${ring(23)}"/>${STYLE_AXES.map((_, i) => {
+    const [x, y] = point(i, 46);
+    return `<line class="radar-grid" x1="60" y1="60" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`;
+  }).join("")}<polygon class="radar-shape" points="${shape}"/></svg>`;
+}
+function renderStyle() {
+  const profiles = styleProfiles(report.ranking);
+  $("#tournament-style").innerHTML = profiles
+    ? `<div class="ranking-header"><h2>Play style</h2><span class="tag">MEASURED OVER THE SAME MATCHES · SCALED ON THIS ROSTER</span></div><div class="style-cards">${report.ranking.map((r, i) => `<article class="style-card"><header><strong>${esc(botName(r))}</strong><span class="tag">${esc(styleLabel(profiles[i]))}</span></header>${radarShape(profiles[i])}<dl>${STYLE_AXES.map(axis => `<div><dt>${esc(axis.label)}</dt><dd>${esc(formatStyleValue(axis, r.style))}</dd></div>`).join("")}</dl></article>`).join("")}</div>`
+    : "";
+}
+// Results and source folded into one number. The ranking stays the ranking.
+function renderIndex() {
+  const rows = compositeIndex(report);
+  $("#tournament-index").innerHTML = rows
+    ? `<div class="ranking-header"><h2>Craft index</h2><span class="tag">RESULTS AND SOURCE · NOT THE RANKING</span></div><div class="table-scroll"><table><thead><tr><th>Controller</th><th>Craft index</th>${INDEX_TERMS.map(term => `<th>${esc(term.label)} · ${Math.round(term.weight * 100)}%</th>`).join("")}</tr></thead><tbody>${report.ranking.map((row, i) => `<tr><td><strong>${esc(botName(row))}</strong></td><td class="bt-score">${rows[i].index.toFixed(1)}</td>${INDEX_TERMS.map(term => `<td class="mono">${rows[i].terms[term.key] === null ? "—" : rows[i].terms[term.key].toFixed(2)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+    : "";
+}
+// Static source measurements, published with the standings.
+function renderCode() {
+  const order = new Map(report.ranking.map((row, i) => [row.id, i]));
+  const rows = (report.bots ?? [])
+    .filter(bot => bot.code)
+    .sort((x, y) => (order.get(x.id) ?? Infinity) - (order.get(y.id) ?? Infinity));
+  $("#tournament-code").innerHTML = rows.length
+    ? `<div class="ranking-header"><h2>Implementation</h2><span class="tag">MEASURED FROM THE SUBMITTED SOURCE</span></div><div class="table-scroll"><table><thead><tr><th>Controller</th><th>Language</th><th>Lines</th><th>Code</th><th>Comments</th><th>Functions</th><th>Cyclomatic</th><th>Max nesting</th><th>Size</th></tr></thead><tbody>${rows.map(bot => `<tr><td><strong>${esc(botName(bot))}</strong></td><td>${esc(bot.code.language)}</td><td class="mono">${bot.code.lines}</td><td class="mono">${bot.code.codeLines}</td><td class="mono">${bot.code.commentLines}</td><td class="mono">${bot.code.functions}</td><td class="mono">${bot.code.complexity}</td><td class="mono">${bot.code.maxDepth}</td><td class="mono">${(bot.code.bytes / 1024).toFixed(1)} kB</td></tr>`).join("")}</tbody></table></div>`
+    : "";
 }
 function renderTournamentMatches() {
   $("#tournament-matches").innerHTML = report.records.length

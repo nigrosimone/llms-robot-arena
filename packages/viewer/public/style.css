@@ -2440,3 +2440,65 @@ tbody tr:last-child td {
 @media (max-width: 360px) {
   .nav-button svg { display: none; }
 }
+.style-grid:not(:empty) {
+  margin-top: 25px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.style-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-top: 1px solid var(--line);
+}
+.style-card {
+  background: var(--panel);
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+.style-card header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.style-card svg {
+  width: 132px;
+  height: 132px;
+}
+.radar-grid {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.radar-shape {
+  fill: color-mix(in srgb, var(--lime) 22%, transparent);
+  stroke: var(--lime);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.style-card dl {
+  margin: 0;
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  font: 12px var(--mono);
+}
+.style-card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.style-card dt {
+  color: var(--muted);
+}
+.style-card dd {
+  margin: 0;
+}

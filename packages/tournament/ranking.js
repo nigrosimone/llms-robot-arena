@@ -1,5 +1,6 @@
 import { botMetadata } from "../bot-catalog.js";
 import { mulberry32 } from "../sim/spec.js";
+import { matchStyle, meanStyle } from "./style.js";
 export function bradleyTerry(n, records) {
   const wins = Array(n).fill(0.5 * (n - 1)),
     games = Array.from({ length: n }, () => Array(n).fill(1));
@@ -73,6 +74,7 @@ export function rankTournament(bots, records, replicates = 1000) {
           ? first.reduce((v, r) => v + r.firstContact, 0) / first.length
           : null,
         violationsPerMatch: mean((r) => r.violations[side(r)]),
+        style: meanStyle(rows.map((r) => r.style?.[side(r)])),
         timeouts: sum((r) => (r.reason === "timeout" ? 1 : 0)),
       };
     })
@@ -100,5 +102,6 @@ export function matchRecord(replay, a, b) {
           .length,
     ),
     firstContact: replay.events.find((e) => e.type === "impact")?.tick ?? null,
+    style: matchStyle(replay),
   };
 }

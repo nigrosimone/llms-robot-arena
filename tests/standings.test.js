@@ -48,6 +48,23 @@ test("links catalog controllers without a published path", () => {
   assert.match(rows[4], /\[baseline\.js\]\(packages\/bots\/baseline\.js\)/);
 });
 
+test("adds the play style table when the ranking carries style", () => {
+  const style = {
+    closingShare: 0.4, proximityShare: 0.3, wedgeShare: 0.6, engagementRate: 7.2,
+    contactShare: 0.2, speed: 1.1, turnRate: 0.5, edgeShare: 0.1, spendRate: 12.5, recharges: 1.5,
+  };
+  const markdown = renderStandings({
+    ...report,
+    ranking: report.ranking.map((r) => ({ ...r, style })),
+  });
+  const rows = markdown.split("\n");
+  assert.ok(markdown.includes("**Play style.**"));
+  assert.equal(
+    rows.at(-2),
+    "| Model A | Aggression | 20% | 40% | 60% | 7.2 | 1.10 m/s | 0.50 rad/s | 10% | 12.5 | 1.5 |",
+  );
+});
+
 test("quick rounds report their round count", () => {
   assert.match(renderStandings({ ...report, format: "quick" }), /Quick rounds \(1 round,/);
 });

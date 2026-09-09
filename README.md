@@ -53,7 +53,7 @@ To have an agent build a bot, give it **[AGENTS.md](AGENTS.md)**. That file cont
 
 ## Current standings
 
-The published standings come from one exhibition tournament run with `npm run standings`, on the whole catalog. The Tournament page shows them when it opens; start a tournament there to run your own in the browser.
+The published standings come from one exhibition tournament run with `npm run standings`, on the whole catalog. The Tournament page shows them when it opens; start a tournament there to run your own in the browser. The play style numbers come from the same matches and are only comparable inside this run. The implementation numbers are measured from each controller's source.
 
 <!-- standings:start -->
 
@@ -69,7 +69,51 @@ Round robin (10 seeds per pair, mirrored spawns) · 420 matches · fuel budget �
 | 6 | GPT-5.6 Sol | OpenAI | ultra | Codex | iterative | [gpt-5-6-sol-ultra.js](packages/bots/gpt-5-6-sol-ultra.js) | 49.8 | 36.8 – 62.6 | 34.6 | 37 / 9 / 74 |
 | 7 | Baseline | Reference controller | — | — | reference | [baseline.js](packages/bots/baseline.js) | 44.7 | 31.1 – 60.8 | 31.7 | 35 / 6 / 79 |
 
+**Play style.** Measured from the recorded frames of the same matches. The profile names the axis where a controller stands out most against this roster.
+
+| Controller | Profile | Contact | Closing | Wedge | Engagements / min | Speed | Turn rate | Edge time | Energy / s | Recharges |
+|---|---|---|---|---|---|---|---|---|---|---|
+| GPT-6 Astra | Energy burn | 22% | 46% | 66% | 7.4 | 1.27 m/s | 0.61 rad/s | 3% | 13.0 | 4.1 |
+| Fable 5.1 | Edge play | 16% | 38% | 71% | 8.4 | 0.87 m/s | 0.59 rad/s | 28% | 9.2 | 2.2 |
+| GPT-5.6 Terra | Pressure | 25% | 40% | 62% | 5.3 | 0.85 m/s | 0.51 rad/s | 5% | 10.6 | 2.2 |
+| Claude Sonnet 5 | Pressure | 26% | 42% | 47% | 7.8 | 0.72 m/s | 0.57 rad/s | 3% | 9.9 | 1.0 |
+| Claude Opus 5.1 | Mobility | 12% | 21% | 42% | 6.8 | 1.61 m/s | 0.82 rad/s | 5% | 8.1 | 2.5 |
+| GPT-5.6 Sol | Pressure | 31% | 41% | 59% | 5.2 | 0.71 m/s | 0.40 rad/s | 7% | 11.5 | 1.1 |
+| Baseline | Aggression | 30% | 52% | 84% | 4.3 | 1.08 m/s | 0.36 rad/s | 6% | 12.1 | 0.4 |
+
+**Implementation.** Measured from the submitted source: cyclomatic complexity counts branches and short-circuit operators, nesting counts functions and control statements.
+
+| Controller | Language | Lines | Code | Comments | Functions | Cyclomatic | Max nesting | Size |
+|---|---|---|---|---|---|---|---|---|
+| GPT-6 Astra | js | 246 | 221 | 17 | 9 | 181 | 6 | 12.8 kB |
+| Fable 5.1 | js | 591 | 490 | 102 | 15 | 518 | 13 | 35.4 kB |
+| GPT-5.6 Terra | js | 459 | 423 | 4 | 7 | 164 | 8 | 15.4 kB |
+| Claude Sonnet 5 | js | 383 | 296 | 70 | 7 | 191 | 8 | 19.5 kB |
+| Claude Opus 5.1 | js | 450 | 362 | 69 | 10 | 275 | 7 | 23.4 kB |
+| GPT-5.6 Sol | js | 609 | 564 | 0 | 10 | 201 | 10 | 19.9 kB |
+| Baseline | js | 18 | 15 | 2 | 1 | 4 | 2 | 0.4 kB |
+
+**Craft index.** One number over results and source: a weighted geometric mean of strength (45%), reliability (20%), consistency (15%), efficiency (10%) and maintainability (10%). Every term is scaled 0 to 1, the first four against this roster and maintainability against ten branches per function and four levels of nesting. It is not the ranking: strength alone decides that.
+
+| Controller | Craft index | Strength | Reliability | Consistency | Efficiency | Maintainability |
+|---|---|---|---|---|---|---|
+| GPT-6 Astra | 90.5 | 1.00 | 1.00 | 0.74 | 1.00 | 0.58 |
+| Fable 5.1 | 67.0 | 0.68 | 1.00 | 0.71 | 0.59 | 0.30 |
+| GPT-5.6 Terra | 54.4 | 0.43 | 0.99 | 0.71 | 0.38 | 0.46 |
+| Claude Sonnet 5 | 49.3 | 0.36 | 0.99 | 0.66 | 0.35 | 0.43 |
+| Claude Opus 5.1 | 47.2 | 0.32 | 0.99 | 0.75 | 0.30 | 0.47 |
+| GPT-5.6 Sol | 38.6 | 0.23 | 0.99 | 0.74 | 0.20 | 0.45 |
+| Baseline | 41.7 | 0.21 | 0.95 | 0.67 | 0.39 | 1.00 |
+
 <!-- standings:end -->
+
+## Try it with your own agent
+
+You need Node.js 24 or newer and a coding agent. Give it this prompt:
+
+> Clone https://github.com/nigrosimone/llms-robot-arena, run `npm ci`, then read AGENTS.md and write your bot following it.
+
+AGENTS.md carries the rest: the rules, the controller contract, the validation commands and the black-box policy. Then run `npm start` and open http://127.0.0.1:8080 to watch your bot fight in the arena.
 
 ## Understanding the results
 

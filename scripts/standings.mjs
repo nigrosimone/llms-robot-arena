@@ -12,6 +12,7 @@ import { BotClient } from "../packages/runtime/client.js";
 import { gateBot } from "../packages/runtime/gate.js";
 import { runExhibition } from "../packages/tournament/exhibition.js";
 import { renderStandings, updateStandingsSection } from "../packages/tournament/standings.js";
+import { codeMetrics } from "../packages/tournament/code-metrics.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 try {
@@ -70,9 +71,15 @@ try {
     const path = relative(root, bot.file).split(sep).join("/");
     return [bot.id, path.startsWith("..") ? null : path];
   }));
+  const code = new Map(bots.map((bot) => [bot.id, codeMetrics(bot.source, bot.file)]));
   const published = {
     ...report,
-    bots: report.bots.map((bot) => ({ ...bot, file: files.get(bot.id) ?? null })),
+    bots: report.bots.map((bot) => ({
+      ...bot, file: files.get(bot.id) ?? null, code: code.get(bot.id) ?? null,
+    })),
+    // Per-match style samples stay out of the published file; the ranking keeps
+    // the averages.
+    records: report.records.map(({ style, ...record }) => record),
     generatedAt: new Date().toISOString(),
     environment: {
       node: process.version,

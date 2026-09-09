@@ -1,4 +1,5 @@
 import { botCatalog, botName, botProvider } from "../bot-catalog.js";
+import { renderCodeTable, renderIndexTable, renderStyleTable } from "./report.js";
 
 // Published standings: one static tournament, rendered for the README and
 // reused by the Tournament page until the visitor runs their own.
@@ -26,6 +27,35 @@ function sourceLink(report, bot) {
     : "—";
 }
 
+function styleSection(report) {
+  const table = renderStyleTable(report.ranking);
+  return table.length
+    ? [
+        "",
+        "**Play style.** Measured from the recorded frames of the same matches. The profile names the axis where a controller stands out most against this roster.",
+        "",
+        ...table,
+      ]
+    : [];
+}
+
+function codeSection(report) {
+  const table = renderCodeTable(report.bots, report.ranking);
+  return table.length
+    ? [
+        "",
+        "**Implementation.** Measured from the submitted source: cyclomatic complexity counts branches and short-circuit operators, nesting counts functions and control statements.",
+        "",
+        ...table,
+      ]
+    : [];
+}
+
+function indexSection(report) {
+  const table = renderIndexTable(report);
+  return table.length ? ["", "**Craft index.** One number over results and source: a weighted geometric mean of strength (45%), reliability (20%), consistency (15%), efficiency (10%) and maintainability (10%). Every term is scaled 0 to 1, the first four against this roster and maintainability against ten branches per function and four levels of nesting. It is not the ranking: strength alone decides that.", "", ...table] : [];
+}
+
 export function renderStandings(report) {
   const format = report.format === "quick"
     ? `Quick rounds (${report.rounds} round${report.rounds === 1 ? "" : "s"}, one seed per pairing, mirrored spawns)`
@@ -39,6 +69,9 @@ export function renderStandings(report) {
     ...report.ranking.map((r, i) =>
       `| ${i + 1} | ${cell(botName(r))} | ${cell(botProvider(r))} | ${cell(r.thinking ?? "—")} | ${cell(r.harness ?? "—")} | ${cell(r.provenance ?? "—")} | ${sourceLink(report, r)} | ${fmt(r.score)} | ${r.ci?.map((n) => fmt(n)).join(" – ") ?? "—"} | ${fmt(r.winRate * 100)} | ${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws} |`,
     ),
+    ...styleSection(report),
+    ...codeSection(report),
+    ...indexSection(report),
   ].join("\n");
 }
 
