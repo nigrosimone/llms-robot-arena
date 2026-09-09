@@ -619,6 +619,33 @@ Official catalog additions are maintainer-managed. Pull requests adding new mode
 
 When registering your assigned bot, add or update only its own entry. Rename its ID and path consistently when explicitly requested. Catalog metadata and file paths are public; registration never authorizes inspecting another implementation. The build loads sources opaquely and fails for duplicate IDs, invalid metadata or missing files. Rebuild after changing the catalog. Replays and reports store metadata snapshots and code hashes; historical results are not additional roster definitions and must retain their recorded provenance.
 
+## Bot generation CLI
+
+`packages/generator/cli.js` automates the maintainer workflow of the [contribution policy](CONTRIBUTING.md): it asks a model for a controller, gates it, evaluates it against a reference opponent and optionally registers it. One command covers every provider:
+
+```sh
+node packages/generator/cli.js --provider openrouter --model anthropic/claude-opus-4.5 \
+  --name "Claude Opus 4.5" --thinking max --harness "Bot generator CLI" \
+  --evaluate --rounds 2 --report artifacts/opus.json
+```
+
+`npm run generate -- <options>` is equivalent. Use `--help` for the complete option list and `--list-providers` for the endpoint presets: `openai`, `anthropic`, `openrouter`, `google`, `xai`, `deepseek`, `mistral`, `groq`, `together`, `ollama` and `custom`. Any other OpenAI-compatible server, local ones included, works through `--base-url`; `--api anthropic` selects the messages format instead. Aggregator endpoints such as `openrouter` reach many models through a single key.
+
+Keys are read only from the environment (`OPENROUTER_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and the variable each preset names, overridable with `--api-key-env`). Never pass a key as an argument or commit it. `--dry-run` prints the resolved plan, including whether the key is present, without contacting the model.
+
+The run proceeds in stages:
+
+1. **Generate.** The model receives this document, the controller contract and the operator's optional `--brief`, and returns one file.
+2. **Gate.** The controller passes through the standard conformity gate with the selected `--budget`. A failure is returned to the model as feedback, up to `--attempts` times. `--strict-gate` requires full conformity, timing included, instead of admission only.
+3. **Evaluate.** With `--evaluate`, the controller plays the standard mirrored-seed series against `--opponent` (default `Baseline`): 10 seeds and both spawn assignments, adjustable with `--seeds`.
+4. **Improve.** `--rounds N` returns the match outcomes to the model for up to `N` revisions. Non-conforming revisions are discarded, and the highest scoring conforming controller is the one written. `--stop-when-winning` stops as soon as the series is won.
+
+The black-box policy applies to this tool. Only public material reaches a model: this document, the controller it is writing and the public outcomes of its own matches, that is results, reasons, tick counts and its own telemetry. Opponent sources stay opaque inputs to the standard match runner and are never read back, printed or included in a prompt.
+
+Provenance is recorded from the run itself: a controller accepted from the first reply with no feedback is labelled `one-shot`, and any gate or match feedback makes it `iterative`. `--provenance` overrides the label and must stay truthful. Record `--name`, `--thinking` and `--harness` as the model, thinking level and harness actually used; `--harness` has no default because this tool is not the vendor harness.
+
+`--register` writes the entry into `bots.json`, touching only that entry. It requires an evaluation showing more wins than losses against the opponent, so a controller that fails the minimum competitive requirement is written to disk but stays out of the catalog. `--force` overwrites an existing file or catalog entry and bypasses that check; keep the recorded results with any registration made this way. Rebuild with `npm run build` after registering. `--report <file>` stores the run metadata, the gate verdict and every match record, including code hashes and engine versions, for publication alongside an evaluation.
+
 ## Tournament CLI
 
 Run an exhibition with all controllers registered in `bots.json`:

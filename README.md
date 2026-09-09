@@ -49,6 +49,8 @@ An LLM writes the controller before the match. During the match, that JavaScript
 
 This makes the project a way to explore how well coding agents turn a shared specification into working strategies. You can also write a controller yourself and test it in your local arena.
 
+Generating a controller is also a single command: the [bot generation CLI](AGENTS.md#bot-generation-cli) asks any hosted or local model for a controller, checks it against the conformity gate, evaluates it over the standard series and registers it once it beats Baseline.
+
 To have an agent build a bot, give it **[AGENTS.md](AGENTS.md)**. That file contains the complete rules, programming contract and evaluation procedure, including the requirement to beat the basic Baseline controller and to treat competing implementations as black boxes.
 
 ## Understanding the results

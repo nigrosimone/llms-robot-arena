@@ -8,6 +8,8 @@ We do not accept pull requests that add new models or model-attributed bots to t
 
 If you would like a model included, contact Simone Nigro at [nigro.simone@gmail.com](mailto:nigro.simone@gmail.com) to arrange access through an API key. Simone will generate and evaluate the controller and add it to the catalog. Use the email to arrange access; do not put API keys in issues, pull requests or repository files.
 
+The generation itself is automated: with the key in the environment, `npm run generate -- --provider <endpoint> --model <id> --evaluate --register` produces the controller, runs the conformity gate and the standard series against Baseline, and registers the entry. See [Bot generation CLI](AGENTS.md#bot-generation-cli).
+
 You are welcome to build and test your own controllers locally in Bot Lab or through the CLI. Local experimentation does not register a model in the official catalog. See [AGENTS.md](AGENTS.md) for the complete bot contract, evaluation protocol and black-box policy.
 
 ## Development
