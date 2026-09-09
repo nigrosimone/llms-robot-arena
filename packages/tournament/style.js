@@ -22,12 +22,12 @@ export const STYLE_METRICS = [
 // Radar axes, normalized over the roster because these numbers only mean
 // something next to the other controllers.
 export const STYLE_AXES = [
-  { key: "aggression", label: "Aggression", metric: "closingShare", percent: true },
-  { key: "pressure", label: "Pressure", metric: "proximityShare", percent: true },
-  { key: "wedge", label: "Wedge control", metric: "wedgeShare", percent: true },
-  { key: "mobility", label: "Mobility", metric: "speed", unit: " m/s", digits: 2 },
-  { key: "edge", label: "Edge play", metric: "edgeShare", percent: true },
-  { key: "burn", label: "Energy burn", metric: "spendRate", unit: "/s", digits: 1 },
+  { key: "aggression", label: "Aggression", short: "Aggression", metric: "closingShare", percent: true },
+  { key: "pressure", label: "Pressure", short: "Pressure", metric: "proximityShare", percent: true },
+  { key: "wedge", label: "Wedge control", short: "Wedge", metric: "wedgeShare", percent: true },
+  { key: "mobility", label: "Mobility", short: "Mobility", metric: "speed", unit: " m/s", digits: 2 },
+  { key: "edge", label: "Edge play", short: "Edge", metric: "edgeShare", percent: true },
+  { key: "burn", label: "Energy burn", short: "Energy", metric: "spendRate", unit: "/s", digits: 1 },
 ];
 
 export function formatStyleValue(axis, style) {

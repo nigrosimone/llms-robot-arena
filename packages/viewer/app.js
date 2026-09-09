@@ -1085,10 +1085,19 @@ function radarShape(profile) {
   const shape = STYLE_AXES
     .map((axis, i) => point(i, 12 + 34 * Math.min(1, Math.max(0, profile[axis.key]))).map(n => n.toFixed(1)).join(","))
     .join(" ");
-  return `<svg viewBox="0 0 120 120" role="img" aria-hidden="true"><polygon class="radar-grid" points="${ring(46)}"/><polygon class="radar-grid" points="${ring(23)}"/>${STYLE_AXES.map((_, i) => {
+  const spokes = STYLE_AXES.map((_, i) => {
     const [x, y] = point(i, 46);
     return `<line class="radar-grid" x1="60" y1="60" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`;
-  }).join("")}<polygon class="radar-shape" points="${shape}"/></svg>`;
+  }).join("");
+  const labels = STYLE_AXES.map((axis, i) => {
+    const [x, y] = point(i, 54);
+    // Left of the centre the text runs outwards to the left, right of it to the right.
+    const anchor = x > 61 ? "start" : x < 59 ? "end" : "middle";
+    const dx = anchor === "start" ? 4 : anchor === "end" ? -4 : 0;
+    const dy = y > 61 ? 8 : y < 59 ? 0 : 3;
+    return `<text class="radar-label" x="${(x + dx).toFixed(1)}" y="${(y + dy).toFixed(1)}" text-anchor="${anchor}">${esc(axis.short ?? axis.label)}</text>`;
+  }).join("");
+  return `<svg viewBox="-40 -8 200 142" role="img" aria-hidden="true"><polygon class="radar-grid" points="${ring(46)}"/><polygon class="radar-grid" points="${ring(23)}"/>${spokes}<polygon class="radar-shape" points="${shape}"/>${labels}</svg>`;
 }
 function renderStyle() {
   const profiles = styleProfiles(report.ranking);

@@ -2449,7 +2449,7 @@ tbody tr:last-child td {
 }
 .style-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1px;
   background: var(--line);
   border-top: 1px solid var(--line);
@@ -2470,8 +2470,13 @@ tbody tr:last-child td {
   text-align: center;
 }
 .style-card svg {
-  width: 132px;
-  height: 132px;
+  width: 100%;
+  max-width: 210px;
+  height: auto;
+}
+.radar-label {
+  fill: var(--muted);
+  font: 9px var(--mono);
 }
 .radar-grid {
   fill: none;
