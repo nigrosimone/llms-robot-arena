@@ -12,6 +12,8 @@ test("local server serves the built app and replay list without exposing parent 
   await mkdir(dist);
   await mkdir(replays);
   await writeFile(join(dist, "index.html"), "<html>Robot Arena</html>");
+  await mkdir(join(dist, "rules"));
+  await writeFile(join(dist, "rules", "index.html"), "<html>Rules</html>");
   await writeFile(join(replays, "match 1.json"), "{}");
   await writeFile(join(replays, "ranking.json"), "{}");
   await writeFile(join(root, "private.txt"), "private");
@@ -27,6 +29,11 @@ test("local server serves the built app and replay list without exposing parent 
     "match 1.json",
   ]);
   assert.equal((await fetch(base + "/replays/match%201.json")).status, 200);
+  // Static pages are directories, the same way GitHub Pages serves them.
+  assert.equal(await (await fetch(base + "/rules/")).text(), "<html>Rules</html>");
+  const redirect = await fetch(base + "/rules", { redirect: "manual" });
+  assert.equal(redirect.status, 301);
+  assert.equal(redirect.headers.get("location"), "/rules/");
   assert.equal((await fetch(base + "/%2e%2e%2fprivate.txt")).status, 403);
   assert.equal((await fetch(base + "/%E0%A4%A")).status, 400);
   assert.equal((await fetch(base, { method: "POST" })).status, 405);

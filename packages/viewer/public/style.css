@@ -2507,3 +2507,37 @@ tbody tr:last-child td {
 .style-card dd {
   margin: 0;
 }
+.footer-links {
+  display: flex;
+  gap: 20px;
+}
+.footer-links a:hover {
+  color: var(--lime);
+}
+.source-view {
+  max-height: 70vh;
+  overflow: auto;
+  padding: 18px 25px 22px;
+}
+.source-view pre {
+  font: 12px/1.65 var(--mono);
+  color: #b6c4ca;
+  tab-size: 2;
+}
+.static-intro {
+  max-width: 680px;
+  margin: 60px auto;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.static-intro ul {
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.static-intro a {
+  color: var(--lime);
+}
