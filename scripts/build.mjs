@@ -1,9 +1,11 @@
 import { build } from "esbuild";
-import { mkdir, writeFile, cp, lstat, realpath, rm } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
+import { mkdir, readFile, writeFile, cp, lstat, realpath, rm } from "node:fs/promises";
+import { resolve, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadBots } from "../packages/bot-catalog-node.js";
+import { renderSite } from "../packages/site/prerender.js";
 
+const bots = await loadBots();
 const root = await realpath(fileURLToPath(new URL("../", import.meta.url)));
 const dist = resolve(root, "dist");
 // Only the generated directory directly inside this project may be removed.
@@ -42,7 +44,7 @@ await build({
         b.onLoad({ filter: /.*/, namespace: "bot-catalog" }, async () => ({
           contents:
             "export default " + JSON.stringify(
-              (await loadBots()).map(({ file, ...bot }) => ({
+              bots.map(({ file, ...bot }) => ({
                 ...bot, extension: file.endsWith(".ts") ? "ts" : "js",
               })),
             ),
@@ -54,4 +56,17 @@ await build({
 });
 await cp(resolve(root, "packages/viewer/public"), dist, { recursive: true });
 await writeFile(resolve(dist, "replays.json"), "[]\n");
-console.log("Build ready in dist/. Start with: npm run viewer");
+// Static pages, sitemap, robots and llms.txt for readers that never run the app.
+const site = renderSite({
+  index: await readFile(resolve(dist, "index.html"), "utf8"),
+  bots,
+  standings: await readFile(resolve(dist, "standings.json"), "utf8").then(JSON.parse, () => null),
+  ...(process.env.SITE_URL ? { baseUrl: process.env.SITE_URL } : {}),
+});
+for (const [path, content] of site) {
+  const file = resolve(dist, path);
+  if (!file.startsWith(dist + sep)) throw new Error("Generated page outside the build output.");
+  await mkdir(dirname(file), { recursive: true });
+  await writeFile(file, content);
+}
+console.log(`Build ready in dist/, ${site.size} static files. Start with: npm run viewer`);

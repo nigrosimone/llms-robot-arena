@@ -12,6 +12,8 @@ const types = {
   ".css": "text/css",
   ".json": "application/json",
   ".md": "text/markdown",
+  ".txt": "text/plain",
+  ".xml": "application/xml",
   ".ts": "text/plain",
   ".zip": "application/zip",
   ".wasm": "application/wasm",
@@ -76,9 +78,20 @@ export function createViewerServer({
         : path === "/"
           ? "index.html"
           : path.slice(1);
-      const file = safePath(isReplay ? replays : dist, relative);
+      let file = safePath(isReplay ? replays : dist, relative);
       if (!file || path.includes("\0")) return send(403, "Forbidden");
-      if (!(await stat(file)).isFile()) return send(404, "Not found");
+      let info = await stat(file);
+      // GitHub Pages serves /rules/ from /rules/index.html and redirects the
+      // form without the trailing slash. Relative links only work either way.
+      if (info.isDirectory() && !isReplay) {
+        if (!path.endsWith("/")) {
+          res.writeHead(301, { location: path + "/" });
+          return res.end();
+        }
+        file = resolve(file, "index.html");
+        info = await stat(file);
+      }
+      if (!info.isFile()) return send(404, "Not found");
       send(
         200,
         await readFile(file),
