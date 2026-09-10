@@ -11,7 +11,7 @@ import { renderCSV, renderReport } from "../packages/tournament/report.js";
 
 const pair = () => [
   { id: "alpha", model: "Alpha Model", provider: "OpenAI", thinking: "ultra", harness: "Codex", file: "packages/bots/alpha.js", provenance: "iterative" },
-  { id: "beta", model: "Beta Model", provider: "Anthropic", thinking: "max", harness: "Claude Code", file: "packages/bots/beta.ts" },
+  { id: "beta", model: "Beta Model", provider: "Anthropic", thinking: "max", harness: "Claude Code", file: "packages/bots/beta.js" },
 ];
 
 test("registered files exist and ID selections resolve from any manifest directory without reading sources", async () => {
@@ -46,10 +46,10 @@ test("catalog validation rejects duplicates, missing metadata and paths outside 
 
 test("manifests mix catalog IDs with custom definitions and retain legacy object support", () => {
   const external = resolve(projectRoot, "external-manifests");
-  const custom = { id: "custom", model: "Custom Model", file: "./controller.ts" };
+  const custom = { id: "custom", model: "Custom Model", file: "./controller.js" };
   const entries = resolveBotDefinitions([botCatalog[0].id, custom], external);
   assert.equal(entries[0].file, resolve(projectRoot, botCatalog[0].file));
-  assert.equal(entries[1].file, resolve(external, "controller.ts"));
+  assert.equal(entries[1].file, resolve(external, "controller.js"));
   assert.throws(() => resolveBotDefinitions(["missing-id", custom], external), /Unknown catalog bot/);
   assert.throws(() => resolveBotDefinitions([botCatalog[0].id, botCatalog[0].id]), /unique/);
   assert.throws(() => resolveBotDefinitions([custom, { ...custom, id: "empty", file: " " }]), /non-empty/);

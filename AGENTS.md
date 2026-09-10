@@ -19,7 +19,7 @@ This is the llms-robot-arena project. Repository: [nigrosimone/llms-robot-arena]
 
 ## Scope and public information
 
-This file is the single reference for game rules, TypeScript contracts, bot development, evaluation, local operation, and publication. Use the rules and constants below and evaluate results under matching rules, engine versions and runtime budgets. The public example in this document may be used as a starting template, without opening any other bot implementation.
+This file is the single reference for game rules, the bot contract, bot development, evaluation, local operation, and publication. Use the rules and constants below and evaluate results under matching rules, engine versions and runtime budgets. The public example in this document may be used as a starting template, without opening any other bot implementation.
 
 Keep this file focused on instructions for agents. Omit camera controls, visual styling details and end-user interface walkthroughs.
 
@@ -27,7 +27,7 @@ For general project searches, explicitly exclude `packages/bots/**`, `dist/**`, 
 
 ## Implementing a bot
 
-1. Use the requested name and create one file at `packages/bots/<bot-id>.js` or `.ts`. Never overwrite another bot. If no ID was supplied, choose a descriptive unused filename without opening existing bot files.
+1. Use the requested name and create one file at `packages/bots/<bot-id>.js`. Never overwrite another bot. If no ID was supplied, choose a descriptive unused filename without opening existing bot files.
 2. Export exactly one function: `tick(sensors, memory)`, returning `{ actions: { thrust, turn }, memory }`. Use no imports, dependencies, extra exports, network, filesystem, clock, randomness APIs, or dynamic code generation.
 3. Treat sensors and incoming memory as immutable. Persistent state belongs only in returned JSON memory; each tick gets a fresh module scope. Initial memory is `null`. Return finite numeric actions and strict JSON memory within the documented 64 KiB limit.
 4. Design using the public rules and sensor interface. Do not modify physics, energy, collision thresholds, runtime budgets, gates, fixtures, ranking, or an opponent to help your bot win. Report an engine issue separately.
@@ -335,6 +335,8 @@ A **pure** function. No global state or side effects. All persistent state passe
 
 ### Types
 
+These declarations describe the data a controller receives. The file you write is plain JavaScript: the gate parses it and rejects type annotations.
+
 ```ts
 type RobotStatus = 'active' | 'flipped' | 'recovering';
 
@@ -442,7 +444,7 @@ All values use the **world frame**. There are no helpers or ready-made `angleTo(
 
 ### Code constraints
 
-- One TypeScript or JavaScript file, ESM, with a single export: `tick`.
+- One JavaScript file, ESM, with a single export: `tick`. TypeScript syntax is rejected by the gate.
 - No `import` statements or dependencies.
 - Forbidden: `Math.random`, `Date`, `performance`, `fetch`, `setTimeout`, `globalThis`, `eval`, `Function`, `WeakRef`. The worker removes them from scope.
 - `Math.sin/cos/atan2/sqrt/hypot` are allowed.
@@ -450,8 +452,8 @@ All values use the **world frame**. There are no helpers or ready-made `angleTo(
 
 ### Minimal example
 
-```ts
-export function tick(s: Sensors, m: Memory) {
+```js
+export function tick(s, m) {
   const dx = s.opponent.x - s.self.x;
   const dy = s.opponent.y - s.self.y;
   const bearing = Math.atan2(dy, dx);
@@ -575,7 +577,7 @@ These values are checked against the simulator by the project tests. Update this
 
 ## Standalone bot submissions
 
-When asked to return a standalone bot submission as your response, respond with **one JavaScript or TypeScript file**, using ESM and **exactly one export** named `tick`. Do not include explanations, text outside the code, or any `import`. The file will run as submitted in the runtime described above and must pass all eight conformity checks before entering the arena.
+When asked to return a standalone bot submission as your response, respond with **one JavaScript file**, using ESM and **exactly one export** named `tick`. Do not include explanations, text outside the code, or any `import`. The file will run as submitted in the runtime described above and must pass all eight conformity checks before entering the arena.
 
 ---
 

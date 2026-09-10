@@ -37,15 +37,15 @@ The complete match is calculated before playback. You can pause, scrub through t
 | Area | What you can do |
 | --- | --- |
 | **Arena** | Run individual matches and watch the results in 3D, with energy bars, robot status and an event log. |
-| **Bot Lab** | Create or edit a JavaScript or TypeScript controller, check that it follows the bot contract, and download its source. |
+| **Bot Lab** | Create or edit a JavaScript controller, check that it follows the bot contract, and download its source. |
 | **Tournament** | Compare selected bots across repeated matches and export rankings and reports. |
 | **Rules** | Read a short overview of the game mechanics. |
 
-Bot Lab changes last for the current browser session. Download your controller to keep a copy. The editor preserves its JavaScript or TypeScript extension; use the file-type selector when changing languages.
+Bot Lab changes last for the current browser session. Download your controller to keep a copy.
 
 ## Where do the LLMs come in?
 
-An LLM writes the controller before the match. During the match, that JavaScript or TypeScript program receives the robot's sensors and chooses how much to drive and turn. It runs automatically inside an isolated execution environment; the arena makes no LLM API calls.
+An LLM writes the controller before the match. During the match, that JavaScript program receives the robot's sensors and chooses how much to drive and turn. It runs automatically inside an isolated execution environment; the arena makes no LLM API calls.
 
 This makes the project a way to explore how well coding agents turn a shared specification into working strategies. You can also write a controller yourself and test it in your local arena.
 

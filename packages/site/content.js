@@ -44,7 +44,7 @@ export const RULE_CARDS = [
   {
     number: "06 / BENCHMARK",
     title: "Conformance before competition.",
-    body: `<p>One JS or TS file, one tick export, no imports or external APIs. QuickJS runs in a Worker sandbox. Public tests check execution, purity, memory and timing.</p>`,
+    body: `<p>One JavaScript file, one tick export, no imports or external APIs. QuickJS runs in a Worker sandbox. Public tests check execution, purity, memory and timing.</p>`,
   },
 ];
 

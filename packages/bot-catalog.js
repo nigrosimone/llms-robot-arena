@@ -23,8 +23,8 @@ export function validateBotDefinitions(entries, { catalog = false } = {}) {
         throw new Error(`Bot ${key} must be a non-empty string or null.`);
     }
     if (catalog) {
-      if (!/^packages\/bots\/[a-zA-Z0-9_-]+\.(js|ts)$/.test(bot.file))
-        throw new Error("Catalog files must be JS or TS files directly in packages/bots/.");
+      if (!/^packages\/bots\/[a-zA-Z0-9_-]+\.js$/.test(bot.file))
+        throw new Error("Catalog files must be JS files directly in packages/bots/.");
       if (files.has(bot.file.toLowerCase())) throw new Error("Catalog bot files must be unique.");
       files.add(bot.file.toLowerCase());
     }
