@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "three": "0.180.0",
+    "lit-html": "3.3.3",
     "quickjs-emscripten": "0.31.0",
     "@jitl/quickjs-singlefile-browser-release-sync": "0.31.0",
     "typescript": "5.9.3",

@@ -7,8 +7,6 @@ import { robotColor } from "./palette.js";
 import { botName, botDetails } from "../bot-catalog.js";
 import { sortedBotOptions, controllerExtension, controllerFilename } from "./controllers.js";
 import { exhibitionSchedule } from "../tournament/exhibition.js";
-import { STYLE_AXES, formatStyleValue, styleLabel, styleProfiles } from "../tournament/style.js";
-import { INDEX_TERMS, compositeIndex } from "../tournament/composite.js";
 import { readMatchSettings, matchSettingsSearch } from "./match-link.js";
 import {
   MatchRecorder,
@@ -22,32 +20,12 @@ import {
 import { MatchAudio } from "./audio.js";
 import { CONTRACT_CARD, CONTROLLERS, HAZARD_CARDS, RULE_CARDS, RULES_NOTE, TABS, ruleCards, tabForRoute } from "../site/content.js";
 import { currentRoute, pagePath, siteUrl } from "./base.js";
-const icons = {
-  arena: "M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10",
-  code: "m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18",
-  trophy:
-    "M8 3h8v8a4 4 0 0 1-8 0V3Zm0 2H4v3a4 4 0 0 0 4 4m8-7h4v3a4 4 0 0 1-4 4m-4 3v6m-4 0h8",
-  book: "M4 3h13a3 3 0 0 1 3 3v15H7a3 3 0 0 1-3-3V3Zm0 14h16M8 7h8m-8 4h6",
-  play: "m8 4 12 8-12 8V4Z",
-  pause: "M8 4v16M16 4v16",
-  download: "M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5",
-  upload: "M12 16V4m-5 5 5-5 5 5M4 17v4h16v-4",
-  reset: "M3 10a9 9 0 1 1 1 7M3 4v6h6",
-  expand: "M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5",
-  arrow: "M4 12h16m-6-6 6 6-6 6",
-  bolt: "m13 2-9 12h7l-1 8 10-13h-8l1-7Z",
-  check: "m4 12 5 5L20 6",
-  close: "m5 5 14 14M19 5 5 19",
-  plus: "M12 4v16M4 12h16",
-  settings: "M4 7h16M4 17h16M8 4v6m8 4v6",
-  swap: "M4 7h16l-4-4M20 17H4l4 4",
-  record: "M12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14Z",
-  sound: "M4 9h4l5-4v14l-5-4H4V9Zm12 0a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12",
-  mute: "M4 9h4l5-4v14l-5-4H4V9Zm12 1 6 6m0-6-6 6",
-  stop: "M6 6h12v12H6Z",
-};
-const icon = (name, size = 18) =>
-  `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${icons[name] ?? icons.arena}"/></svg>`;
+import { icon } from "./icons.js";
+import { clock } from "./format.js";
+import { render, nothing } from "lit-html";
+import {
+  emptyRanking, rankingTemplate, styleTemplate, indexTemplate, codeTemplate, matchesTemplate,
+} from "./tournament-view.js";
 const esc = (s) =>
   String(s).replace(
     /[&<>"']/g,
@@ -79,8 +57,6 @@ let replay = null,
   introStart = null,
   introTimer = null;
 const $ = (s) => document.querySelector(s);
-const clock = (t) =>
-  `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 const download = (name, data, type = "application/json") => {
   const url = URL.createObjectURL(new Blob([data], { type }));
   const a = document.createElement("a");
@@ -1058,11 +1034,15 @@ $("#run-tournament").onclick = () => {
   $("#tournament-gates").hidden = true;
   $("#export-ranking").disabled = true;
   $("#export-report").disabled = true;
-  $("#ranking-surface").innerHTML = '<div class="empty-ranking"><h2>Checking controllers…</h2><p>The provisional ranking updates after every completed match.</p></div>';
-  $("#tournament-style").innerHTML = "";
-  $("#tournament-code").innerHTML = "";
-  $("#tournament-index").innerHTML = "";
-  $("#tournament-matches").innerHTML = "";
+  render(
+    emptyRanking(
+      "Checking controllers…",
+      "The provisional ranking updates after every completed match.",
+    ),
+    $("#ranking-surface"),
+  );
+  for (const id of ["#tournament-style", "#tournament-code", "#tournament-index", "#tournament-matches"])
+    render(nothing, $(id));
   $("#cancel-tournament").hidden = false;
   $("#tournament-progress").hidden = false;
   $("#tournament-progress progress").value = 0;
@@ -1070,85 +1050,31 @@ $("#run-tournament").onclick = () => {
   startOperation("tournament", { bots: selected, format: $("#tournament-format").value });
 };
 function renderRanking() {
-  const rows = report.ranking;
   $("#export-ranking").disabled = false;
   $("#export-report").disabled = false;
-  const heading = report.published
-    ? "Published standings"
-    : report.status === "complete" ? "Final ranking" : "Provisional ranking";
-  const format = report.format === "quick" ? "QUICK ROUNDS" : "ROUND ROBIN";
-  const tag = report.published
-    ? `PUBLISHED · ${report.records.length} MATCHES · ${format}${report.generatedAt ? " · " + esc(report.generatedAt.slice(0, 10)) : ""}`
-    : `${report.records.length} / ${report.totalMatches} MATCHES · ${format} · ${esc(report.status.toUpperCase())}`;
-  $("#ranking-surface").innerHTML =
-    `<div class="ranking-header"><h2>${heading}</h2><span class="tag">${tag}</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(botName(r))}</strong><small>${esc(botDetails(r))}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci?.map((n) => n.toFixed(1)).join(" – ") ?? "—"}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
+  render(rankingTemplate(report), $("#ranking-surface"));
   renderStyle();
   renderCode();
   renderIndex();
 }
-// One radar per controller: the axes are scaled against the rest of the roster,
-// so the shape compares controllers instead of measuring them absolutely.
-function radarShape(profile) {
-  const point = (index, radius) => {
-    const angle = (Math.PI * 2 * index) / STYLE_AXES.length - Math.PI / 2;
-    return [60 + radius * Math.cos(angle), 60 + radius * Math.sin(angle)];
-  };
-  const ring = radius =>
-    STYLE_AXES.map((_, i) => point(i, radius).map(n => n.toFixed(1)).join(",")).join(" ");
-  const shape = STYLE_AXES
-    .map((axis, i) => point(i, 12 + 34 * Math.min(1, Math.max(0, profile[axis.key]))).map(n => n.toFixed(1)).join(","))
-    .join(" ");
-  const spokes = STYLE_AXES.map((_, i) => {
-    const [x, y] = point(i, 46);
-    return `<line class="radar-grid" x1="60" y1="60" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`;
-  }).join("");
-  const labels = STYLE_AXES.map((axis, i) => {
-    const [x, y] = point(i, 54);
-    // Left of the centre the text runs outwards to the left, right of it to the right.
-    const anchor = x > 61 ? "start" : x < 59 ? "end" : "middle";
-    const dx = anchor === "start" ? 4 : anchor === "end" ? -4 : 0;
-    const dy = y > 61 ? 8 : y < 59 ? 0 : 3;
-    return `<text class="radar-label" x="${(x + dx).toFixed(1)}" y="${(y + dy).toFixed(1)}" text-anchor="${anchor}">${esc(axis.short ?? axis.label)}</text>`;
-  }).join("");
-  return `<svg viewBox="-40 -8 200 142" role="img" aria-hidden="true"><polygon class="radar-grid" points="${ring(46)}"/><polygon class="radar-grid" points="${ring(23)}"/>${spokes}<polygon class="radar-shape" points="${shape}"/>${labels}</svg>`;
-}
 function renderStyle() {
-  const profiles = styleProfiles(report.ranking);
-  $("#tournament-style").innerHTML = profiles
-    ? `<div class="ranking-header"><h2>Play style</h2><span class="tag">MEASURED OVER THE SAME MATCHES · SCALED ON THIS ROSTER</span></div><div class="style-cards">${report.ranking.map((r, i) => `<article class="style-card"><header><strong>${esc(botName(r))}</strong><span class="tag">${esc(styleLabel(profiles[i]))}</span></header>${radarShape(profiles[i])}<dl>${STYLE_AXES.map(axis => `<div><dt>${esc(axis.label)}</dt><dd>${esc(formatStyleValue(axis, r.style))}</dd></div>`).join("")}</dl></article>`).join("")}</div>`
-    : "";
+  render(styleTemplate(report), $("#tournament-style"));
 }
-// Results and source folded into one number. The ranking stays the ranking.
 function renderIndex() {
-  const rows = compositeIndex(report);
-  $("#tournament-index").innerHTML = rows
-    ? `<div class="ranking-header"><h2>Craft index</h2><span class="tag">RESULTS AND SOURCE · NOT THE RANKING</span></div><div class="table-scroll"><table><thead><tr><th>Controller</th><th>Craft index</th>${INDEX_TERMS.map(term => `<th>${esc(term.label)} · ${Math.round(term.weight * 100)}%</th>`).join("")}</tr></thead><tbody>${report.ranking.map((row, i) => `<tr><td><strong>${esc(botName(row))}</strong></td><td class="bt-score">${rows[i].index.toFixed(1)}</td>${INDEX_TERMS.map(term => `<td class="mono">${rows[i].terms[term.key] === null ? "—" : rows[i].terms[term.key].toFixed(2)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
-    : "";
+  render(indexTemplate(report), $("#tournament-index"));
 }
-// Static source measurements, published with the standings.
 function renderCode() {
-  const order = new Map(report.ranking.map((row, i) => [row.id, i]));
-  const rows = (report.bots ?? [])
-    .filter(bot => bot.code)
-    .sort((x, y) => (order.get(x.id) ?? Infinity) - (order.get(y.id) ?? Infinity));
-  $("#tournament-code").innerHTML = rows.length
-    ? `<div class="ranking-header"><h2>Implementation</h2><span class="tag">MEASURED FROM THE SUBMITTED SOURCE</span></div><div class="table-scroll"><table><thead><tr><th>Controller</th><th>Language</th><th>Lines</th><th>Code</th><th>Comments</th><th>Functions</th><th>Cyclomatic</th><th>Max nesting</th><th>Size</th></tr></thead><tbody>${rows.map(bot => `<tr><td><strong>${esc(botName(bot))}</strong></td><td>${esc(bot.code.language)}</td><td class="mono">${bot.code.lines}</td><td class="mono">${bot.code.codeLines}</td><td class="mono">${bot.code.commentLines}</td><td class="mono">${bot.code.functions}</td><td class="mono">${bot.code.complexity}</td><td class="mono">${bot.code.maxDepth}</td><td class="mono">${(bot.code.bytes / 1024).toFixed(1)} kB</td></tr>`).join("")}</tbody></table></div>`
-    : "";
+  render(codeTemplate(report), $("#tournament-code"));
+}
+function watchMatch(index) {
+  const completed = tournamentReplays.get(index);
+  if (!completed) return;
+  loadReplay(completed, true);
+  $('[data-tab="arena"]').click();
 }
 function renderTournamentMatches() {
-  $("#tournament-matches").innerHTML = report.records.length
-    ? `<div class="ranking-header"><h2>Completed matches</h2><span class="tag">WATCH WHILE THE TOURNAMENT RUNS</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Round</th><th>Match</th><th>Seed / spawn</th><th>Result</th><th>Replay</th></tr></thead><tbody>${report.records.map((r, i) => `<tr><td>${i + 1}</td><td>${r.round}</td><td>${esc(botName(report.bots[r.a]))} vs ${esc(botName(report.bots[r.b]))}</td><td>${r.seed} / ${r.mirrored ? "Mirrored" : "Standard"}</td><td>${r.score === 0.5 ? "Draw" : esc(botName(report.bots[r.score === 1 ? r.a : r.b])) + " wins"}<small>${esc(r.reason)} · ${clock(r.ticks / 60)}</small></td><td><button class="button outline" data-watch-match="${i}">${icon("play")}Watch</button></td></tr>`).reverse().join("")}</tbody></table></div>`
-    : "";
+  render(matchesTemplate(report, watchMatch), $("#tournament-matches"));
 }
-$("#tournament-matches").onclick = event => {
-  const button = event.target.closest("[data-watch-match]");
-  if (!button) return;
-  const completed = tournamentReplays.get(Number(button.dataset.watchMatch));
-  if (completed) {
-    loadReplay(completed, true);
-    $('[data-tab="arena"]').click();
-  }
-};
 $("#export-report").onclick = () => {
   if (report) download("RESULTS.md", renderReport(report), "text/markdown");
 };
