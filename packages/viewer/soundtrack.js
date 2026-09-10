@@ -5,7 +5,8 @@
 //
 // The file is local and is not part of the repository. Without it the viewer
 // stays silent, and only the sound effects play.
-export const TRACK_URL = "./music/bed.mp3";
+import { siteUrl } from "./base.js";
+export const TRACK_URL = siteUrl("music/bed.mp3").href;
 const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
 export class Soundtrack {

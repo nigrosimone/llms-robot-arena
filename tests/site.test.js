@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { renderSite, botSlug } from "../packages/site/prerender.js";
-import { RULE_CARDS, HAZARD_CARDS, SITE } from "../packages/site/content.js";
+import { RULE_CARDS, HAZARD_CARDS, SITE, TABS, normalizeRoute, tabForRoute } from "../packages/site/content.js";
 import { projectRoot } from "../packages/bot-catalog-node.js";
 
 const BASE = "https://example.test/arena/";
@@ -50,16 +50,29 @@ const standings = () => ({
   generatedAt: "2026-01-02T03:04:05.000Z",
   environment: { node: "v24.0.0", platform: "linux", arch: "x64", cpu: "Test CPU" },
 });
+const EXAMPLE = "export function tick(s, m) {\n  return { actions: { thrust: 1, turn: 0 }, memory: m };\n}\n";
 const render = async (overrides = {}) =>
-  renderSite({ index: await shell(), bots: bots(), standings: standings(), baseUrl: BASE, ...overrides });
+  renderSite({
+    index: await shell(),
+    bots: bots(),
+    standings: standings(),
+    example: EXAMPLE,
+    baseUrl: BASE,
+    ...overrides,
+  });
 
 test("every page is a complete document with its own title, description, canonical and valid JSON-LD", async () => {
   const files = await render();
   const pages = [...files].filter(([path]) => path.endsWith(".html") && path !== "404.html");
-  assert.deepEqual(
-    pages.map(([path]) => path).sort(),
-    ["bots/alpha-max/index.html", "bots/beta-bot/index.html", "bots/index.html", "index.html", "rules/index.html", "tournament/index.html"],
-  );
+  assert.deepEqual(pages.map(([path]) => path).sort(), [
+    "bots/alpha-max/index.html",
+    "bots/beta-bot/index.html",
+    "bots/index.html",
+    "index.html",
+    "lab/index.html",
+    "rules/index.html",
+    "tournament/index.html",
+  ]);
   const titles = new Set(), descriptions = new Set();
   for (const [path, html] of pages) {
     const url = new URL(path.replace(/index\.html$/, ""), BASE).href;
@@ -106,6 +119,9 @@ test("rules, standings and controller pages carry the content they exist for", a
   const rules = files.get("rules/index.html");
   for (const card of [...RULE_CARDS, ...HAZARD_CARDS]) assert.ok(rules.includes(card.title), card.number);
   assert.ok(rules.includes("300 <small>starting energy</small>"), "spec constants must be interpolated");
+  const lab = files.get("lab/index.html");
+  assert.ok(lab.includes("tick(sensors, memory)"), "the contract is the point of the page");
+  assert.ok(lab.includes(EXAMPLE.trimEnd()), "the minimal controller comes from the specification");
   const tournament = files.get("tournament/index.html");
   for (const text of ["Alpha 1", "Beta 2", "Craft index", "Play style", "Implementation", "120.0"])
     assert.ok(tournament.includes(text), text);
@@ -115,10 +131,40 @@ test("rules, standings and controller pages carry the content they exist for", a
   assert.doesNotMatch(alpha.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g, ""), /<script/);
 });
 
+test("the panel pages boot the application, the reference pages stay plain", async () => {
+  const files = await render();
+  for (const tab of TABS) {
+    const path = tab.route + "index.html";
+    const html = files.get(path);
+    assert.ok(html.includes('<div id="app">'), `${path} must give its content to the application`);
+    assert.match(html, /<script type="module" src="[^"]*app\.js"><\/script>/, path);
+    assert.equal(html.match(/<title>(.*?)<\/title>/)[1], tab.title, path);
+    // What the application intercepts has to be a real link for a crawler.
+    if (tab.route)
+      for (const other of TABS)
+        assert.ok(html.includes(`data-tab="${other.id}"`), `${path} must link ${other.id}`);
+  }
+  for (const path of ["bots/index.html", "bots/alpha-max/index.html"]) {
+    assert.doesNotMatch(files.get(path), /src="[^"]*app\.js"/, path);
+    assert.ok(!files.get(path).includes('<div id="app">'), path);
+  }
+});
+
+test("a route names one panel, whatever shape the URL arrives in", () => {
+  for (const [route, id] of [
+    ["", "arena"], ["index.html", "arena"], ["lab/", "lab"], ["rules", "rules"],
+    ["rules/index.html", "rules"], ["tournament/?seed=3", "tournament"],
+  ])
+    assert.equal(tabForRoute(route)?.id, id, route);
+  for (const route of ["bots/", "bots/alpha-max/", "nowhere/"])
+    assert.equal(tabForRoute(route), null, route);
+  assert.equal(normalizeRoute("/rules"), "rules/");
+});
+
 test("sitemap, robots and llms.txt describe exactly the pages that exist", async () => {
   const files = await render();
   const urls = [...files.get("sitemap.xml").matchAll(/<loc>(.*?)<\/loc>/g)].map(m => m[1]);
-  const expected = ["", "rules/", "tournament/", "bots/", "bots/alpha-max/", "bots/beta-bot/"].map(
+  const expected = ["", "lab/", "rules/", "tournament/", "bots/", "bots/alpha-max/", "bots/beta-bot/"].map(
     path => new URL(path, BASE).href,
   );
   assert.deepEqual([...urls].sort(), [...expected].sort());
