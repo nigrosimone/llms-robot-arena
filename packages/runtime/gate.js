@@ -16,7 +16,7 @@ export async function gateBot(client, source, budgetMode = "fuel") {
   try {
     await client.request({ type: "init", source, budgetMode: "fuel" });
     checks.push(
-      { name: "Export tick · JS / TypeScript", pass: true },
+      { name: "Export tick · JavaScript", pass: true },
       { name: "Static analysis and isolated scope", pass: true },
     );
   } catch (e) {

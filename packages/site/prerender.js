@@ -327,7 +327,7 @@ function labPage(example, baseUrl) {
     app: true,
     title: tabTitle("lab"),
     description:
-      "Write an autonomous robot controller in JavaScript or TypeScript, check it against the contract and run it in the browser: one tick function, thrust and turn, 64 KB of memory.",
+      "Write an autonomous robot controller in JavaScript, check it against the contract and run it in the browser: one tick function, thrust and turn, 64 KB of memory.",
     baseUrl,
     schema: [
       {
@@ -353,7 +353,7 @@ function labPage(example, baseUrl) {
     )}
   <div class="rules-grid">
    <article class="info-card">${CONTRACT_CARD}</article>
-   <article class="info-card"><span class="rule-number">SANDBOX</span><h2>QuickJS in a worker.</h2><p>One JavaScript or TypeScript file, one <code>tick</code> export, no imports and no host APIs. Sensors and memory arrive frozen and every call gets a fresh module scope, so nothing carries over except the memory you return. It runs as QuickJS WebAssembly, one worker per robot.</p></article>
+   <article class="info-card"><span class="rule-number">SANDBOX</span><h2>QuickJS in a worker.</h2><p>One JavaScript file, one <code>tick</code> export, no imports and no host APIs. Sensors and memory arrive frozen and every call gets a fresh module scope, so nothing carries over except the memory you return. It runs as QuickJS WebAssembly, one worker per robot.</p></article>
    <article class="info-card"><span class="rule-number">CONFORMANCE GATE</span><h2>Checked before it fights.</h2><p>200 snapshots and 600 inert ticks look at execution, purity, memory and timing. They say nothing about strategy: passing the gate means the controller is admissible, not that it is any good.</p></article>
   </div>
   ${
@@ -423,7 +423,7 @@ function botsPage(bots, standings, baseUrl) {
     main: `${heading(
       "CONTROLLERS",
       "One function. Two commands",
-      "Every controller is a single JavaScript or TypeScript file exporting <code>tick(sensors, memory)</code> and returning thrust and turn. Same robot, same arena, same energy: the code is the only variable.",
+      "Every controller is a single JavaScript file exporting <code>tick(sensors, memory)</code> and returning thrust and turn. Same robot, same arena, same energy: the code is the only variable.",
     )}
   ${card(
     "Registered controllers",
@@ -439,7 +439,6 @@ function botPage(bot, standings, baseUrl) {
   const row = position >= 0 ? standings.ranking[position] : null;
   const record = standings?.bots.find((entry) => entry.id === bot.id) ?? null;
   const profiles = standings ? styleProfiles(standings.ranking) : null;
-  const language = record?.code?.language === "ts" ? "TypeScript" : "JavaScript";
   const name = botName(bot);
   const results = row
     ? card(
@@ -482,7 +481,7 @@ function botPage(bot, standings, baseUrl) {
         "Source metrics",
         "PARSED, NEVER EXECUTED",
         facts([
-          ["Language", language],
+          ["Language", "JavaScript"],
           ["Total lines", String(record.code.lines)],
           ["Code lines", String(record.code.codeLines)],
           ["Comment lines", String(record.code.commentLines)],
@@ -510,7 +509,7 @@ function botPage(bot, standings, baseUrl) {
         description: `Autonomous robot controller for llms-robot-arena. ${botDetails(bot)}.`,
         url: absolute(baseUrl, `bots/${botSlug(bot)}/`),
         codeRepository: SITE.repository,
-        programmingLanguage: language,
+        programmingLanguage: "JavaScript",
         codeSampleType: "full solution",
         isPartOf: { "@type": "WebSite", name: SITE.name, url: baseUrl },
         ...(bot.provider ? { creator: { "@type": "Organization", name: bot.provider } } : {}),
@@ -604,7 +603,7 @@ function llmsTxt(bots, standings, baseUrl) {
 
 > ${SITE.tagline} A deterministic 3D arena where autonomous controllers, most of them written by an LLM, fight one against one. Every duel is reproducible from its seed and replayed frame by frame.
 
-A match lasts 120 seconds at 60 Hz on a 16 × 16 m platform that starts shrinking after 60 seconds. A controller is one JavaScript or TypeScript file exporting \`tick(sensors, memory)\` and returning thrust and turn. It runs in a QuickJS sandbox with an instruction budget and 64 KB of memory. Controllers written by different models are ranked with a regularized Bradley–Terry fit over a round robin.
+A match lasts 120 seconds at 60 Hz on a 16 × 16 m platform that starts shrinking after 60 seconds. A controller is one JavaScript file exporting \`tick(sensors, memory)\` and returning thrust and turn. It runs in a QuickJS sandbox with an instruction budget and 64 KB of memory. Controllers written by different models are ranked with a regularized Bradley–Terry fit over a round robin.
 
 ## Pages
 

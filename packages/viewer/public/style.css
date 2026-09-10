@@ -1425,9 +1425,6 @@ button svg {
   overflow: hidden;
   background: var(--panel);
 }
-#source-language {
-  margin-left: auto;
-}
 #tournament-format {
   max-width: 100%;
 }

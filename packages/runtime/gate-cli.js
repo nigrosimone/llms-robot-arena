@@ -4,7 +4,7 @@ import { BotClient } from "./client.js";
 import { gateBot } from "./gate.js";
 const path = process.argv[2];
 if (!path) {
-  console.error("Usage: npm run gate -- controller.ts");
+  console.error("Usage: npm run gate -- controller.js");
   process.exit(1);
 }
 const client = new BotClient(

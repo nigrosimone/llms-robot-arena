@@ -14,20 +14,34 @@ const using = async (src, fn) => {
     bot.dispose();
   }
 };
-test("AST accepts annotated TypeScript; rejects imports, extra exports and banned globals", () => {
-  assert.ok(
-    compileBot(
-      "type Memory=unknown; export function tick(s: any,m: Memory){return {actions:{thrust:0,turn:0},memory:m}}",
-    ),
+test("the gate keeps the tick export, and rejects TypeScript, imports, extra exports and banned globals", () => {
+  // The export keyword is dropped and nothing else is rewritten.
+  assert.equal(
+    compileBot("export function tick(s, m) { return { actions: { thrust: 0, turn: 0 }, memory: m }; }"),
+    "function tick(s, m) { return { actions: { thrust: 0, turn: 0 }, memory: m }; }",
   );
+  // A property may be named like a forbidden global; the global itself may not.
+  assert.ok(compileBot("export function tick(s, m) { return { actions: s.document, memory: m }; }"));
   for (const src of [
     'import x from "x"; export function tick(){}',
     "export function tick(){} export const x=1",
     "export function tick(){return Math.random()}",
     "export function tick(){return Date.now()}",
     'export function tick(){return import("fs")}',
+    "export function tick(s: any){}",
+    "type M = unknown; export function tick(){}",
+    "export default function tick(){}",
+    "function tick(){}; export { tick }",
   ])
     assert.throws(() => compileBot(src));
+});
+test("the starting template published in the specification passes the gate", async () => {
+  const specification = await readFile(new URL("../AGENTS.md", import.meta.url), "utf8");
+  const example = specification.match(
+    /### Minimal example\s+```\w*\n([\s\S]*?)```/,
+  )?.[1];
+  assert.ok(example, "the specification must publish a starting template");
+  assert.ok(compileBot(example));
 });
 test("baseline has finite outputs on 200 edge snapshots and bounded memory through 600 inert ticks", async () => {
   const source = await readFile(

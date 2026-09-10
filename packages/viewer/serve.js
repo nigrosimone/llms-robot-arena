@@ -14,7 +14,6 @@ const types = {
   ".md": "text/markdown",
   ".txt": "text/plain",
   ".xml": "application/xml",
-  ".ts": "text/plain",
   ".zip": "application/zip",
   ".wasm": "application/wasm",
   ".svg": "image/svg+xml",
