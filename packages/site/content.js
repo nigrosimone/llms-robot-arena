@@ -141,3 +141,35 @@ export const SPEC_TABLE = [
     ],
   },
 ];
+
+// The panels are also pages. A link opens one directly and the application
+// switches between them without reloading; the build prerenders each route.
+export const TABS = [
+  { id: "arena", label: "Arena", icon: "arena", route: "", title: SITE.title },
+  {
+    id: "lab", label: "Bot Lab", icon: "code", route: "lab/",
+    title: "Write a robot controller - llms-robot-arena",
+  },
+  {
+    id: "tournament", label: "Tournament", icon: "trophy", route: "tournament/",
+    title: "Published standings - llms-robot-arena",
+  },
+  {
+    id: "rules", label: "Rules", icon: "book", route: "rules/",
+    title: "Arena rules and engine constants - llms-robot-arena",
+  },
+];
+
+// Controllers and their sources are reference pages, not a panel: opening one
+// leaves the application.
+export const CONTROLLERS = { label: "Controllers", route: "bots/" };
+
+export const normalizeRoute = (route) => {
+  const path = String(route).replace(/^\/+/, "").replace(/[?#].*$/, "").replace(/index\.html$/, "");
+  return path && !path.endsWith("/") ? path + "/" : path;
+};
+
+export const tabForRoute = (route) =>
+  TABS.find((tab) => tab.route === normalizeRoute(route)) ?? null;
+
+export const CONTRACT_CARD = `<div class="eyebrow">THE CONTRACT</div><h2>One function. Two commands.</h2><code>tick(sensors, memory)</code><p>Return <code>actions</code> and <code>memory</code>. All data uses world coordinates.</p><dl><dt>thrust</dt><dd>−1 reverse → +1 forward</dd><dt>turn</dt><dd>−1 clockwise → +1 counterclockwise</dd><dt>memory</dt><dd>JSON · up to 64 KB</dd></dl>`;

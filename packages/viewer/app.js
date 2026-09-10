@@ -20,7 +20,8 @@ import {
   OUTRO_SECONDS,
 } from "./recorder.js";
 import { MatchAudio } from "./audio.js";
-import { RULE_CARDS, HAZARD_CARDS, RULES_NOTE, ruleCards } from "../site/content.js";
+import { CONTRACT_CARD, CONTROLLERS, HAZARD_CARDS, RULE_CARDS, RULES_NOTE, TABS, ruleCards, tabForRoute } from "../site/content.js";
+import { currentRoute, pagePath, siteUrl } from "./base.js";
 const icons = {
   arena: "M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10",
   code: "m8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18",
@@ -88,24 +89,20 @@ const download = (name, data, type = "application/json") => {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
+// The panel a link asked for. Everything after that is switched in place.
+const initialTab = tabForRoute(currentRoute()) ?? TABS[0];
+const shown = (tab) => (tab === initialTab.id ? "" : " hidden");
 document.querySelector("#app").innerHTML = `
 <header class="header">
- <a class="brand" href="./" aria-label="llms-robot-arena, home"><span class="brand-mark" aria-hidden="true">R<span>↗</span></span><span>llms-<span class="brand-second">robot-arena</span></span></a>
- <nav aria-label="Main navigation">${[
-   ["arena", "Arena", "arena"],
-   ["lab", "Bot Lab", "code"],
-   ["tournament", "Tournament", "trophy"],
-   ["rules", "Rules", "book"],
- ]
-   .map(
-     ([id, label, ic]) =>
-       `<button class="nav-button ${id === "arena" ? "selected" : ""}" data-tab="${id}" aria-current="${id === "arena" ? "page" : "false"}">${icon(ic)}<span>${label}</span></button>`,
-   )
-   .join("")}</nav>
+ <a class="brand" href="${pagePath("")}" aria-label="llms-robot-arena, home"><span class="brand-mark" aria-hidden="true">R<span>↗</span></span><span>llms-<span class="brand-second">robot-arena</span></span></a>
+ <nav aria-label="Main navigation">${TABS.map(
+   (tab) =>
+     `<a class="nav-button ${tab.id === initialTab.id ? "selected" : ""}" data-tab="${tab.id}" href="${pagePath(tab.route)}" aria-current="${tab.id === initialTab.id ? "page" : "false"}">${icon(tab.icon)}<span>${tab.label}</span></a>`,
+ ).join("")}</nav>
  <div class="header-end"><span class="version">SPEC ${SPEC_VERSION.replace("-draft", "")} </span></div>
 </header>
 <main>
- <section id="panel-arena" class="panel">
+ <section id="panel-arena" class="panel"${shown("arena")}>
   <div class="page-heading"><div><div class="eyebrow">AUTONOMOUS COMBAT LAB <span>/ 01</span></div><h1>The arena decides<span>.</span></h1></div><div class="heading-actions"><select id="replay-library" aria-label="Local tournament replays" hidden><option value="">Tournament replays…</option></select><button id="import-replay" class="button outline">${icon("upload")}Import replay</button><button id="record" class="button outline" disabled>${icon("record")}Record video</button><button id="export-replay" class="button outline" disabled>${icon("download")}Export replay</button><input type="file" id="replay-file" accept=".json,application/json" hidden></div></div>
   <div class="arena-layout">
    <div class="match-surface">
@@ -138,13 +135,13 @@ document.querySelector("#app").innerHTML = `
   </div>
   <div class="arena-footer"><span><i></i>60 HZ PHYSICS</span><span>100 KG / ROBOT</span><span id="control-tag">NO MANUAL CONTROL</span><span id="hash-label">SHA-256 · HASH EVERY 60 TICKS</span></div>
  </section>
- <section id="panel-lab" class="panel" hidden>
+ <section id="panel-lab" class="panel"${shown("lab")}>
   <div class="page-heading"><div><div class="eyebrow">CONTROLLER WORKSPACE <span>/ 02</span></div><h1>Your code. Your robot<span>.</span></h1></div><button id="new-bot" class="button accent">${icon("plus")}New controller</button></div>
   <div class="lab-layout"><div class="editor-panel"><div class="editor-toolbar"><select id="edit-bot" aria-label="Controller to edit"></select><select id="source-language" aria-label="Controller file type"><option value="js">JavaScript (.js)</option><option value="ts">TypeScript (.ts)</option></select></div><div class="editor-file">${icon("code", 16)}<span id="editor-filename">controller.js</span><span id="unsaved" class="unsaved" hidden>Unsaved changes</span></div><div class="editor-body"><pre id="line-numbers" aria-hidden="true"></pre><textarea id="code-editor" aria-label="Controller source" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea></div><div class="editor-footer"><input id="bot-name" aria-label="Model name" placeholder="Model name" maxlength="80"><select id="bot-provider" aria-label="Model provider"><option value="">No provider</option><option>OpenAI</option><option>Anthropic</option></select><button id="download-bot" class="button outline">${icon("download")}.js file</button><button id="save-bot" class="button accent">Save controller</button></div></div>
-   <aside class="lab-sidebar"><div class="info-card"><div class="eyebrow">THE CONTRACT</div><h2>One function. Two commands.</h2><code>tick(sensors, memory)</code><p>Return <code>actions</code> and <code>memory</code>. All data uses world coordinates.</p><dl><dt>thrust</dt><dd>−1 reverse → +1 forward</dd><dt>turn</dt><dd>−1 clockwise → +1 counterclockwise</dd><dt>memory</dt><dd>JSON · up to 64 KB</dd></dl></div><div class="info-card gate-card"><div class="eyebrow">CONFORMANCE GATE</div><h2>Validate the contract.</h2><p>200 snapshots and 600 inert ticks. These checks offer no combat advice.</p><button id="run-gate" class="button outline full-width">${icon("check")}Check controller</button><div id="gate-results" aria-live="polite"></div></div><p class="side-hint">Edits here are iterative experimentation. For a one-shot benchmark, follow AGENTS.md and use the project CLI.</p></aside>
+   <aside class="lab-sidebar"><div class="info-card">${CONTRACT_CARD}</div><div class="info-card gate-card"><div class="eyebrow">CONFORMANCE GATE</div><h2>Validate the contract.</h2><p>200 snapshots and 600 inert ticks. These checks offer no combat advice.</p><button id="run-gate" class="button outline full-width">${icon("check")}Check controller</button><div id="gate-results" aria-live="polite"></div></div><p class="side-hint">Edits here are iterative experimentation. For a one-shot benchmark, follow AGENTS.md and use the project CLI.</p></aside>
   </div>
  </section>
- <section id="panel-tournament" class="panel" hidden>
+ <section id="panel-tournament" class="panel"${shown("tournament")}>
   <div class="page-heading"><div><div class="eyebrow">TOURNAMENT <span>/ 03</span></div><h1>Earn your ranking<span>.</span></h1></div><div class="heading-actions"><button id="export-report" class="button outline" disabled>${icon("download")}.md report</button><button id="export-ranking" class="button outline" disabled>${icon("download")}Export results</button></div></div>
   <div class="tournament-setup"><div><span class="eyebrow">EXHIBITION TOURNAMENT</span><h2>More action. Fewer matches.</h2><label class="field-label" for="tournament-format">FORMAT</label><select id="tournament-format"><option value="quick">Quick rounds (up to 3 rounds)</option><option value="round-robin">Full round robin (20 matches per pair)</option></select><p id="tournament-description"></p><div id="tournament-bots" class="bot-checks"></div></div><button id="run-tournament" class="button accent">${icon("trophy")}Start tournament</button></div>
   <div id="tournament-progress" class="tournament-progress" hidden><div><strong id="tournament-status">Checking controllers…</strong><button id="cancel-tournament" class="button quiet">Cancel</button></div><progress max="1" value="0"></progress></div>
@@ -156,13 +153,13 @@ document.querySelector("#app").innerHTML = `
   <div id="tournament-matches" class="tournament-matches"></div>
   <p class="tournament-note">Regularized Bradley–Terry: mean strength = 100. Quick rounds sample different opponents with one seed and both spawns per pairing; they do not estimate confidence intervals. Full round robin adds 95% seed-bootstrap intervals when complete. Results remain provisional while running or after cancellation. Completed replays stay available until the next tournament or page reload. Browser results are exhibitions; the standard evaluation protocol is available through the CLI. The published standings shown when this page opens come from a repository run; starting a tournament replaces them with your own results.</p>
  </section>
- <section id="panel-rules" class="panel" hidden>
+ <section id="panel-rules" class="panel"${shown("rules")}>
   <div class="page-heading"><div><div class="eyebrow">SPEC ${SPEC_VERSION.replace("-draft", "")} <span>/ 04</span></div><h1>Same hardware. Different minds<span>.</span></h1></div></div>
   <div class="rules-grid">${ruleCards(RULE_CARDS)}</div>
   <div class="rules-grid hazard-rules">${ruleCards(HAZARD_CARDS)}</div>
   <div class="review-note"><strong>${RULES_NOTE.title}</strong><p>${RULES_NOTE.body}</p></div>
  </section>
-</main><footer class="footer"><span><a href="https://github.com/nigrosimone/llms-robot-arena" title="View llms-robot-arena on GitHub">llms-robot-arena</a></span><nav class="footer-links" aria-label="Reference pages"><a href="./rules/">Rules</a><a href="./tournament/">Standings</a><a href="./bots/">Controllers</a></nav><span>Code makes the difference.</span><span>ENGINE ${ENGINE_VERSION}</span></footer><div id="toast" role="status" aria-live="polite" hidden></div>`;
+</main><footer class="footer"><span><a href="https://github.com/nigrosimone/llms-robot-arena" title="View llms-robot-arena on GitHub">llms-robot-arena</a></span><nav class="footer-links" aria-label="Reference pages"><a href="${pagePath(CONTROLLERS.route)}">${CONTROLLERS.label}</a></nav><span>Code makes the difference.</span><span>ENGINE ${ENGINE_VERSION}</span></footer><div id="toast" role="status" aria-live="polite" hidden></div>`;
 function toast(message, error = false) {
   const el = $("#toast");
   el.textContent = message;
@@ -193,17 +190,32 @@ function refreshBotOptions() {
 refreshBotOptions();
 renderRobotCards(builtins.slice(0, 2));
 $("#bot-b").value = "1";
-document.querySelectorAll("[data-tab]").forEach((btn) =>
-  btn.addEventListener("click", () => {
-    const tab = btn.dataset.tab;
-    document
-      .querySelectorAll(".panel")
-      .forEach((p) => (p.hidden = p.id !== "panel-" + tab));
-    document.querySelectorAll("[data-tab]").forEach((b) => {
-      b.classList.toggle("selected", b === btn);
-      b.setAttribute("aria-current", b === btn ? "page" : "false");
-    });
-  }),
+// Each panel has its own address. Switching one pushes it, so the back button
+// and a shared link land on the same panel, and nothing is simulated twice.
+function selectTab(id, { push = false } = {}) {
+  const tab = TABS.find((t) => t.id === id) ?? TABS[0];
+  document
+    .querySelectorAll(".panel")
+    .forEach((p) => (p.hidden = p.id !== "panel-" + tab.id));
+  document.querySelectorAll("[data-tab]").forEach((link) => {
+    const selected = link.dataset.tab === tab.id;
+    link.classList.toggle("selected", selected);
+    link.setAttribute("aria-current", selected ? "page" : "false");
+  });
+  document.title = tab.title;
+  if (push) history.pushState(null, "", pagePath(tab.route) + location.search);
+  if (tab.id === "arena") armArena();
+}
+addEventListener("click", (event) => {
+  const link = event.target.closest?.("a[data-tab]");
+  // Modified clicks belong to the browser: a new tab must still get the page.
+  if (!link || event.defaultPrevented || event.button !== 0) return;
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  selectTab(link.dataset.tab, { push: true });
+});
+addEventListener("popstate", () =>
+  selectTab((tabForRoute(currentRoute()) ?? TABS[0]).id),
 );
 // One card per robot: a duel keeps two, a rumble grows the grid.
 function renderRobotCards(entries) {
@@ -1181,7 +1193,7 @@ document.addEventListener("keydown", (e) => {
   }
 });
 async function loadReplayUrl(path) {
-  const url = new URL(path, location.href);
+  const url = siteUrl(path);
   if (url.origin !== location.origin)
     throw Error("The replay must be hosted on the same server.");
   const response = await fetch(url);
@@ -1201,7 +1213,7 @@ $("#replay-library").onchange = async (e) => {
   }
 };
 // Standings published with the repository; starting a tournament replaces them.
-fetch("./standings.json")
+fetch(siteUrl("standings.json"))
   .then((r) => (r.ok ? r.json() : null))
   .then((published) => {
     if (report || !published?.ranking?.length) return;
@@ -1210,7 +1222,7 @@ fetch("./standings.json")
     renderRanking();
   })
   .catch(() => {});
-fetch("./replays.json")
+fetch(siteUrl("replays.json"))
   .then((r) => (r.ok ? r.json() : []))
   .then((names) => {
     if (!Array.isArray(names) || !names.length) return;
@@ -1225,12 +1237,22 @@ fetch("./replays.json")
   })
   .catch(() => {});
 const requestedReplay = new URLSearchParams(location.search).get("replay");
-if (requestedReplay) {
-  loadReplayUrl(requestedReplay).catch((e) => {
-    if (viewer) $("#stage-loading").hidden = true;
-    toast(e.message + " You can simulate a new match.", true);
-  });
-} else {
-  applyMatchSettings();
-  $("#simulate").click();
+let armed = false;
+// The opening match waits for the arena: a visitor who followed a link to the
+// rules should not pay for a simulation they are not looking at.
+function armArena() {
+  // A tournament replay opened from its own panel is already on the stage: the
+  // opening match must not overwrite what the visitor asked to watch.
+  if (armed || replay) return;
+  armed = true;
+  if (requestedReplay) {
+    loadReplayUrl(requestedReplay).catch((e) => {
+      if (viewer) $("#stage-loading").hidden = true;
+      toast(e.message + " You can simulate a new match.", true);
+    });
+  } else {
+    applyMatchSettings();
+    $("#simulate").click();
+  }
 }
+if (initialTab.id === "arena") armArena();

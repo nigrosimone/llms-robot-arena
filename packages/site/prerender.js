@@ -5,7 +5,10 @@ import { SPEC_VERSION, ENGINE_VERSION } from "../sim/spec.js";
 import { botName, botDetails, botProvider } from "../bot-catalog.js";
 import { STYLE_AXES, formatStyleValue, styleLabel, styleProfiles } from "../tournament/style.js";
 import { INDEX_TERMS, compositeIndex } from "../tournament/composite.js";
-import { SITE, RULE_CARDS, HAZARD_CARDS, RULES_NOTE, ruleCards, SPEC_TABLE } from "./content.js";
+import {
+  SITE, RULE_CARDS, HAZARD_CARDS, RULES_NOTE, ruleCards, SPEC_TABLE,
+  TABS, CONTROLLERS, CONTRACT_CARD,
+} from "./content.js";
 
 export const esc = (value) =>
   String(value).replace(
@@ -17,13 +20,7 @@ export const esc = (value) =>
 export const botSlug = (bot) =>
   bot.id.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-export const NAV = [
-  { path: "", label: "Arena" },
-  { path: "rules/", label: "Rules" },
-  { path: "tournament/", label: "Standings" },
-  { path: "bots/", label: "Controllers" },
-];
-
+const tabTitle = (id) => TABS.find((tab) => tab.id === id).title;
 const depthOf = (path) => (path === "" ? 0 : path.split("/").length - 1);
 const relative = (depth, path) => ("../".repeat(depth) || "./") + path;
 const absolute = (baseUrl, path) => new URL(path, baseUrl).href;
@@ -46,15 +43,15 @@ const card = (title, tag, body) =>
 const facts = (rows) =>
   table(["Field", "Value"], rows.map(([k, v]) => [esc(k), `<span class="mono">${esc(v)}</span>`]));
 
-function layout({ path, title, description, main, schema, baseUrl }) {
+function layout({ path, title, description, main, schema, baseUrl, app = false }) {
   const depth = depthOf(path);
   const to = (target) => relative(depth, target);
   const canonical = absolute(baseUrl, path);
-  const nav = NAV.map(
-    (item) =>
-      `<a class="nav-button${item.path === path ? " selected" : ""}" href="${to(item.path)}"${
-        item.path === path ? ' aria-current="page"' : ""
-      }>${esc(item.label)}</a>`,
+  const nav = TABS.map(
+    (tab) =>
+      `<a class="nav-button${tab.route === path ? " selected" : ""}" data-tab="${tab.id}" href="${to(
+        tab.route,
+      )}"${tab.route === path ? ' aria-current="page"' : ""}>${esc(tab.label)}</a>`,
   ).join("");
   return `<!doctype html>
 <html lang="en">
@@ -75,17 +72,16 @@ function layout({ path, title, description, main, schema, baseUrl }) {
   <script type="application/ld+json">${jsonLd(schema)}</script>
 </head>
 <body>
-<header class="header">
+${app ? '<div id="app">' : ""}<header class="header">
  <a class="brand" href="${to("")}" aria-label="${esc(SITE.name)}, home"><span class="brand-mark" aria-hidden="true">R<span>↗</span></span><span>llms-<span class="brand-second">robot-arena</span></span></a>
  <nav aria-label="Main navigation">${nav}</nav>
  <div class="header-end"><span class="version">SPEC ${SPEC_VERSION.replace("-draft", "")} </span></div>
 </header>
 <main>${main}</main>
-<footer class="footer"><span><a href="${SITE.repository}" title="View ${esc(SITE.name)} on GitHub">${esc(SITE.name)}</a></span><nav class="footer-links" aria-label="Reference pages">${NAV.slice(
-    1,
-  )
-    .map((item) => `<a href="${to(item.path)}">${esc(item.label)}</a>`)
-    .join("")}</nav><span>Code makes the difference.</span><span>ENGINE ${ENGINE_VERSION}</span></footer>
+<footer class="footer"><span><a href="${SITE.repository}" title="View ${esc(SITE.name)} on GitHub">${esc(SITE.name)}</a></span><nav class="footer-links" aria-label="Reference pages"><a href="${to(
+    CONTROLLERS.route,
+  )}">${esc(CONTROLLERS.label)}</a></nav><span>Code makes the difference.</span><span>ENGINE ${ENGINE_VERSION}</span></footer>
+${app ? `</div>\n<script type="module" src="${to("app.js")}"></script>` : ""}
 </body>
 </html>
 `;
@@ -111,7 +107,8 @@ function rulesPage(baseUrl) {
   const constants = SPEC_TABLE.map((group) => card(group.group, null, facts(group.rows))).join("");
   return layout({
     path: "rules/",
-    title: "Arena rules and engine constants - llms-robot-arena",
+    app: true,
+    title: tabTitle("rules"),
     description:
       "The rules of the llms-robot-arena duel: a shrinking 16 m platform, wedge flips, quadratic energy cost, hazards, victory order, and every engine constant a controller can rely on.",
     baseUrl,
@@ -190,7 +187,8 @@ function tournamentPage(standings, baseUrl) {
     .join(" · ");
   return layout({
     path: "tournament/",
-    title: "Published standings - llms-robot-arena",
+    app: true,
+    title: tabTitle("tournament"),
     description: `Bradley–Terry standings of ${standings.ranking.length} LLM-written robot controllers over ${standings.totalMatches} deterministic duels: strength, confidence intervals, play style, source metrics and craft index.`,
     baseUrl,
     schema: [
@@ -320,6 +318,58 @@ function tournamentPage(standings, baseUrl) {
     ]),
   )}
   <p class="tournament-note">Results from different engine versions or budgets are not comparable. The raw run is <a class="text-link" href="../standings.json">standings.json</a>, and each entry has its own page under <a class="text-link" href="../bots/">Controllers</a>.</p>`,
+  });
+}
+
+function labPage(example, baseUrl) {
+  return layout({
+    path: "lab/",
+    app: true,
+    title: tabTitle("lab"),
+    description:
+      "Write an autonomous robot controller in JavaScript or TypeScript, check it against the contract and run it in the browser: one tick function, thrust and turn, 64 KB of memory.",
+    baseUrl,
+    schema: [
+      {
+        "@context": "https://schema.org",
+        "@type": "TechArticle",
+        headline: "Write a robot controller",
+        description:
+          "The bot contract of llms-robot-arena: one tick export, thrust and turn, JSON memory, QuickJS sandbox.",
+        url: absolute(baseUrl, "lab/"),
+        isPartOf: { "@type": "WebSite", name: SITE.name, url: baseUrl },
+        version: SPEC_VERSION,
+        proficiencyLevel: "Beginner",
+      },
+      breadcrumbs(baseUrl, [
+        { name: "Arena", path: "" },
+        { name: "Bot Lab", path: "lab/" },
+      ]),
+    ],
+    main: `${heading(
+      "CONTROLLER WORKSPACE",
+      "Your code. Your robot",
+      "The Bot Lab writes, checks and runs a controller in the browser: no install, no account, no API key. What you write stays in the page, so download the file to keep it.",
+    )}
+  <div class="rules-grid">
+   <article class="info-card">${CONTRACT_CARD}</article>
+   <article class="info-card"><span class="rule-number">SANDBOX</span><h2>QuickJS in a worker.</h2><p>One JavaScript or TypeScript file, one <code>tick</code> export, no imports and no host APIs. Sensors and memory arrive frozen and every call gets a fresh module scope, so nothing carries over except the memory you return. It runs as QuickJS WebAssembly, one worker per robot.</p></article>
+   <article class="info-card"><span class="rule-number">CONFORMANCE GATE</span><h2>Checked before it fights.</h2><p>200 snapshots and 600 inert ticks look at execution, purity, memory and timing. They say nothing about strategy: passing the gate means the controller is admissible, not that it is any good.</p></article>
+  </div>
+  ${
+    example
+      ? card(
+          "Minimal controller",
+          "PUBLIC CONTRACT MATERIAL · A STARTING TEMPLATE",
+          `<div class="source-view"><pre><code>${esc(example)}</code></pre></div>`,
+        )
+      : ""
+  }
+  <p class="tournament-note">${
+    example
+      ? "That one turns to face the opponent and drives at it, ignoring energy, holes and flames, which is why every registered controller beats it. "
+      : ""
+  }The full contract, the types and the conformity checks are in <a class="text-link" href="${SITE.repository}/blob/main/AGENTS.md">AGENTS.md</a>, and the <a class="text-link" href="../bots/">registered controllers</a> show what a complete one looks like.</p>`,
   });
 }
 
@@ -558,7 +608,8 @@ A match lasts 120 seconds at 60 Hz on a 16 × 16 m platform that starts shrinkin
 
 ## Pages
 
-${line("Arena", "", "the live simulator, controller editor and replay viewer; needs WebGL 2")}
+${line("Arena", "", "the live simulator and replay viewer; needs WebGL 2")}
+${line("Bot Lab", "lab/", "the bot contract, the sandbox limits and a minimal controller to start from")}
 ${line("Rules and engine constants", "rules/", "arena, wedge flips, energy, hazards, victory order and every published constant")}
 ${line(
   "Published standings",
@@ -607,13 +658,21 @@ const notFoundPage = (baseUrl) => `<!doctype html>
 `;
 
 // Every generated file, keyed by its path inside dist.
-export function renderSite({ index, bots, standings = null, baseUrl = SITE.url, now = new Date() }) {
+export function renderSite({
+  index,
+  bots,
+  standings = null,
+  example = "",
+  baseUrl = SITE.url,
+  now = new Date(),
+}) {
   const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
   const slugs = bots.map(botSlug);
   if (slugs.some((slug) => !slug) || new Set(slugs).size !== slugs.length)
     throw new Error("Bot IDs must produce unique, non-empty URL slugs.");
   const files = new Map([
     ["index.html", homePage(index, bots, standings, base)],
+    ["lab/index.html", labPage(example, base)],
     ["rules/index.html", rulesPage(base)],
     ["bots/index.html", botsPage(bots, standings, base)],
   ]);
@@ -621,6 +680,7 @@ export function renderSite({ index, bots, standings = null, baseUrl = SITE.url, 
   for (const bot of bots) files.set(`bots/${botSlug(bot)}/index.html`, botPage(bot, standings, base));
   const pages = [
     "",
+    "lab/",
     "rules/",
     ...(standings ? ["tournament/"] : []),
     "bots/",

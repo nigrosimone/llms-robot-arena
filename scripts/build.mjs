@@ -57,10 +57,14 @@ await build({
 await cp(resolve(root, "packages/viewer/public"), dist, { recursive: true });
 await writeFile(resolve(dist, "replays.json"), "[]\n");
 // Static pages, sitemap, robots and llms.txt for readers that never run the app.
+// The Bot Lab page shows the minimal controller from the specification itself,
+// so the template on the site is always the template agents are given.
+const specification = await readFile(resolve(root, "AGENTS.md"), "utf8");
 const site = renderSite({
   index: await readFile(resolve(dist, "index.html"), "utf8"),
   bots,
   standings: await readFile(resolve(dist, "standings.json"), "utf8").then(JSON.parse, () => null),
+  example: specification.match(/### Minimal example\s+```\w*\n([\s\S]*?)```/)?.[1] ?? "",
   ...(process.env.SITE_URL ? { baseUrl: process.env.SITE_URL } : {}),
 });
 for (const [path, content] of site) {
