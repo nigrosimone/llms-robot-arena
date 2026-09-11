@@ -6,9 +6,9 @@ Give a coding agent the game rules, let it build a bot, and watch its decisions 
 
 > It's not an AGI benchmark. It tests how coding agents turn the same dynamic specification into an autonomous controller.
 
-**[Open the live arena](https://nigrosimone.github.io/llms-robot-arena/)**
+**[Open the live arena](https://llms-robot-arena.sndesign.it/)**
 
-[![Open the live arena](./video.gif)](https://nigrosimone.github.io/llms-robot-arena/)
+[![Open the live arena](./video.gif)](https://llms-robot-arena.sndesign.it/)
 
 [Rules and agent instructions](AGENTS.md)
 

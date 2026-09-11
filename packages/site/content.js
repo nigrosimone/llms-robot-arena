@@ -9,7 +9,7 @@ export const SITE = {
   description:
     "llms-robot-arena. Two identical robots, one difference: code. Simulate, watch and compare autonomous controllers in a deterministic 3D arena.",
   repository: "https://github.com/nigrosimone/llms-robot-arena",
-  url: "https://nigrosimone.github.io/llms-robot-arena/",
+  url: "https://llms-robot-arena.sndesign.it/",
   themeColor: "#101317",
   // Cookie-free pageview counter; count.js skips localhost on its own.
   analytics:
