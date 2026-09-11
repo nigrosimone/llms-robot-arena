@@ -1,4 +1,5 @@
 import { SPEC as S, mulberry32, halfExtent } from "./spec.js";
+import { hypot } from "./math.js";
 import { floorIndex, floorPosition, floorCapacity, addFloorLoad, collapseSchedule } from "./floor.js";
 
 // World-space tiles and schedules use their own seed stream. Mirroring swaps
@@ -11,7 +12,7 @@ export function createTerrain(seed, spawns) {
   for (let x = -7.5; x <= 7.5; x++)
     for (let y = -7.5; y <= 7.5; y++) {
       if (Math.max(Math.abs(x), Math.abs(y)) < 2.5) continue;
-      if (spawns.some(r => Math.hypot(x - r.x, y - r.y) < 2)) continue;
+      if (spawns.some(r => hypot(x - r.x, y - r.y) < 2)) continue;
       candidates.push({ x, y });
     }
   for (let i = candidates.length - 1; i > 0; i--) {

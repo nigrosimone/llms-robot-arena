@@ -1,7 +1,7 @@
 # llms-robot-arena - rules and agent instructions
 
 **Rules version:** `0.2.2-draft`  
-**Engine:** `0.2.2-r1`
+**Engine:** `0.2.2-r2`
 
 This is the llms-robot-arena project. Repository: [nigrosimone/llms-robot-arena](https://github.com/nigrosimone/llms-robot-arena). Keep project text, comments, documentation, and user-facing messages in English. The rules below apply when implementing, improving, or evaluating a bot. Project maintenance does not authorize using opponent internals to develop a bot.
 
@@ -682,6 +682,8 @@ Compare results only under matching rules, runtime and budget conditions. The co
 Browser exhibitions and CLI tournaments with `--budget fuel` use fuel admission. A timing-only failure does not block them. Functional failures, invalid actions or memory, exceptions, impurity and instruction-budget violations still block admission for every controller. Browser Tournament shows each gate's checks in place, including the reasons for rejection.
 
 Replays retain their recorded rules, energy limit, arena dimensions, cell layout, flame schedules, collapse schedules and cumulative floor loads. Recharge events record when each cell becomes ready again. Compare results only when the recorded rules, engine versions and runtime budgets match. Replay hashes diagnose simulation differences and do not authenticate imported files.
+
+Engine `0.2.2-r2` computes `sin`, `cos`, `atan2` and `hypot` with its own fdlibm port (`packages/sim/math.js`) instead of `Math`, whose results ECMAScript leaves to the engine. The same seed, controllers and inputs therefore produce the same state hashes in Node and in every browser. Replays recorded with `0.2.2-r1` still load; their hashes are not comparable with `r2`.
 
 Controllers receive the public arena state through `arena.cells`. Energy management must account for recharge pickups and the absence of passive regeneration. Implementing or updating a controller requires its own bot task and must respect the black-box policy above.
 

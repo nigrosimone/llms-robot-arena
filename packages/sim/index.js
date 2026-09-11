@@ -10,6 +10,7 @@ import {
   mulberry32,
 } from "./spec.js";
 import { resolveContact } from "./collision.js";
+import { sin, cos, atan2, hypot } from "./math.js";
 import { createTerrain, cellSnapshots, crossesCell, cellInArena, applyTerrain, applyFloorWeight, isHole, recordTerrainTransitions } from "./terrain.js";
 export { SPEC, halfExtent } from "./spec.js";
 export const digest = (value) =>
@@ -59,7 +60,7 @@ const pack = (robots) =>
 const spawnRobot = (x, y, rng) => ({
   x,
   y,
-  heading: wrap(Math.atan2(-y, -x) + (rng() - 0.5) * 0.3),
+  heading: wrap(atan2(-y, -x) + (rng() - 0.5) * 0.3),
   vx: 0,
   vy: 0,
   omega: 0,
@@ -76,12 +77,12 @@ function createSpawns(count, rng) {
     return [1, -1].map((sign) =>
       spawnRobot(sign * 4.8 + (rng() - 0.5) * 0.6, sign * 4.8 + (rng() - 0.5) * 0.6, rng),
     );
-  const radius = Math.hypot(4.8, 4.8);
+  const radius = hypot(4.8, 4.8);
   return Array.from({ length: count }, (_, i) => {
     const angle = Math.PI / 4 + (2 * Math.PI * i) / count;
     return spawnRobot(
-      radius * Math.cos(angle) + (rng() - 0.5) * 0.6,
-      radius * Math.sin(angle) + (rng() - 0.5) * 0.6,
+      radius * cos(angle) + (rng() - 0.5) * 0.6,
+      radius * sin(angle) + (rng() - 0.5) * 0.6,
       rng,
     );
   });
@@ -122,7 +123,7 @@ export function nearestOpponent(robots, i) {
   let best = -1, distance = Infinity;
   for (let j = 0; j < robots.length; j++) {
     if (j === i || robots[j].status === "out") continue;
-    const d = Math.hypot(robots[j].x - self.x, robots[j].y - self.y);
+    const d = hypot(robots[j].x - self.x, robots[j].y - self.y);
     if (d < distance) {
       distance = d;
       best = j;
@@ -151,7 +152,7 @@ export function sensorsFor(m, i) {
   };
 }
 export function limit(r) {
-  const speed = Math.hypot(r.vx, r.vy);
+  const speed = hypot(r.vx, r.vy);
   if (speed > S.MAX_SPEED) {
     r.vx *= S.MAX_SPEED / speed;
     r.vy *= S.MAX_SPEED / speed;
@@ -213,16 +214,16 @@ export function step(m, outputs, memoryHashes = ["", ""]) {
       turn *= k;
       r.energy = 0;
     } else r.energy -= demand;
-    const c = Math.cos(r.heading),
-      s = Math.sin(r.heading);
+    const c = cos(r.heading),
+      s = sin(r.heading);
     r.vx += ((thrust * S.F_MAX * c - S.C_LIN * r.vx) / S.ROBOT_MASS) * S.DT;
     r.vy += ((thrust * S.F_MAX * s - S.C_LIN * r.vy) / S.ROBOT_MASS) * S.DT;
     r.x += r.vx * S.DT;
     r.y += r.vy * S.DT;
     r.omega += ((turn * S.T_MAX - S.C_ANG * r.omega) / S.ROBOT_INERTIA) * S.DT;
     r.heading = wrap(r.heading + r.omega * S.DT);
-    const hc = Math.cos(r.heading),
-      hs = Math.sin(r.heading);
+    const hc = cos(r.heading),
+      hs = sin(r.heading);
     const long = r.vx * hc + r.vy * hs,
       lat = (-r.vx * hs + r.vy * hc) * (1 - S.LATERAL_GRIP);
     r.vx = long * hc - lat * hs;

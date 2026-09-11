@@ -1,8 +1,9 @@
 import { SPEC as S, wrap } from "./spec.js";
+import { sin, cos, atan2, hypot } from "./math.js";
 const dot = (a, b) => a.x * b.x + a.y * b.y;
 export function corners(r) {
-  const c = Math.cos(r.heading),
-    s = Math.sin(r.heading);
+  const c = cos(r.heading),
+    s = sin(r.heading);
   return [
     [-0.4, -0.3],
     [0.4, -0.3],
@@ -43,7 +44,7 @@ export function contact(a, b) {
   return hit;
 }
 function orderedContact(a, b) {
-  if (Math.hypot(b.x - a.x, b.y - a.y) > S.ROBOT_RADIUS * 2) return null;
+  if (hypot(b.x - a.x, b.y - a.y) > S.ROBOT_RADIUS * 2) return null;
   const pa = corners(a),
     pb = corners(b);
   const axes = [
@@ -55,7 +56,7 @@ function orderedContact(a, b) {
   let depth = Infinity,
     n = null;
   for (const angle of axes) {
-    const axis = { x: Math.cos(angle), y: Math.sin(angle) };
+    const axis = { x: cos(angle), y: sin(angle) };
     const va = pa.map((p) => dot(p, axis)),
       vb = pb.map((p) => dot(p, axis));
     const loA = Math.min(...va),
@@ -80,7 +81,7 @@ function orderedContact(a, b) {
   return { depth, n, c };
 }
 export function wedgeAngle(r, c) {
-  return Math.abs(wrap(Math.atan2(c.y - r.y, c.x - r.x) - r.heading));
+  return Math.abs(wrap(atan2(c.y - r.y, c.x - r.x) - r.heading));
 }
 export function leverage(angle) {
   return angle < (70 * Math.PI) / 180
@@ -130,7 +131,7 @@ function resolvePair(all, i, j, tick, events, lastContacts) {
     const attacker = wedges[0] ? 0 : 1,
       target = 1 - attacker,
       lev = leverage(angles[target]);
-    const score = closingSpeed * Math.cos(angles[attacker]) * lev;
+    const score = closingSpeed * cos(angles[attacker]) * lev;
     robots[attacker].energy = Math.max(
       0,
       robots[attacker].energy - S.K_IMPACT * closingSpeed * 0.4,

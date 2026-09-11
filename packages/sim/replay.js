@@ -1,5 +1,6 @@
 import { addFloorLoad, collapseSchedule, floorIndex } from "./floor.js";
 import { isHole } from "./terrain.js";
+import { hypot } from "./math.js";
 
 export function stringifyReplay(r) {
   return JSON.stringify({
@@ -22,7 +23,7 @@ export function parseReplay(text) {
       (r.specVersion === "0.1.1-draft" && r.engineVersion === "0.1.1-r1") ||
       (r.specVersion === "0.2.0-draft" && r.engineVersion === "0.2.0-r1") ||
       (r.specVersion === "0.2.1-draft" && r.engineVersion === "0.2.1-r1") ||
-      (r.specVersion === "0.2.2-draft" && r.engineVersion === "0.2.2-r1")
+      (r.specVersion === "0.2.2-draft" && ["0.2.2-r1", "0.2.2-r2"].includes(r.engineVersion))
     ) ||
     !Number.isInteger(count) ||
     count < 1 ||
@@ -160,8 +161,8 @@ export function parseReplay(text) {
       (!Array.isArray(e.axis) ||
         e.axis.length !== 2 ||
         !e.axis.every(Number.isFinite) ||
-        Math.hypot(...e.axis) < 0.9 ||
-        Math.hypot(...e.axis) > 1.1)
+        hypot(...e.axis) < 0.9 ||
+        hypot(...e.axis) > 1.1)
     )
       throw new Error("Invalid flip axis.");
     if (e.type === "violation" && typeof e.reason !== "string")

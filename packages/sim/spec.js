@@ -1,5 +1,5 @@
 export const SPEC_VERSION = "0.2.2-draft";
-export const ENGINE_VERSION = "0.2.2-r1";
+export const ENGINE_VERSION = "0.2.2-r2";
 export const SPEC = Object.freeze({
   DT: 1 / 60,
   MATCH_DURATION: 120,
