@@ -1,6 +1,6 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-// The same strokes as the current viewer, one path each.
+// One stroke path per icon, drawn at 24x24.
 export const ICONS: Record<string, string> = {
   arena: 'M4 7 12 3l8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4M12 11v10',
   code: 'm8 5-6 7 6 7m8-14 6 7-6 7m-3-16-2 18',
@@ -26,17 +26,25 @@ export const ICONS: Record<string, string> = {
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5m-1.5 3.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5',
 };
 
+/** An inline icon: `<svg appIcon="play" />` draws the named path. */
 @Component({
-  selector: 'svg[icon]',
+  selector: 'svg[appIcon]',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    '[attr.width]': 'size()', '[attr.height]': 'size()', 'viewBox': '0 0 24 24', 'fill': 'none', 'stroke': 'currentColor',
-    'stroke-width': '1.6', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true',
+    '[attr.width]': 'size()',
+    '[attr.height]': 'size()',
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    'stroke-width': '1.6',
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
+    'aria-hidden': 'true',
   },
   template: `<svg:path [attr.d]="path()" />`,
 })
 export class Icon {
-  readonly icon = input.required<string>();
+  readonly appIcon = input.required<string>();
   readonly size = input(18);
-  protected path = () => ICONS[this.icon()] ?? ICONS['arena'];
+  protected readonly path = computed(() => ICONS[this.appIcon()] ?? ICONS['arena']);
 }

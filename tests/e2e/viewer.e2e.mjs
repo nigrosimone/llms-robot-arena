@@ -90,7 +90,7 @@ test("a challenge link rebuilds the match, can be beaten from the keyboard and s
   await page.goto(`${site.url}/#m=${encoded}`);
   await loaded(page);
   assert.equal(await page.text("#current-mode"), "Manual duel");
-  assert.equal(await page.eval("document.querySelector('#bot-b').selectedOptions[0].textContent.startsWith('Claude Haiku 4.5')"), true);
+  assert.equal(await page.eval("document.querySelector('#bot-b').selectedOptions[0].textContent.trim().startsWith('Claude Haiku 4.5')"), true);
   await ended(page);
   assert.equal(await page.hidden("#beat-challenge"), false);
   assert.equal(await page.hidden("#copy-challenge"), false);

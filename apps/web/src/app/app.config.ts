@@ -1,6 +1,6 @@
-import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { APP_BASE_HREF } from '@angular/common';
-import { provideRouter, UrlSerializer, withInMemoryScrolling } from '@angular/router';
+import { type ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { UrlSerializer, provideRouter, withInMemoryScrolling } from '@angular/router';
 import { provideNgSimpleState } from 'ng-simple-state';
 import { routes } from './app.routes';
 import { TrailingSlashUrlSerializer } from './core/url';

@@ -21,6 +21,7 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix apps/web
       - run: npm test
+      - run: npm run lint --prefix apps/web
       - run: npm run build
       - name: Upload GitHub Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

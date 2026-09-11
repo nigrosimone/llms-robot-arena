@@ -3,7 +3,12 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
+    "strict": true,
     "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
@@ -18,9 +23,10 @@
     "resolveJsonModule": true
   },
   "angularCompilerOptions": {
+    "strictTemplates": true,
+    "strictInputAccessModifiers": true,
     "enableI18nLegacyMessageIdFormat": false,
-    "strictInjectionParameters": true,
-    "strictInputAccessModifiers": true
+    "strictInjectionParameters": true
   },
   "files": [],
   "references": [

@@ -1,0 +1,97 @@
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">CONTROLLER WORKSPACE <span>/ 02</span></div>
+    <h1>Your code. Your robot<span>.</span></h1>
+  </div>
+  <button id="new-bot" class="button accent" (click)="create()">
+    <svg appIcon="plus" />New controller
+  </button>
+</div>
+<div class="lab-layout">
+  <div class="editor-panel">
+    <div class="editor-toolbar">
+      <select id="edit-bot" aria-label="Controller to edit" (change)="load(+value($event))">
+        @for (option of bots.options(); track option.index) {
+          <option [value]="option.index" [selected]="option.index === editing()">
+            {{ name(option.bot) }} / {{ details(option.bot) }}
+          </option>
+        }
+      </select>
+    </div>
+    <div class="editor-file">
+      <svg appIcon="code" [size]="16" /><span id="editor-filename">{{ filename() }}</span
+      ><span id="unsaved" class="unsaved" [hidden]="!unsaved()">Unsaved changes</span>
+    </div>
+    <div class="editor-body">
+      <pre id="line-numbers" aria-hidden="true" #lines>{{ lineNumbers() }}</pre>
+      <textarea
+        id="code-editor"
+        aria-label="Controller source"
+        spellcheck="false"
+        autocapitalize="off"
+        autocomplete="off"
+        wrap="off"
+        #editor
+        [value]="source()"
+        (input)="edit(editor.value)"
+        (scroll)="lines.scrollTop = editor.scrollTop"
+        (keydown)="tab($event, editor)"
+      ></textarea>
+    </div>
+    <div class="editor-footer">
+      <input
+        id="bot-name"
+        aria-label="Model name"
+        placeholder="Model name"
+        maxlength="80"
+        [value]="model()"
+        (input)="touch('model', $event)"
+      />
+      <select
+        id="bot-provider"
+        aria-label="Model provider"
+        [value]="provider()"
+        (change)="touch('provider', $event)"
+      >
+        <option value="">No provider</option>
+        <option>OpenAI</option>
+        <option>Anthropic</option>
+      </select>
+      <button id="download-bot" class="button outline" (click)="save(true)">
+        <svg appIcon="download" />.js file
+      </button>
+      <button id="save-bot" class="button accent" (click)="save()">Save controller</button>
+    </div>
+  </div>
+  <aside class="lab-sidebar">
+    <div class="info-card" [innerHTML]="contract"></div>
+    <div class="info-card gate-card">
+      <div class="eyebrow">CONFORMANCE GATE</div>
+      <h2>Validate the contract.</h2>
+      <p>200 snapshots and 600 inert ticks. These checks offer no combat advice.</p>
+      <button
+        id="run-gate"
+        class="button outline full-width"
+        [disabled]="worker.operation() !== null"
+        (click)="check()"
+      >
+        <svg appIcon="check" />Check controller
+      </button>
+      <div id="gate-results" aria-live="polite">
+        @if (checking()) {
+          <p class="gate-running">
+            <span class="loader"></span>Checking 200 snapshots and 600 ticks…
+          </p>
+        } @else if (failure()) {
+          <p class="gate-fail">{{ failure() }}</p>
+        } @else if (gate(); as verdict) {
+          <app-gate-result [gate]="verdict" />
+        }
+      </div>
+    </div>
+    <p class="side-hint">
+      Edits here are iterative experimentation. For a one-shot benchmark, follow AGENTS.md and use
+      the project CLI.
+    </p>
+  </aside>
+</div>

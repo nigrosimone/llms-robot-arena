@@ -1,22 +1,44 @@
-import { Component, DestroyRef, ElementRef, afterNextRender, computed, inject, signal, viewChild } from '@angular/core';
-import { botName, botDetails } from '../../../../../packages/bot-catalog.js';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  type ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import { botDetails, botName } from '../../../../../packages/bot-catalog.js';
 import { robotColor } from '../../../../../packages/renderer/palette.js';
 import { matchOutcome } from '../../../../../packages/renderer/recorder.js';
-import type { Replay } from '../../../../../packages/renderer/arena.js';
+import { type Replay, type ReplayEvent } from '../../../../../packages/sim/replay.js';
 import { Icon } from '../core/icons';
 import { BotsStore } from '../core/bots.store';
 import { ToastService } from '../core/toast.service';
-import { clock, siteUrl } from '../core/url';
+import { clock, inputChecked, inputValue, siteUrl } from '../core/url';
 import { ArenaStore, coarsePointer } from './arena.store';
-import { ViewerService } from './viewer.service';
+import { type HudRobot, ViewerService } from './viewer.service';
 
-const MARKED = ['flip', 'ring-out', 'hole', 'recharge', 'collapse-warning', 'collapse', 'eliminated'];
+const MARKED = new Set([
+  'flip',
+  'ring-out',
+  'hole',
+  'recharge',
+  'collapse-warning',
+  'collapse',
+  'eliminated',
+]);
+const STATUSES = ['ACTIVE', 'FLIPPED', 'RECOVERING', 'OUT'];
 
+/** The arena panel: the stage with its HUD, the match settings and the replay tools. */
 @Component({
-  selector: 'arena-page',
+  selector: 'app-arena-page',
   imports: [Icon],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    id: 'panel-arena', class: 'panel',
+    id: 'panel-arena',
+    class: 'panel',
     '(document:keydown)': 'onKeyDown($event)',
     '(document:keyup)': 'onKeyUp($event)',
     '(window:blur)': 'onBlur()',
@@ -29,26 +51,36 @@ export class ArenaPage {
   protected readonly bots = inject(BotsStore);
   private readonly toast = inject(ToastService);
   protected readonly clock = clock;
-  protected readonly Number = Number;
+  protected readonly value = inputValue;
+  protected readonly checked = inputChecked;
   protected readonly coarse = coarsePointer();
-  protected readonly cameraView = signal<'auto' | string>('auto');
+  protected readonly cameraView = signal('auto');
   protected readonly manualCamera = signal(false);
   protected readonly held = signal(new Set<string>());
   private readonly viewport = viewChild.required<ElementRef<HTMLElement>>('viewport');
 
-  protected readonly cards = computed(() => this.arena.replay()?.bots ?? this.bots.builtins.slice(0, 2));
+  protected readonly cards = computed(
+    () => this.arena.replay()?.bots ?? this.bots.builtins.slice(0, 2),
+  );
   protected readonly seedLabel = computed(() => {
     const r = this.arena.replay();
     return r ? `${String(r.seed).padStart(2, '0')} ${r.mirrored ? '· M' : ''}` : '00';
   });
-  protected readonly notable = computed(() => (this.viewer.hud()?.events ?? []).filter((e: any) => e.type !== 'impact' || e.closingSpeed > 0.3));
+  protected readonly notable = computed(() =>
+    (this.viewer.hud()?.events ?? []).filter(
+      (e) => e.type !== 'impact' || (e.closingSpeed ?? 0) > 0.3,
+    ),
+  );
   protected readonly marks = computed(() => {
     const r = this.arena.replay();
     if (!r?.result.ticks || this.arena.live()) return [];
-    return r.events.filter((e) => MARKED.includes(e.type)).map((e) => ({ type: e.type, left: ((e.tick + 1) / r.result.ticks) * 100 }));
+    return r.events
+      .filter((e) => MARKED.has(e.type))
+      .map((e) => ({ type: e.type, left: ((e.tick + 1) / r.result.ticks) * 100 }));
   });
   protected readonly hashLabel = computed(() => {
-    const r = this.arena.replay(), time = this.viewer.hud()?.time ?? 0;
+    const r = this.arena.replay(),
+      time = this.viewer.hud()?.time ?? 0;
     const last = r?.stateHashes.filter((h) => h.tick <= time * 60).at(-1);
     return last ? 'SHA-256 ' + last.hash.slice(0, 12) + '…' : 'SHA-256 · HASH EVERY 60 TICKS';
   });
@@ -64,46 +96,84 @@ export class ArenaPage {
     const destroy = inject(DestroyRef);
     afterNextRender(() => {
       this.viewer.attach(this.viewport().nativeElement);
-      this.arena.loadLibrary(siteUrl('replays.json'));
+      void this.arena.loadLibrary(siteUrl('replays.json'));
       this.arena.arm();
     });
-    destroy.onDestroy(() => this.viewer.detach());
+    destroy.onDestroy(() => {
+      this.viewer.detach();
+    });
   }
 
-  protected name = (bot: { model?: string }) => botName(bot as any);
-  protected details = (bot: object) => botDetails(bot as any);
-  protected letter = (i: number) => String.fromCharCode(65 + i);
-  protected color = (i: number) => robotColor(i).css;
-  protected outcome = (replay: Replay) => matchOutcome(replay);
-  protected status(state?: { status: number; hole?: boolean; ringOut?: boolean }) {
+  /** Display name of a controller. */
+  protected name = (bot: { model?: string }): string => botName(bot);
+  /** Provider line of a controller. */
+  protected details = (bot: { provider?: string | null }): string => botDetails(bot);
+  /** Robot letter: A, B, C... */
+  protected letter = (i: number): string => String.fromCharCode(65 + i);
+  /** Robot colour as CSS. */
+  protected color = (i: number): string => robotColor(i).css;
+  /** Winner and reason of a finished replay. */
+  protected outcome = (replay: Replay): { title: string; reason: string } => matchOutcome(replay);
+  /** The status word on a robot card. */
+  protected status(state: HudRobot | undefined): string {
     if (!state) return 'ACTIVE';
-    return state.hole ? 'FELL THROUGH' : state.ringOut ? 'RING-OUT' : ['ACTIVE', 'FLIPPED', 'RECOVERING', 'OUT'][state.status];
+    return state.hole
+      ? 'FELL THROUGH'
+      : state.ringOut
+        ? 'RING-OUT'
+        : (STATUSES[state.status] ?? 'ACTIVE');
   }
-  protected eventLabel(e: any) {
+  /** One line of the event log. */
+  protected eventLabel(e: ReplayEvent): string {
     const bots = this.arena.replay()?.bots ?? [];
-    const who = () => botName(bots[e.robot] ?? { model: 'Robot' });
-    return e.type === 'collapse-warning' ? `Floor cell ${e.cell} unstable${e.cause === 'weight' ? ' under robot weight' : ''}: 3-second warning`
-      : e.type === 'collapse' ? `Floor cell ${e.cell} collapsed${e.cause === 'weight' ? ' under robot weight' : ''}`
-      : e.type === 'impact' ? `Impact · ${e.closingSpeed.toFixed(1)} m/s`
-      : e.type === 'flip' ? `${who()} flipped`
-      : e.type === 'ring-out' ? `${who()} out of the arena`
-      : e.type === 'hole' ? `${who()} fell through a hole`
-      : e.type === 'recharge' ? `${who()} recharged +${e.amount.toFixed(1)}`
-      : e.type === 'fire-damage' ? `${who()} taking fire damage`
-      : e.type === 'eliminated' ? `${who()} is out (${e.reason})`
-      : e.type === 'recovery' ? `${who()} self-rights`
-      : e.type === 'violation' ? `${who()}: ${e.reason}`
-      : 'Engine violation';
+    const who = (): string => {
+      const bot = e.robot === undefined ? undefined : bots[e.robot];
+      return bot ? botName(bot) : 'Robot';
+    };
+    const weight = e.cause === 'weight' ? ' under robot weight' : '';
+    switch (e.type) {
+      case 'collapse-warning':
+        return `Floor cell ${e.cell ?? ''} unstable${weight}: 3-second warning`;
+      case 'collapse':
+        return `Floor cell ${e.cell ?? ''} collapsed${weight}`;
+      case 'impact':
+        return `Impact · ${(e.closingSpeed ?? 0).toFixed(1)} m/s`;
+      case 'flip':
+        return `${who()} flipped`;
+      case 'ring-out':
+        return `${who()} out of the arena`;
+      case 'hole':
+        return `${who()} fell through a hole`;
+      case 'recharge':
+        return `${who()} recharged +${(e.amount ?? 0).toFixed(1)}`;
+      case 'fire-damage':
+        return `${who()} taking fire damage`;
+      case 'eliminated':
+        return `${who()} is out (${e.reason ?? ''})`;
+      case 'recovery':
+        return `${who()} self-rights`;
+      case 'violation':
+        return `${who()}: ${e.reason ?? ''}`;
+      default:
+        return 'Engine violation';
+    }
   }
-  protected setCameraView(value: string) {
+  /** The glyph before an event line. */
+  protected symbol(e: ReplayEvent): string {
+    return e.type === 'impact' ? '×' : e.type === 'flip' ? '↻' : '·';
+  }
+  /** Auto camera or the camera behind one robot. */
+  protected setCameraView(value: string): void {
     this.cameraView.set(value);
     this.viewer.viewer?.setCameraView(value === 'auto' ? 'auto' : Number(value));
   }
-  protected setManualCamera(on: boolean) {
+  /** Hands the camera to the mouse, or back to the automatic one. */
+  protected setManualCamera(on: boolean): void {
     this.manualCamera.set(on);
     this.viewer.viewer?.setManualCamera(on);
   }
-  protected async fullscreen(stage: HTMLElement) {
+  /** Toggles fullscreen on the stage. */
+  protected async fullscreen(stage: HTMLElement): Promise<void> {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
       else await stage.requestFullscreen();
@@ -111,41 +181,55 @@ export class ArenaPage {
       this.toast.show('Fullscreen is unavailable in this browser.');
     }
   }
-  protected record() {
+  /** Exports the replay on the stage as a video. */
+  protected record(): void {
     const replay = this.arena.replay();
-    if (!replay) return this.toast.show('Simulate or import a match first.', true);
-    this.viewer.record(replay);
+    if (!replay) {
+      this.toast.show('Simulate or import a match first.', true);
+      return;
+    }
+    void this.viewer.record(replay);
   }
-  protected async importFile(input: HTMLInputElement) {
+  /** Loads the chosen replay file and clears the input for the next one. */
+  protected async importFile(input: HTMLInputElement): Promise<void> {
     const file = input.files?.[0];
     if (file) await this.arena.importFile(file);
     input.value = '';
   }
-  protected openLibrary(name: string) {
-    if (name) this.arena.openLibrary(name);
+  /** Opens a replay picked in the library select. */
+  protected openLibrary(name: string): void {
+    if (name) void this.arena.openLibrary(name);
   }
-  // Touch buttons feed the same held set as the keys: a finger down is a key down.
-  protected touch(event: PointerEvent, control: string, down: boolean) {
+  /** Reads the seed field. */
+  protected setSeed(event: Event): void {
+    this.arena.setState({ seed: Number(inputValue(event)) });
+  }
+  /** Touch buttons feed the same held set as the keys: a finger down is a key down. */
+  protected touch(event: PointerEvent, control: string, down: boolean): void {
     const button = event.currentTarget as HTMLButtonElement;
     if (down) {
       event.preventDefault();
       button.setPointerCapture(event.pointerId);
     }
     const held = new Set(this.held());
-    down ? held.add(control) : held.delete(control);
+    if (down) held.add(control);
+    else held.delete(control);
     if (held.size !== this.held().size) {
       this.held.set(held);
       this.arena.key('touch:' + control, down);
     }
   }
-  onKeyDown(e: KeyboardEvent) {
-    if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement as Element)?.tagName ?? '')) return;
+  /** Drives the manual duel from the keyboard, except while typing in a field. */
+  onKeyDown(e: KeyboardEvent): void {
+    if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName ?? '')) return;
     if (this.arena.key(e.code, true)) e.preventDefault();
   }
-  onKeyUp(e: KeyboardEvent) {
+  /** Releases a control key. */
+  onKeyUp(e: KeyboardEvent): void {
     this.arena.key(e.code, false);
   }
-  onBlur() {
+  /** Releases everything when the window loses focus, so no key stays stuck. */
+  onBlur(): void {
     this.arena.releaseAll();
     this.held.set(new Set());
   }

@@ -5,79 +5,534 @@
 @let intro = viewer.intro();
 @let clip = viewer.clipProgress();
 @let energyMax = replay?.energyMax ?? 100;
-<div class="page-heading"><div><div class="eyebrow">AUTONOMOUS COMBAT LAB <span>/ 01</span></div><h1>The arena decides<span>.</span></h1></div><div class="heading-actions">
-  <select id="replay-library" aria-label="Local tournament replays" [hidden]="!arena.library().length" (change)="openLibrary($any($event.target).value)"><option value="">Tournament replays…</option>@for (name of arena.library(); track name) {<option [value]="name">{{ name }}</option>}</select>
-  <button id="import-replay" class="button outline" (click)="file.click()"><svg icon="upload"></svg>Import replay</button>
-  <button id="record" class="button outline" [class.recording]="viewer.recording()" [disabled]="!replay || live || !viewer.canRecord() || !!clip" (click)="record()"><svg [icon]="viewer.recording() ? 'stop' : 'record'"></svg>{{ viewer.recording() ? 'Stop and save' : 'Record video' }}</button>
-  <button id="export-replay" class="button outline" [disabled]="!replay || live" (click)="arena.exportReplay()"><svg icon="download"></svg>Export replay</button>
-  <input type="file" id="replay-file" accept=".json,application/json" hidden #file (change)="importFile(file)">
-</div></div>
+@let duration = live ? 120 : viewer.duration || 120;
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">AUTONOMOUS COMBAT LAB <span>/ 01</span></div>
+    <h1>The arena decides<span>.</span></h1>
+  </div>
+  <div class="heading-actions">
+    <select
+      id="replay-library"
+      aria-label="Local tournament replays"
+      [hidden]="!arena.library().length"
+      (change)="openLibrary(value($event))"
+    >
+      <option value="">Tournament replays…</option>
+      @for (name of arena.library(); track name) {
+        <option [value]="name">{{ name }}</option>
+      }
+    </select>
+    <button id="import-replay" class="button outline" (click)="file.click()">
+      <svg appIcon="upload" />Import replay
+    </button>
+    <button
+      id="record"
+      class="button outline"
+      [class.recording]="viewer.recording()"
+      [disabled]="!replay || live || !viewer.canRecord() || !!clip"
+      (click)="record()"
+    >
+      <svg [appIcon]="viewer.recording() ? 'stop' : 'record'" />{{
+        viewer.recording() ? 'Stop and save' : 'Record video'
+      }}
+    </button>
+    <button
+      id="export-replay"
+      class="button outline"
+      [disabled]="!replay || live"
+      (click)="arena.exportReplay()"
+    >
+      <svg appIcon="download" />Export replay
+    </button>
+    <input
+      type="file"
+      id="replay-file"
+      accept=".json,application/json"
+      hidden
+      #file
+      (change)="importFile(file)"
+    />
+  </div>
+</div>
 <div class="arena-layout">
   <div class="match-surface">
     <div class="stage" id="stage" #stage>
-      <div class="stage-header"><div class="record-tag"><span class="record-dot"></span><span id="record-label">{{ viewer.recording() ? 'REC' : clip?.phase === 'sound' ? 'SOUND' : live ? 'LIVE' : 'REPLAY' }}</span> <span id="replay-seed">SEED {{ seedLabel() }}</span></div><div class="stage-clock"><b id="match-clock">{{ clock(hud?.time ?? 0) }}</b><span>/ {{ clock(live ? 120 : viewer.duration || 120) }}</span></div><span class="arena-size" id="arena-size">{{ ((hud?.half ?? 8) * 2).toFixed(1) }} × {{ ((hud?.half ?? 8) * 2).toFixed(1) }} M</span></div>
+      <div class="stage-header">
+        <div class="record-tag">
+          <span class="record-dot"></span
+          ><span id="record-label">{{
+            viewer.recording()
+              ? 'REC'
+              : clip?.phase === 'sound'
+                ? 'SOUND'
+                : live
+                  ? 'LIVE'
+                  : 'REPLAY'
+          }}</span>
+          <span id="replay-seed">SEED {{ seedLabel() }}</span>
+        </div>
+        <div class="stage-clock">
+          <b id="match-clock">{{ clock(hud?.time ?? 0) }}</b
+          ><span>/ {{ clock(duration) }}</span>
+        </div>
+        <span class="arena-size" id="arena-size"
+          >{{ ((hud?.half ?? 8) * 2).toFixed(1) }} × {{ ((hud?.half ?? 8) * 2).toFixed(1) }} M</span
+        >
+      </div>
       <div #viewport></div>
-      <div class="stage-note"><span id="pressure-tag" [class.pressure]="(hud?.time ?? 0) >= 60">{{ (hud?.time ?? 0) >= 60 ? 'SUDDEN DEATH · ARENA SHRINKING' : 'RAISED PLATFORM' }}</span><span id="camera-hint">{{ cameraHint() }}</span><span id="collapse-warning" role="status" aria-live="polite" [hidden]="hud?.collapseIn == null">FLOOR COLLAPSE IN {{ hud?.collapseIn }} S</span></div>
-      <div class="camera-actions"><select id="camera-view" aria-label="Camera view" aria-describedby="camera-hint" [disabled]="live || !viewer.available() || manualCamera()" [value]="cameraView()" (change)="setCameraView($any($event.target).value)"><option value="auto">Auto camera</option>@for (bot of replay?.bots ?? []; track $index) {<option [value]="$index">View from {{ name(bot) }}</option>}</select><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint" [disabled]="!viewer.available()" [checked]="manualCamera()" (change)="setManualCamera($any($event.target).checked)">Manual camera</label><button id="sound" class="icon-button" [class.muted]="!viewer.audible()" [attr.aria-label]="viewer.audible() ? 'Mute sound' : 'Unmute sound'" title="Sound" [attr.aria-pressed]="viewer.audible()" (click)="viewer.setSound(!viewer.audible())"><svg [icon]="viewer.audible() ? 'sound' : 'mute'"></svg></button><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera" (click)="viewer.viewer?.resetCamera()"><svg icon="reset"></svg></button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen" (click)="fullscreen(stage)"><svg icon="expand"></svg></button></div>
+      <div class="stage-note">
+        <span id="pressure-tag" [class.pressure]="(hud?.time ?? 0) >= 60">{{
+          (hud?.time ?? 0) >= 60 ? 'SUDDEN DEATH · ARENA SHRINKING' : 'RAISED PLATFORM'
+        }}</span>
+        <span id="camera-hint">{{ cameraHint() }}</span>
+        <span
+          id="collapse-warning"
+          role="status"
+          aria-live="polite"
+          [hidden]="hud?.collapseIn == null"
+          >FLOOR COLLAPSE IN {{ hud?.collapseIn }} S</span
+        >
+      </div>
+      <div class="camera-actions">
+        <select
+          id="camera-view"
+          aria-label="Camera view"
+          aria-describedby="camera-hint"
+          [disabled]="live || !viewer.available() || manualCamera()"
+          [value]="cameraView()"
+          (change)="setCameraView(value($event))"
+        >
+          <option value="auto">Auto camera</option>
+          @for (bot of replay?.bots ?? []; track $index) {
+            <option [value]="$index">View from {{ name(bot) }}</option>
+          }
+        </select>
+        <label class="camera-toggle"
+          ><input
+            id="manual-camera"
+            type="checkbox"
+            aria-describedby="camera-hint"
+            [disabled]="!viewer.available()"
+            [checked]="manualCamera()"
+            (change)="setManualCamera(checked($event))"
+          />Manual camera</label
+        >
+        <button
+          id="sound"
+          class="icon-button"
+          [class.muted]="!viewer.audible()"
+          [attr.aria-label]="viewer.audible() ? 'Mute sound' : 'Unmute sound'"
+          title="Sound"
+          [attr.aria-pressed]="viewer.audible()"
+          (click)="viewer.setSound(!viewer.audible())"
+        >
+          <svg [appIcon]="viewer.audible() ? 'sound' : 'mute'" />
+        </button>
+        <button
+          id="reset-camera"
+          class="icon-button"
+          aria-label="Reset camera"
+          title="Reset camera"
+          (click)="viewer.viewer?.resetCamera()"
+        >
+          <svg appIcon="reset" />
+        </button>
+        <button
+          id="fullscreen"
+          class="icon-button"
+          aria-label="Fullscreen"
+          title="Fullscreen"
+          (click)="fullscreen(stage)"
+        >
+          <svg appIcon="expand" />
+        </button>
+      </div>
       <div id="stage-loading" class="stage-loading" [hidden]="!loading && !clip">
         @if (clip) {
-          <span class="loader"></span><b>Rendering the clip</b><span id="loading-detail">{{ clip.phase === 'video' ? 'Frame ' + clip.done + ' of ' + clip.total : 'Recording the sound, ' + clock(clip.done) + ' / ' + clock(clip.total) }}</span><progress id="simulation-progress" [value]="clip.done / clip.total" max="1"></progress><button id="cancel" class="button outline" (click)="arena.cancel()">Cancel</button>
+          <span class="loader"></span><b>Rendering the clip</b>
+          <span id="loading-detail">{{
+            clip.phase === 'video'
+              ? 'Frame ' + clip.done + ' of ' + clip.total
+              : 'Recording the sound, ' + clock(clip.done) + ' / ' + clock(clip.total)
+          }}</span>
+          <progress id="simulation-progress" [value]="clip.done / clip.total" max="1"></progress>
+          <button id="cancel" class="button outline" (click)="arena.cancel()">Cancel</button>
         } @else if (loading) {
-          <span class="loader" [hidden]="loading.progress === null"></span><b>{{ loading.title }}</b><span id="loading-detail">{{ loading.detail }}</span><progress id="simulation-progress" [value]="loading.progress ?? 0" max="1" [hidden]="loading.progress === null"></progress><button id="cancel" class="button outline" [hidden]="!loading.cancel" (click)="arena.cancel()">Cancel</button>
+          <span class="loader" [hidden]="loading.progress === null"></span
+          ><b>{{ loading.title }}</b>
+          <span id="loading-detail">{{ loading.detail }}</span>
+          <progress
+            id="simulation-progress"
+            [value]="loading.progress ?? 0"
+            max="1"
+            [hidden]="loading.progress === null"
+          ></progress>
+          <button
+            id="cancel"
+            class="button outline"
+            [hidden]="!loading.cancel"
+            (click)="arena.cancel()"
+          >
+            Cancel
+          </button>
         }
       </div>
       <div id="result-banner" class="result-banner" [hidden]="!(hud?.ended && replay && !live)">
         @if (replay) {
-          <span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title">{{ outcome(replay).title }}</strong><span id="result-reason">{{ outcome(replay).reason }} · {{ clock(viewer.duration) }}</span>
-          <div id="result-standings" class="result-standings" [hidden]="!replay.result.standings">@for (robot of replay.result.standings ?? []; track $index) {<span><b>{{ $index + 1 }}</b>{{ name(replay.bots[robot]) }}</span>}</div>
-          <div class="result-actions"><button id="beat-challenge" class="button accent" [hidden]="replay !== arena.challengeReplay()" (click)="arena.beatChallenge()"><svg icon="bolt"></svg>Beat this replay</button><button id="watch-again" class="button accent" (click)="viewer.playWithIntro()"><svg icon="reset"></svg>Watch again</button><button id="copy-challenge" class="button outline" [hidden]="!arena.shareable(replay)" (click)="arena.copyChallenge()"><svg icon="link"></svg>Copy challenge link</button><button id="random-match" class="button outline" (click)="arena.randomMatch()"><svg icon="swap"></svg>Random seed</button></div>
+          <span id="result-label" class="eyebrow">MATCH COMPLETE</span
+          ><strong id="result-title">{{ outcome(replay).title }}</strong
+          ><span id="result-reason"
+            >{{ outcome(replay).reason }} · {{ clock(viewer.duration) }}</span
+          >
+          <div id="result-standings" class="result-standings" [hidden]="!replay.result.standings">
+            @for (robot of replay.result.standings ?? []; track $index) {
+              <span
+                ><b>{{ $index + 1 }}</b
+                >{{ name(replay.bots[robot] ?? {}) }}</span
+              >
+            }
+          </div>
+          <div class="result-actions">
+            <button
+              id="beat-challenge"
+              class="button accent"
+              [hidden]="replay !== arena.challengeReplay()"
+              (click)="arena.beatChallenge()"
+            >
+              <svg appIcon="bolt" />Beat this replay
+            </button>
+            <button id="watch-again" class="button accent" (click)="viewer.playWithIntro()">
+              <svg appIcon="reset" />Watch again
+            </button>
+            <button
+              id="copy-challenge"
+              class="button outline"
+              [hidden]="!arena.shareable(replay)"
+              (click)="arena.copyChallenge()"
+            >
+              <svg appIcon="link" />Copy challenge link
+            </button>
+            <button id="random-match" class="button outline" (click)="arena.randomMatch()">
+              <svg appIcon="swap" />Random seed
+            </button>
+          </div>
         }
       </div>
       <div id="match-intro" class="match-intro" aria-hidden="true" [hidden]="!intro">
         @if (intro) {
-          <span class="intro-eyebrow">AUTONOMOUS COMBAT LAB</span><span class="intro-title">{{ intro.title }}</span>
+          <span class="intro-eyebrow">AUTONOMOUS COMBAT LAB</span
+          ><span class="intro-title">{{ intro.title }}</span>
           @if (intro.robots.length > 2) {
-            <div class="intro-roster">@for (robot of intro.robots; track $index) {<b [style.--robot]="robot.color">{{ robot.name }}</b>}</div>
+            <div class="intro-roster">
+              @for (robot of intro.robots; track $index) {
+                <b [style.--robot]="robot.color">{{ robot.name }}</b>
+              }
+            </div>
           } @else {
             @for (robot of intro.robots; track $index) {
-              @if ($index) {<span class="intro-versus">VS</span>}
-              <div class="intro-fighter" [class.a]="!$index" [class.b]="$index" [style.--robot]="robot.color"><span>{{ robot.label }}</span><b>{{ robot.name }}</b><small>{{ robot.provider }}</small></div>
+              @if ($index) {
+                <span class="intro-versus">VS</span>
+              }
+              <div
+                class="intro-fighter"
+                [class.a]="!$index"
+                [class.b]="$index"
+                [style.--robot]="robot.color"
+              >
+                <span>{{ robot.label }}</span
+                ><b>{{ robot.name }}</b
+                ><small>{{ robot.provider }}</small>
+              </div>
             }
           }
           <span class="intro-seed">{{ intro.seed }}</span>
         }
       </div>
-      <div id="live-hud" class="live-hud" [hidden]="!live"><strong>YOU DRIVE ROBOT A</strong><span class="keys"><b>W</b> <b>S</b> thrust · <b>A</b> <b>D</b> turn</span><button id="live-stop" class="button quiet" (click)="arena.leaveLive()">Leave match</button></div>
+      <div id="live-hud" class="live-hud" [hidden]="!live">
+        <strong>YOU DRIVE ROBOT A</strong
+        ><span class="keys"><b>W</b> <b>S</b> thrust · <b>A</b> <b>D</b> turn</span
+        ><button id="live-stop" class="button quiet" (click)="arena.leaveLive()">
+          Leave match
+        </button>
+      </div>
       <div id="touch-pad" class="touch-pad" [hidden]="!live || !coarse">
-        <div class="touch-group">@for (control of ['left', 'right']; track control) {<button [attr.data-control]="control" [class.held]="held().has(control)" [attr.aria-label]="control === 'left' ? 'Turn left' : 'Turn right'" (pointerdown)="touch($event, control, true)" (pointerup)="touch($event, control, false)" (pointercancel)="touch($event, control, false)" (lostpointercapture)="touch($event, control, false)" (contextmenu)="$event.preventDefault()">{{ control === 'left' ? '◀' : '▶' }}</button>}</div>
-        <div class="touch-group">@for (control of ['back', 'forward']; track control) {<button [attr.data-control]="control" [class.held]="held().has(control)" [attr.aria-label]="control === 'back' ? 'Reverse' : 'Thrust forward'" (pointerdown)="touch($event, control, true)" (pointerup)="touch($event, control, false)" (pointercancel)="touch($event, control, false)" (lostpointercapture)="touch($event, control, false)" (contextmenu)="$event.preventDefault()">{{ control === 'back' ? '▼' : '▲' }}</button>}</div>
+        <div class="touch-group">
+          @for (control of ['left', 'right']; track control) {
+            <button
+              [attr.data-control]="control"
+              [class.held]="held().has(control)"
+              [attr.aria-label]="control === 'left' ? 'Turn left' : 'Turn right'"
+              (pointerdown)="touch($event, control, true)"
+              (pointerup)="touch($event, control, false)"
+              (pointercancel)="touch($event, control, false)"
+              (lostpointercapture)="touch($event, control, false)"
+              (contextmenu)="$event.preventDefault()"
+            >
+              {{ control === 'left' ? '◀' : '▶' }}
+            </button>
+          }
+        </div>
+        <div class="touch-group">
+          @for (control of ['back', 'forward']; track control) {
+            <button
+              [attr.data-control]="control"
+              [class.held]="held().has(control)"
+              [attr.aria-label]="control === 'back' ? 'Reverse' : 'Thrust forward'"
+              (pointerdown)="touch($event, control, true)"
+              (pointerup)="touch($event, control, false)"
+              (pointercancel)="touch($event, control, false)"
+              (lostpointercapture)="touch($event, control, false)"
+              (contextmenu)="$event.preventDefault()"
+            >
+              {{ control === 'back' ? '▼' : '▲' }}
+            </button>
+          }
+        </div>
       </div>
     </div>
-    <div class="playback"><button id="step-back" class="icon-button" aria-label="Previous frame" title="Previous frame (←)" [disabled]="live || !replay" (click)="viewer.step(-1)">‹</button><button id="play" class="play-button" [attr.aria-label]="hud?.playing ? 'Pause' : 'Play'" [disabled]="live || !replay || !viewer.available()" (click)="viewer.toggle()"><svg [icon]="hud?.playing ? 'pause' : 'play'" [size]="20"></svg></button><button id="step-forward" class="icon-button" aria-label="Next frame" title="Next frame (→)" [disabled]="live || !replay" (click)="viewer.step(1)">›</button><span id="elapsed" class="mono">{{ clock(hud?.time ?? 0) }}</span><div class="scrubber"><div id="event-marks">@for (mark of marks(); track $index) {<span [class]="'mark-' + mark.type" [style.left.%]="mark.left" [title]="mark.type"></span>}</div><input type="range" id="timeline" aria-label="Replay position" min="0" [max]="live ? 120 : viewer.duration || 120" step="any" [value]="hud?.time ?? 0" [disabled]="live || !replay || !viewer.available()" (input)="viewer.seek(+$any($event.target).value)"></div><span id="duration" class="mono secondary">{{ clock(live ? 120 : viewer.duration || 120) }}</span><select id="speed" aria-label="Playback speed" [disabled]="live || !replay" (change)="viewer.speed = +$any($event.target).value"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></div>
-    <div class="terrain-legend" aria-label="Arena cells"><span><i class="legend-recharge"></i>Recharge +60</span><span><i class="legend-hole"></i>Hole: instant loss</span><span><i class="legend-flame"></i>Grate: warning then flame</span><span><i class="legend-wear"></i>Cracks: weight damage</span><span><i class="legend-collapse"></i>Red flash: floor collapse</span></div>
+    <div class="playback">
+      <button
+        id="step-back"
+        class="icon-button"
+        aria-label="Previous frame"
+        title="Previous frame (←)"
+        [disabled]="live || !replay"
+        (click)="viewer.step(-1)"
+      >
+        ‹
+      </button>
+      <button
+        id="play"
+        class="play-button"
+        [attr.aria-label]="hud?.playing ? 'Pause' : 'Play'"
+        [disabled]="live || !replay || !viewer.available()"
+        (click)="viewer.toggle()"
+      >
+        <svg [appIcon]="hud?.playing ? 'pause' : 'play'" [size]="20" />
+      </button>
+      <button
+        id="step-forward"
+        class="icon-button"
+        aria-label="Next frame"
+        title="Next frame (→)"
+        [disabled]="live || !replay"
+        (click)="viewer.step(1)"
+      >
+        ›
+      </button>
+      <span id="elapsed" class="mono">{{ clock(hud?.time ?? 0) }}</span>
+      <div class="scrubber">
+        <div id="event-marks">
+          @for (mark of marks(); track $index) {
+            <span
+              [class]="'mark-' + mark.type"
+              [style.left.%]="mark.left"
+              [title]="mark.type"
+            ></span>
+          }
+        </div>
+        <input
+          type="range"
+          id="timeline"
+          aria-label="Replay position"
+          min="0"
+          [max]="duration"
+          step="any"
+          [value]="hud?.time ?? 0"
+          [disabled]="live || !replay || !viewer.available()"
+          (input)="viewer.seek(+value($event))"
+        />
+      </div>
+      <span id="duration" class="mono secondary">{{ clock(duration) }}</span>
+      <select
+        id="speed"
+        aria-label="Playback speed"
+        [disabled]="live || !replay"
+        (change)="viewer.speed = +value($event)"
+      >
+        <option value=".5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+        <option value="8">8×</option>
+      </select>
+    </div>
+    <div class="terrain-legend" aria-label="Arena cells">
+      <span><i class="legend-recharge"></i>Recharge +60</span
+      ><span><i class="legend-hole"></i>Hole: instant loss</span
+      ><span><i class="legend-flame"></i>Grate: warning then flame</span
+      ><span><i class="legend-wear"></i>Cracks: weight damage</span
+      ><span><i class="legend-collapse"></i>Red flash: floor collapse</span>
+    </div>
     <div class="robot-stats" id="robot-stats" [class.many]="(replay?.bots?.length ?? 2) > 2">
       @for (bot of cards(); track $index) {
         @let state = hud?.states?.[$index];
-        <article [class]="'robot-card robot-' + $index" [style.--robot]="color($index)"><div class="robot-ident"><span class="robot-avatar"><svg icon="arena" [size]="26"></svg></span><div><span class="eyebrow">ROBOT {{ letter($index) }}</span><h2 [id]="'robot-name-' + $index">{{ name(bot) }}</h2><span class="bot-provider" [id]="'robot-provider-' + $index">{{ details(bot) }}</span></div><span [id]="'robot-status-' + $index" class="status-tag" [class.danger]="state?.status === 1 || state?.ringOut || state?.out" [class.recovering]="state?.status === 2">{{ status(state) }}</span></div><div class="energy-row"><span><svg icon="bolt" [size]="14"></svg>Energy</span><strong><span [id]="'energy-' + $index">{{ (state?.energy ?? energyMax).toFixed(1) }}</span><small> / <span [id]="'energy-max-' + $index">{{ energyMax }}</span></small></strong></div><div class="energy-track"><span [id]="'energy-bar-' + $index" [class.low]="(state?.energy ?? energyMax) < energyMax * 0.2" [style.width.%]="((state?.energy ?? energyMax) / energyMax) * 100"></span></div><div class="robot-bottom"><span>Flips taken</span><div class="flip-pips" [id]="'flips-' + $index"><i [class.filled]="(state?.flips ?? 0) > 0"></i><i [class.filled]="(state?.flips ?? 0) > 1"></i><b>{{ state?.flips ?? 0 }} / 2</b></div></div></article>
+        @let energy = state?.energy ?? energyMax;
+        <article [class]="'robot-card robot-' + $index" [style.--robot]="color($index)">
+          <div class="robot-ident">
+            <span class="robot-avatar"><svg appIcon="arena" [size]="26" /></span>
+            <div>
+              <span class="eyebrow">ROBOT {{ letter($index) }}</span>
+              <h2 [id]="'robot-name-' + $index">{{ name(bot) }}</h2>
+              <span class="bot-provider" [id]="'robot-provider-' + $index">{{ details(bot) }}</span>
+            </div>
+            <span
+              [id]="'robot-status-' + $index"
+              class="status-tag"
+              [class.danger]="state?.status === 1 || state?.ringOut || state?.out"
+              [class.recovering]="state?.status === 2"
+              >{{ status(state) }}</span
+            >
+          </div>
+          <div class="energy-row">
+            <span><svg appIcon="bolt" [size]="14" />Energy</span
+            ><strong
+              ><span [id]="'energy-' + $index">{{ energy.toFixed(1) }}</span
+              ><small>
+                / <span [id]="'energy-max-' + $index">{{ energyMax }}</span></small
+              ></strong
+            >
+          </div>
+          <div class="energy-track">
+            <span
+              [id]="'energy-bar-' + $index"
+              [class.low]="energy < energyMax * 0.2"
+              [style.width.%]="(energy / energyMax) * 100"
+            ></span>
+          </div>
+          <div class="robot-bottom">
+            <span>Flips taken</span>
+            <div class="flip-pips" [id]="'flips-' + $index">
+              <i [class.filled]="(state?.flips ?? 0) > 0"></i
+              ><i [class.filled]="(state?.flips ?? 0) > 1"></i><b>{{ state?.flips ?? 0 }} / 2</b>
+            </div>
+          </div>
+        </article>
       }
     </div>
   </div>
   <aside class="match-sidebar">
-    <div class="side-head"><h2>Set up match</h2><svg icon="settings"></svg></div>
-    <div class="side-body"><label class="field-label" for="bot-a"><span class="color-square a"></span>ROBOT A</label><select id="bot-a" class="bot-select" [value]="arena.a()" (change)="arena.setState({ a: +$any($event.target).value })">@for (option of bots.options(); track option.index) {<option [value]="option.index" [selected]="option.index === arena.a()">{{ name(option.bot) }} / {{ details(option.bot) }}</option>}</select><label class="field-label" for="bot-b"><span class="color-square b"></span>ROBOT B</label><select id="bot-b" class="bot-select" [value]="arena.b()" (change)="arena.setState({ b: +$any($event.target).value })">@for (option of bots.options(); track option.index) {<option [value]="option.index" [selected]="option.index === arena.b()">{{ name(option.bot) }} / {{ details(option.bot) }}</option>}</select>
-      <div class="seed-row"><div><label for="seed" class="field-label">SEED</label><input id="seed" type="number" min="0" max="4294967295" step="1" [value]="arena.seed()" (input)="arena.setState({ seed: Number($any($event.target).value) })"></div><div><label for="spawn" class="field-label">SPAWN</label><select id="spawn" [value]="arena.mirrored() ? 'mirror' : 'normal'" (change)="arena.setState({ mirrored: $any($event.target).value === 'mirror' })"><option value="normal">Standard</option><option value="mirror">Mirrored</option></select></div></div>
-      <button id="simulate" class="button accent run-button" [disabled]="arena.busy()" (click)="arena.simulate()"><svg icon="play"></svg>Simulate match<svg icon="arrow"></svg></button><p class="field-note">The entire match is computed before playback.</p>
-      <button id="play-manual" class="button outline run-button" [disabled]="arena.busy()" (click)="arena.playManual()"><svg icon="bolt"></svg>Play yourself vs Robot B<svg icon="arrow"></svg></button><p class="field-note">Manual matches run in real time with the keyboard. Your inputs are logged with the replay, so it can be reproduced and shared. Never ranked.</p>
-      <button id="rumble" class="button outline run-button" [disabled]="arena.busy()" (click)="arena.rumble()"><svg icon="trophy"></svg>Royal rumble: everyone in<svg icon="arrow"></svg></button><p class="field-note">Up to twelve controllers spawn in the same arena and the last one standing wins; with more in the catalog, the seed draws twelve. Controllers still see one opponent, the closest. Rumbles are exhibitions and are never ranked.</p>
+    <div class="side-head">
+      <h2>Set up match</h2>
+      <svg appIcon="settings" />
     </div>
-    <div class="mode-box"><span class="eyebrow">CURRENT MODE</span><div><span class="mode-symbol">E</span><strong id="current-mode">{{ arena.mode() || (live ? 'Manual duel' : 'Local exhibition') }}</strong></div><p id="mode-note">{{ arena.modeNote() }}</p></div>
-    <div class="event-section"><div class="side-head"><h2>Event log</h2><span class="count" id="event-count">{{ notable().length }}</span></div><div id="event-log" class="event-log">
-      @if (notable().length) {
-        @for (event of notable().slice(-12).reverse(); track $index) {<button class="event-row" [attr.data-time]="(event.tick + 1) / 60" (click)="viewer.seek((event.tick + 1) / 60)"><span [class]="'event-symbol ' + event.type">{{ event.type === 'impact' ? '×' : event.type === 'flip' ? '↻' : '·' }}</span><span>{{ eventLabel(event) }}</span><time>{{ clock((event.tick + 1) / 60) }}</time></button>}
-      } @else {
-        <p class="empty-note">{{ replay ? 'Waiting for first contact.' : 'Events will appear during playback.' }}</p>
-      }
-    </div></div>
+    <div class="side-body">
+      <label class="field-label" for="bot-a"><span class="color-square a"></span>ROBOT A</label>
+      <select id="bot-a" class="bot-select" (change)="arena.setState({ a: +value($event) })">
+        @for (option of bots.options(); track option.index) {
+          <option [value]="option.index" [selected]="option.index === arena.a()">
+            {{ name(option.bot) }} / {{ details(option.bot) }}
+          </option>
+        }
+      </select>
+      <label class="field-label" for="bot-b"><span class="color-square b"></span>ROBOT B</label>
+      <select id="bot-b" class="bot-select" (change)="arena.setState({ b: +value($event) })">
+        @for (option of bots.options(); track option.index) {
+          <option [value]="option.index" [selected]="option.index === arena.b()">
+            {{ name(option.bot) }} / {{ details(option.bot) }}
+          </option>
+        }
+      </select>
+      <div class="seed-row">
+        <div>
+          <label for="seed" class="field-label">SEED</label
+          ><input
+            id="seed"
+            type="number"
+            min="0"
+            max="4294967295"
+            step="1"
+            [value]="arena.seed()"
+            (input)="setSeed($event)"
+          />
+        </div>
+        <div>
+          <label for="spawn" class="field-label">SPAWN</label>
+          <select
+            id="spawn"
+            [value]="arena.mirrored() ? 'mirror' : 'normal'"
+            (change)="arena.setState({ mirrored: value($event) === 'mirror' })"
+          >
+            <option value="normal">Standard</option>
+            <option value="mirror">Mirrored</option>
+          </select>
+        </div>
+      </div>
+      <button
+        id="simulate"
+        class="button accent run-button"
+        [disabled]="arena.busy()"
+        (click)="arena.simulate()"
+      >
+        <svg appIcon="play" />Simulate match<svg appIcon="arrow" />
+      </button>
+      <p class="field-note">The entire match is computed before playback.</p>
+      <button
+        id="play-manual"
+        class="button outline run-button"
+        [disabled]="arena.busy()"
+        (click)="arena.playManual()"
+      >
+        <svg appIcon="bolt" />Play yourself vs Robot B<svg appIcon="arrow" />
+      </button>
+      <p class="field-note">
+        Manual matches run in real time with the keyboard. Your inputs are logged with the replay,
+        so it can be reproduced and shared. Never ranked.
+      </p>
+      <button
+        id="rumble"
+        class="button outline run-button"
+        [disabled]="arena.busy()"
+        (click)="arena.rumble()"
+      >
+        <svg appIcon="trophy" />Royal rumble: everyone in<svg appIcon="arrow" />
+      </button>
+      <p class="field-note">
+        Up to twelve controllers spawn in the same arena and the last one standing wins; with more
+        in the catalog, the seed draws twelve. Controllers still see one opponent, the closest.
+        Rumbles are exhibitions and are never ranked.
+      </p>
+    </div>
+    <div class="mode-box">
+      <span class="eyebrow">CURRENT MODE</span>
+      <div>
+        <span class="mode-symbol">E</span
+        ><strong id="current-mode">{{
+          arena.mode() || (live ? 'Manual duel' : 'Local exhibition')
+        }}</strong>
+      </div>
+      <p id="mode-note">{{ arena.modeNote() }}</p>
+    </div>
+    <div class="event-section">
+      <div class="side-head">
+        <h2>Event log</h2>
+        <span class="count" id="event-count">{{ notable().length }}</span>
+      </div>
+      <div id="event-log" class="event-log">
+        @if (notable().length) {
+          @for (event of notable().slice(-12).reverse(); track $index) {
+            <button
+              class="event-row"
+              [attr.data-time]="(event.tick + 1) / 60"
+              (click)="viewer.seek((event.tick + 1) / 60)"
+            >
+              <span [class]="'event-symbol ' + event.type">{{ symbol(event) }}</span
+              ><span>{{ eventLabel(event) }}</span
+              ><time>{{ clock((event.tick + 1) / 60) }}</time>
+            </button>
+          }
+        } @else {
+          <p class="empty-note">
+            {{ replay ? 'Waiting for first contact.' : 'Events will appear during playback.' }}
+          </p>
+        }
+      </div>
+    </div>
   </aside>
 </div>
-<div class="arena-footer"><span><i></i>60 HZ PHYSICS</span><span>100 KG / ROBOT</span><span id="control-tag">{{ live ? 'MANUAL CONTROL · UNRANKED' : 'NO MANUAL CONTROL' }}</span><span id="hash-label">{{ hashLabel() }}</span></div>
+<div class="arena-footer">
+  <span><i></i>60 HZ PHYSICS</span><span>100 KG / ROBOT</span
+  ><span id="control-tag">{{ live ? 'MANUAL CONTROL · UNRANKED' : 'NO MANUAL CONTROL' }}</span
+  ><span id="hash-label">{{ hashLabel() }}</span>
+</div>

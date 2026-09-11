@@ -26,6 +26,7 @@ Before submitting a platform change, run:
 
 ```sh
 npm test
+npm run lint --prefix apps/web
 npm run build
 ```
 

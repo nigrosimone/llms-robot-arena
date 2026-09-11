@@ -7,4 +7,6 @@ The front end: Angular 22, zoneless, standalone components, signals, `ng-simple-
 - `src/app/core`: icons, toast, URL helpers, the catalog store and the worker service (one match worker at a time).
 - `src/generated/bots.ts` is written by `scripts/build.mjs` from the catalog; the bot worker the match worker spawns is bundled by the same script.
 
+The rules are strict and CI runs them: TypeScript `strict` with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`, type-checked ESLint (typescript-eslint strict and stylistic, angular-eslint, no `any`, no `$any` in templates, no floating promises, OnPush and signal inputs only) and Prettier. Every class, function and method carries one line of JSDoc saying what it is for; the types say the rest, so no `@param` or `@returns`. `npm run lint` checks, `npm run format` rewrites. The JavaScript packages come in through the `.d.ts` files next to them: a new export needs its declaration first.
+
 From the repository root, `npm ci --prefix apps/web` once, then `npm run build` (the whole site into `dist/`) and `npm run e2e` (the parity scenarios in a local Chrome). `npx ng build` and `npx ng serve` work from this directory for a quicker loop, after `node ../../scripts/build.mjs` has generated the catalog module once.

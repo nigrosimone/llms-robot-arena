@@ -1,59 +1,379 @@
 @let report = tournament.report();
 @let running = tournament.running();
-<div class="page-heading"><div><div class="eyebrow">TOURNAMENT <span>/ 03</span></div><h1>Earn your ranking<span>.</span></h1></div><div class="heading-actions"><button id="export-report" class="button outline" [disabled]="!report" (click)="tournament.exportReport()"><svg icon="download"></svg>.md report</button><button id="export-ranking" class="button outline" [disabled]="!report" (click)="tournament.exportRanking()"><svg icon="download"></svg>Export results</button></div></div>
-<div class="tournament-setup"><div><span class="eyebrow">EXHIBITION TOURNAMENT</span><h2>More action. Fewer matches.</h2><label class="field-label" for="tournament-format">FORMAT</label><select id="tournament-format" [disabled]="running" [value]="tournament.format()" (change)="tournament.setState({ format: $any($event.target).value })"><option value="quick">Quick rounds (up to 3 rounds)</option><option value="round-robin">Full round robin (20 matches per pair)</option></select><p id="tournament-description">{{ tournament.description() }}</p><div id="tournament-bots" class="bot-checks">@for (option of bots.options(); track option.index) {<label class="bot-checkbox"><input type="checkbox" [value]="option.index" [checked]="tournament.selected().includes(option.index)" [disabled]="running" (change)="tournament.toggle(option.index, $any($event.target).checked)"><span>{{ name(option.bot) }}<small class="bot-provider">{{ details(option.bot) }}</small></span></label>}</div></div><button id="run-tournament" class="button accent" [disabled]="running" (click)="tournament.run()"><svg icon="trophy"></svg>Start tournament</button></div>
 @let progress = tournament.progress();
-<div id="tournament-progress" class="tournament-progress" [hidden]="!progress"><div><strong id="tournament-status">{{ progress?.message }}</strong><button id="cancel-tournament" class="button quiet" [hidden]="!running" (click)="tournament.cancel()">Cancel</button></div><progress max="1" [value]="progress?.value ?? 0"></progress></div>
-<div id="tournament-gates" aria-label="Tournament controller checks" [hidden]="!tournament.gates().length">
-  @for (entry of tournament.gates(); track entry.bot.id) {<details class="tournament-gate" [open]="!(entry.gate.eligible ?? entry.gate.pass)"><summary>{{ name(entry.bot) }} · {{ gateLabel(entry.gate) }}</summary><gate-result [gate]="entry.gate" /></details>}
+<div class="page-heading">
+  <div>
+    <div class="eyebrow">TOURNAMENT <span>/ 03</span></div>
+    <h1>Earn your ranking<span>.</span></h1>
+  </div>
+  <div class="heading-actions">
+    <button
+      id="export-report"
+      class="button outline"
+      [disabled]="!report"
+      (click)="tournament.exportReport()"
+    >
+      <svg appIcon="download" />.md report
+    </button>
+    <button
+      id="export-ranking"
+      class="button outline"
+      [disabled]="!report"
+      (click)="tournament.exportRanking()"
+    >
+      <svg appIcon="download" />Export results
+    </button>
+  </div>
+</div>
+<div class="tournament-setup">
+  <div>
+    <span class="eyebrow">EXHIBITION TOURNAMENT</span>
+    <h2>More action. Fewer matches.</h2>
+    <label class="field-label" for="tournament-format">FORMAT</label>
+    <select
+      id="tournament-format"
+      [disabled]="running"
+      [value]="tournament.format()"
+      (change)="tournament.setFormat(value($event))"
+    >
+      <option value="quick">Quick rounds (up to 3 rounds)</option>
+      <option value="round-robin">Full round robin (20 matches per pair)</option>
+    </select>
+    <p id="tournament-description">{{ tournament.description() }}</p>
+    <div id="tournament-bots" class="bot-checks">
+      @for (option of bots.options(); track option.index) {
+        <label class="bot-checkbox"
+          ><input
+            type="checkbox"
+            [value]="option.index"
+            [checked]="tournament.selected().includes(option.index)"
+            [disabled]="running"
+            (change)="tournament.toggle(option.index, checked($event))"
+          /><span
+            >{{ name(option.bot)
+            }}<small class="bot-provider">{{ details(option.bot) }}</small></span
+          ></label
+        >
+      }
+    </div>
+  </div>
+  <button id="run-tournament" class="button accent" [disabled]="running" (click)="tournament.run()">
+    <svg appIcon="trophy" />Start tournament
+  </button>
+</div>
+<div id="tournament-progress" class="tournament-progress" [hidden]="!progress">
+  <div>
+    <strong id="tournament-status">{{ progress?.message }}</strong
+    ><button
+      id="cancel-tournament"
+      class="button quiet"
+      [hidden]="!running"
+      (click)="tournament.cancel()"
+    >
+      Cancel
+    </button>
+  </div>
+  <progress max="1" [value]="progress?.value ?? 0"></progress>
+</div>
+<div
+  id="tournament-gates"
+  aria-label="Tournament controller checks"
+  [hidden]="!tournament.gates().length"
+>
+  @for (entry of tournament.gates(); track entry.bot.id) {
+    <details class="tournament-gate" [open]="!(entry.gate.eligible ?? entry.gate.pass)">
+      <summary>{{ name(entry.bot) }} · {{ gateLabel(entry.gate) }}</summary>
+      <app-gate-result [gate]="entry.gate" />
+    </details>
+  }
 </div>
 <div id="ranking-surface" class="ranking-surface">
   @if (report && heading(); as heading) {
-    <div class="ranking-header"><h2>{{ heading.title }}</h2><span class="tag">{{ heading.tag }}</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>
-      @for (r of report.ranking; track r.id) {<tr><td class="rank-number">{{ ($index + 1).toString().padStart(2, '0') }}</td><td><strong>{{ name(r) }}</strong><small>{{ details(r) }}</small></td><td class="bt-score">{{ r.score.toFixed(1) }}</td><td class="mono">{{ r.ci ? r.ci[0].toFixed(1) + ' – ' + r.ci[1].toFixed(1) : '—' }}</td><td>{{ (r.winRate * 100).toFixed(1) }}%</td><td class="mono">{{ r.wins }} / {{ r.draws }} / {{ r.matches - r.wins - r.draws }}</td><td>{{ r.flipDifferential > 0 ? '+' : '' }}{{ r.flipDifferential }}</td><td>{{ r.ringOutsInflicted }} / {{ r.ringOutsTaken }}</td><td>{{ r.meanEnergy.toFixed(1) }}</td><td>{{ r.meanFirstContactTick === null ? '—' : (r.meanFirstContactTick / 60).toFixed(1) + ' s' }}</td><td>{{ r.violationsPerMatch.toFixed(2) }}</td><td>{{ r.timeouts }}</td></tr>}
-    </tbody></table></div>
+    <div class="ranking-header">
+      <h2>{{ heading.title }}</h2>
+      <span class="tag">{{ heading.tag }}</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Controller</th>
+            <th>Bradley–Terry</th>
+            <th>95% CI</th>
+            <th>Score %</th>
+            <th>W / D / L</th>
+            <th>Δ Flip</th>
+            <th>Ring-out + / −</th>
+            <th>Mean energy</th>
+            <th>First contact</th>
+            <th>Violations / match</th>
+            <th>Timeouts</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of report.ranking; track r.id) {
+            <tr>
+              <td class="rank-number">{{ ($index + 1).toString().padStart(2, '0') }}</td>
+              <td>
+                <strong>{{ name(r) }}</strong
+                ><small>{{ details(r) }}</small>
+              </td>
+              <td class="bt-score">{{ r.score.toFixed(1) }}</td>
+              <td class="mono">
+                {{ r.ci ? r.ci[0].toFixed(1) + ' – ' + r.ci[1].toFixed(1) : '—' }}
+              </td>
+              <td>{{ (r.winRate * 100).toFixed(1) }}%</td>
+              <td class="mono">
+                {{ r.wins }} / {{ r.draws }} / {{ r.matches - r.wins - r.draws }}
+              </td>
+              <td>{{ r.flipDifferential > 0 ? '+' : '' }}{{ r.flipDifferential }}</td>
+              <td>{{ r.ringOutsInflicted }} / {{ r.ringOutsTaken }}</td>
+              <td>{{ r.meanEnergy.toFixed(1) }}</td>
+              <td>
+                {{
+                  r.meanFirstContactTick === null
+                    ? '—'
+                    : (r.meanFirstContactTick / 60).toFixed(1) + ' s'
+                }}
+              </td>
+              <td>{{ r.violationsPerMatch.toFixed(2) }}</td>
+              <td>{{ r.timeouts }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   } @else if (running) {
-    <div class="empty-ranking"><h2>Checking controllers…</h2><p>The provisional ranking updates after every completed match.</p></div>
+    <div class="empty-ranking">
+      <h2>Checking controllers…</h2>
+      <p>The provisional ranking updates after every completed match.</p>
+    </div>
   } @else {
-    <div class="empty-ranking"><span><svg icon="trophy" [size]="44"></svg></span><h2>No verdict yet.</h2><p>Select at least two controllers and start the tournament.<br>Results and provisional rankings update after every match.</p></div>
+    <div class="empty-ranking">
+      <span><svg appIcon="trophy" [size]="44" /></span>
+      <h2>No verdict yet.</h2>
+      <p>
+        Select at least two controllers and start the tournament.<br />Results and provisional
+        rankings update after every match.
+      </p>
+    </div>
   }
 </div>
 <div id="tournament-style" class="style-grid">
   @if (report && profiles(); as profiles) {
-    <div class="ranking-header"><h2>Play style</h2><span class="tag">MEASURED OVER THE SAME MATCHES · SCALED ON THIS ROSTER</span></div><div class="style-cards">
+    <div class="ranking-header">
+      <h2>Play style</h2>
+      <span class="tag">MEASURED OVER THE SAME MATCHES · SCALED ON THIS ROSTER</span>
+    </div>
+    <div class="style-cards">
       @for (r of report.ranking; track r.id) {
-        @let shape = radar(profiles[$index]);
-        <article class="style-card"><header><strong>{{ name(r) }}</strong><span class="tag">{{ styleLabel(profiles[$index]) }}</span></header><svg viewBox="-40 -8 200 142" role="img" aria-hidden="true"><polygon class="radar-grid" [attr.points]="shape.outer"/><polygon class="radar-grid" [attr.points]="shape.inner"/>@for (spoke of shape.spokes; track $index) {<line class="radar-grid" x1="60" y1="60" [attr.x2]="spoke[0]" [attr.y2]="spoke[1]"/>}<polygon class="radar-shape" [attr.points]="shape.shape"/>@for (label of shape.labels; track label.text) {<text class="radar-label" [attr.x]="label.x" [attr.y]="label.y" [attr.text-anchor]="label.anchor">{{ label.text }}</text>}</svg><dl>@for (axis of axes; track axis.key) {<div><dt>{{ axis.label }}</dt><dd>{{ formatStyleValue(axis, r.style) }}</dd></div>}</dl></article>
+        @let profile = profiles[$index] ?? {};
+        @let shape = radar(profile);
+        <article class="style-card">
+          <header>
+            <strong>{{ name(r) }}</strong
+            ><span class="tag">{{ styleLabel(profile) }}</span>
+          </header>
+          <svg viewBox="-40 -8 200 142" role="img" aria-hidden="true">
+            <polygon class="radar-grid" [attr.points]="shape.outer" />
+            <polygon class="radar-grid" [attr.points]="shape.inner" />
+            @for (spoke of shape.spokes; track $index) {
+              <line class="radar-grid" x1="60" y1="60" [attr.x2]="spoke[0]" [attr.y2]="spoke[1]" />
+            }
+            <polygon class="radar-shape" [attr.points]="shape.shape" />
+            @for (label of shape.labels; track label.text) {
+              <text
+                class="radar-label"
+                [attr.x]="label.x"
+                [attr.y]="label.y"
+                [attr.text-anchor]="label.anchor"
+              >
+                {{ label.text }}
+              </text>
+            }
+          </svg>
+          <dl>
+            @for (axis of axes; track axis.key) {
+              <div>
+                <dt>{{ axis.label }}</dt>
+                <dd>{{ formatStyleValue(axis, r.style) }}</dd>
+              </div>
+            }
+          </dl>
+        </article>
       }
     </div>
   }
 </div>
 <div id="tournament-highlights" class="tournament-matches">
   @if (highlightRows().length) {
-    <div class="ranking-header"><h2>Highlights</h2><span class="tag">FLIPS FIRST, THEN ENGAGEMENTS</span></div><div class="table-scroll"><table><thead><tr><th>Match</th><th>Seed / spawn</th><th>Flips</th><th>Engagements</th><th>Result</th><th>Watch</th></tr></thead><tbody>
-      @for (h of highlightRows(); track $index) {<tr><td><strong>{{ h.match }}</strong></td><td>{{ h.seed }} / {{ h.mirrored ? 'Mirrored' : 'Standard' }}</td><td class="mono">{{ h.flips }}</td><td class="mono">{{ h.engagements }}</td><td>{{ h.result }}<small>{{ h.reason }} · {{ clock(h.ticks / 60) }}</small></td><td><a class="button outline" [href]="'/' + h.search"><svg icon="play"></svg>Simulate</a></td></tr>}
-    </tbody></table></div>
+    <div class="ranking-header">
+      <h2>Highlights</h2>
+      <span class="tag">FLIPS FIRST, THEN ENGAGEMENTS</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Match</th>
+            <th>Seed / spawn</th>
+            <th>Flips</th>
+            <th>Engagements</th>
+            <th>Result</th>
+            <th>Watch</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (h of highlightRows(); track $index) {
+            <tr>
+              <td>
+                <strong>{{ h.match }}</strong>
+              </td>
+              <td>{{ h.seed }} / {{ h.mirrored ? 'Mirrored' : 'Standard' }}</td>
+              <td class="mono">{{ h.flips }}</td>
+              <td class="mono">{{ h.engagements }}</td>
+              <td>
+                {{ h.result }}<small>{{ h.reason }} · {{ clock(h.ticks / 60) }}</small>
+              </td>
+              <td>
+                <a class="button outline" [href]="'/' + h.search"><svg appIcon="play" />Simulate</a>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
 </div>
 <div id="tournament-code" class="tournament-matches">
   @if (code().length) {
-    <div class="ranking-header"><h2>Implementation</h2><span class="tag">MEASURED FROM THE SUBMITTED SOURCE</span></div><div class="table-scroll"><table><thead><tr><th>Controller</th><th>Language</th><th>Lines</th><th>Code</th><th>Comments</th><th>Functions</th><th>Cyclomatic</th><th>Max nesting</th><th>Size</th></tr></thead><tbody>
-      @for (bot of code(); track bot.id) {<tr><td><strong>{{ name(bot) }}</strong></td><td>{{ bot.code.language }}</td><td class="mono">{{ bot.code.lines }}</td><td class="mono">{{ bot.code.codeLines }}</td><td class="mono">{{ bot.code.commentLines }}</td><td class="mono">{{ bot.code.functions }}</td><td class="mono">{{ bot.code.complexity }}</td><td class="mono">{{ bot.code.maxDepth }}</td><td class="mono">{{ (bot.code.bytes / 1024).toFixed(1) }} kB</td></tr>}
-    </tbody></table></div>
+    <div class="ranking-header">
+      <h2>Implementation</h2>
+      <span class="tag">MEASURED FROM THE SUBMITTED SOURCE</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Controller</th>
+            <th>Language</th>
+            <th>Lines</th>
+            <th>Code</th>
+            <th>Comments</th>
+            <th>Functions</th>
+            <th>Cyclomatic</th>
+            <th>Max nesting</th>
+            <th>Size</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (bot of code(); track bot.id) {
+            <tr>
+              <td>
+                <strong>{{ name(bot) }}</strong>
+              </td>
+              <td>{{ bot.code.language }}</td>
+              <td class="mono">{{ bot.code.lines }}</td>
+              <td class="mono">{{ bot.code.codeLines }}</td>
+              <td class="mono">{{ bot.code.commentLines }}</td>
+              <td class="mono">{{ bot.code.functions }}</td>
+              <td class="mono">{{ bot.code.complexity }}</td>
+              <td class="mono">{{ bot.code.maxDepth }}</td>
+              <td class="mono">{{ (bot.code.bytes / 1024).toFixed(1) }} kB</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
 </div>
 <div id="tournament-index" class="tournament-matches">
   @if (report && index(); as rows) {
-    <div class="ranking-header"><h2>Craft index</h2><span class="tag">RESULTS AND SOURCE · NOT THE RANKING</span></div><div class="table-scroll"><table><thead><tr><th>Controller</th><th>Craft index</th>@for (term of terms; track term.key) {<th>{{ term.label }} · {{ (term.weight * 100).toFixed(0) }}%</th>}</tr></thead><tbody>
-      @for (row of report.ranking; track row.id) {<tr><td><strong>{{ name(row) }}</strong></td><td class="bt-score">{{ rows[$index].index.toFixed(1) }}</td>@for (term of terms; track term.key) {<td class="mono">{{ rows[$index].terms[term.key] === null ? '—' : rows[$index].terms[term.key].toFixed(2) }}</td>}</tr>}
-    </tbody></table></div>
+    <div class="ranking-header">
+      <h2>Craft index</h2>
+      <span class="tag">RESULTS AND SOURCE · NOT THE RANKING</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Controller</th>
+            <th>Craft index</th>
+            @for (term of terms; track term.key) {
+              <th>{{ term.label }} · {{ (term.weight * 100).toFixed(0) }}%</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of report.ranking; track row.id) {
+            @let entry = rows[$index];
+            <tr>
+              <td>
+                <strong>{{ name(row) }}</strong>
+              </td>
+              <td class="bt-score">{{ entry?.index?.toFixed(1) ?? '—' }}</td>
+              @for (term of terms; track term.key) {
+                <td class="mono">{{ entry?.terms?.[term.key]?.toFixed(2) ?? '—' }}</td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
 </div>
 <div id="tournament-matches" class="tournament-matches">
   @if (matches().length) {
-    <div class="ranking-header"><h2>Completed matches</h2><span class="tag">WATCH WHILE THE TOURNAMENT RUNS</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Round</th><th>Match</th><th>Seed / spawn</th><th>Result</th><th>Replay</th></tr></thead><tbody>
-      @for (r of matches(); track r.index) {<tr><td>{{ r.index + 1 }}</td><td>{{ r.round }}</td><td>{{ name(report.bots[r.a]) }} vs {{ name(report.bots[r.b]) }}</td><td>{{ r.seed }} / {{ r.mirrored ? 'Mirrored' : 'Standard' }}</td><td>{{ result(r) }}<small>{{ r.reason }} · {{ clock(r.ticks / 60) }}</small></td><td><button class="button outline" [attr.data-watch-match]="r.index" [disabled]="!tournament.replays.has(r.index)" (click)="watch(r.index)"><svg icon="play"></svg>Watch</button></td></tr>}
-    </tbody></table></div>
+    <div class="ranking-header">
+      <h2>Completed matches</h2>
+      <span class="tag">WATCH WHILE THE TOURNAMENT RUNS</span>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Round</th>
+            <th>Match</th>
+            <th>Seed / spawn</th>
+            <th>Result</th>
+            <th>Replay</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of matches(); track r.index) {
+            <tr>
+              <td>{{ r.index + 1 }}</td>
+              <td>{{ r.round }}</td>
+              <td>{{ botAt(r.a) }} vs {{ botAt(r.b) }}</td>
+              <td>{{ r.seed }} / {{ r.mirrored ? 'Mirrored' : 'Standard' }}</td>
+              <td>
+                {{ result(r) }}<small>{{ r.reason }} · {{ clock(r.ticks / 60) }}</small>
+              </td>
+              <td>
+                <button
+                  class="button outline"
+                  [attr.data-watch-match]="r.index"
+                  [disabled]="!tournament.replays.has(r.index)"
+                  (click)="watch(r.index)"
+                >
+                  <svg appIcon="play" />Watch
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
   }
 </div>
-<p class="tournament-note">Regularized Bradley–Terry: mean strength = 100. Quick rounds sample different opponents with one seed and both spawns per pairing; they do not estimate confidence intervals. Full round robin adds 95% seed-bootstrap intervals when complete. Results remain provisional while running or after cancellation. Completed replays stay available until the next tournament or page reload. Browser results are exhibitions; the standard evaluation protocol is available through the CLI. The published standings shown when this page opens come from a repository run; starting a tournament replaces them with your own results.</p>
+<p class="tournament-note">
+  Regularized Bradley–Terry: mean strength = 100. Quick rounds sample different opponents with one
+  seed and both spawns per pairing; they do not estimate confidence intervals. Full round robin adds
+  95% seed-bootstrap intervals when complete. Results remain provisional while running or after
+  cancellation. Completed replays stay available until the next tournament or page reload. Browser
+  results are exhibitions; the standard evaluation protocol is available through the CLI. The
+  published standings shown when this page opens come from a repository run; starting a tournament
+  replaces them with your own results.
+</p>

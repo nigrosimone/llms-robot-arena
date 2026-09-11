@@ -1,19 +1,35 @@
-import { Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { botName, botDetails } from '../../../../../packages/bot-catalog.js';
-import { STYLE_AXES, formatStyleValue, styleLabel, styleProfiles } from '../../../../../packages/tournament/style.js';
+import { botDetails, botName } from '../../../../../packages/bot-catalog.js';
+import {
+  STYLE_AXES,
+  formatStyleValue,
+  styleLabel,
+  styleProfiles,
+} from '../../../../../packages/tournament/style.js';
 import { INDEX_TERMS, compositeIndex } from '../../../../../packages/tournament/composite.js';
-import { highlights, highlightLabel } from '../../../../../packages/tournament/spectacle.js';
+import { highlightLabel, highlights } from '../../../../../packages/tournament/spectacle.js';
+import { type MatchRecord } from '../../../../../packages/tournament/ranking.js';
 import { Icon } from '../core/icons';
 import { BotsStore } from '../core/bots.store';
-import { clock, siteUrl } from '../core/url';
-import { GateResult } from '../lab/gate';
+import { clock, inputChecked, inputValue, siteUrl } from '../core/url';
+import { GateResult, gateLabel } from '../lab/gate';
 import { ArenaStore } from '../arena/arena.store';
 import { TournamentStore } from './tournament.store';
 
+interface Radar {
+  outer: string;
+  inner: string;
+  shape: string;
+  spokes: string[][];
+  labels: { x: string; y: string; anchor: string; text: string }[];
+}
+
+/** The tournament panel: roster, progress, ranking, style radars and highlights. */
 @Component({
-  selector: 'tournament-page',
+  selector: 'app-tournament-page',
   imports: [Icon, GateResult],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   host: { id: 'panel-tournament', class: 'panel' },
   templateUrl: './tournament-page.html',
 })
@@ -23,26 +39,35 @@ export class TournamentPage {
   private readonly arena = inject(ArenaStore);
   private readonly router = inject(Router);
   protected readonly clock = clock;
-  protected readonly axes = STYLE_AXES as { key: string; label: string; short?: string }[];
-  protected readonly terms = INDEX_TERMS as { key: string; label: string; weight: number }[];
+  protected readonly value = inputValue;
+  protected readonly checked = inputChecked;
+  protected readonly axes = STYLE_AXES;
+  protected readonly terms = INDEX_TERMS;
   protected readonly formatStyleValue = formatStyleValue;
   protected readonly styleLabel = styleLabel;
-  protected readonly gateLabel = (gate: any) => (gate.pass ? 'Passed' : (gate.eligible ?? gate.pass) ? 'Ready for exhibition' : 'Check failed');
+  protected readonly gateLabel = gateLabel;
 
   constructor() {
-    this.tournament.loadPublished(siteUrl('standings.json'));
+    void this.tournament.loadPublished(siteUrl('standings.json'));
   }
-  protected name = (bot: object) => botName(bot as any);
-  protected details = (bot: object) => botDetails(bot as any);
+  /** Display name of a controller. */
+  protected name = (bot: { model?: string }): string => botName(bot);
+  /** Provider line of a controller. */
+  protected details = (bot: { provider?: string | null }): string => botDetails(bot);
   protected readonly heading = computed(() => {
     const report = this.tournament.report();
     if (!report) return null;
     const format = report.format === 'quick' ? 'QUICK ROUNDS' : 'ROUND ROBIN';
+    const date = report.generatedAt ? ' · ' + report.generatedAt.slice(0, 10) : '';
     return {
-      title: report.published ? 'Published standings' : report.status === 'complete' ? 'Final ranking' : 'Provisional ranking',
+      title: report.published
+        ? 'Published standings'
+        : report.status === 'complete'
+          ? 'Final ranking'
+          : 'Provisional ranking',
       tag: report.published
-        ? `PUBLISHED · ${report.records.length} MATCHES · ${format}${report.generatedAt ? ' · ' + report.generatedAt.slice(0, 10) : ''}`
-        : `${report.records.length} / ${report.totalMatches} MATCHES · ${format} · ${String(report.status).toUpperCase()}`,
+        ? `PUBLISHED · ${String(report.records.length)} MATCHES · ${format}${date}`
+        : `${String(report.records.length)} / ${String(report.totalMatches)} MATCHES · ${format} · ${report.status.toUpperCase()}`,
     };
   });
   protected readonly profiles = computed(() => {
@@ -51,7 +76,7 @@ export class TournamentPage {
   });
   protected readonly highlightRows = computed(() => {
     const report = this.tournament.report();
-    return report ? highlights(report).map((h: any) => ({ ...h, ...highlightLabel(report, h) })) : [];
+    return report ? highlights(report).map((h) => ({ ...h, ...highlightLabel(report, h) })) : [];
   });
   protected readonly index = computed(() => {
     const report = this.tournament.report();
@@ -60,43 +85,74 @@ export class TournamentPage {
   protected readonly code = computed(() => {
     const report = this.tournament.report();
     if (!report) return [];
-    const order = new Map<string, number>(report.ranking.map((row: any, i: number) => [row.id, i]));
-    return (report.bots ?? []).filter((bot: any) => bot.code).sort((x: any, y: any) => (order.get(x.id) ?? Infinity) - (order.get(y.id) ?? Infinity));
+    const order = new Map(report.ranking.map((row, i) => [row.id, i]));
+    return report.bots
+      .flatMap((bot) => (bot.code ? [{ ...bot, code: bot.code }] : []))
+      .sort((x, y) => (order.get(x.id) ?? Infinity) - (order.get(y.id) ?? Infinity));
   });
   protected readonly matches = computed(() => {
     const report = this.tournament.report();
-    return report && !report.published ? report.records.map((r: any, i: number) => ({ ...r, index: i })).reverse() : [];
+    return report && !report.published
+      ? report.records.map((r, i) => ({ ...r, index: i })).reverse()
+      : [];
   });
-  // One radar per controller: the axes are scaled against the rest of the
-  // roster, so the shape compares controllers instead of measuring them.
-  protected radar(profile: Record<string, number>) {
-    const point = (index: number, radius: number) => {
+  /**
+   * One radar per controller: the axes are scaled against the rest of the
+   * roster, so the shape compares controllers instead of measuring them.
+   */
+  protected radar(profile: Record<string, number>): Radar {
+    const point = (index: number, radius: number): [number, number] => {
       const angle = (Math.PI * 2 * index) / this.axes.length - Math.PI / 2;
       return [60 + radius * Math.cos(angle), 60 + radius * Math.sin(angle)];
     };
-    const ring = (radius: number) => this.axes.map((_, i) => point(i, radius).map((n) => n.toFixed(1)).join(',')).join(' ');
+    const ring = (radius: number): string =>
+      this.axes
+        .map((_, i) =>
+          point(i, radius)
+            .map((n) => n.toFixed(1))
+            .join(','),
+        )
+        .join(' ');
     return {
       outer: ring(46),
       inner: ring(23),
-      shape: this.axes.map((axis, i) => point(i, 12 + 34 * Math.min(1, Math.max(0, profile[axis.key]))).map((n) => n.toFixed(1)).join(',')).join(' '),
+      shape: this.axes
+        .map((axis, i) =>
+          point(i, 12 + 34 * Math.min(1, Math.max(0, profile[axis.key] ?? 0)))
+            .map((n) => n.toFixed(1))
+            .join(','),
+        )
+        .join(' '),
       spokes: this.axes.map((_, i) => point(i, 46).map((n) => n.toFixed(1))),
       labels: this.axes.map((axis, i) => {
         const [x, y] = point(i, 54);
         const anchor = x > 61 ? 'start' : x < 59 ? 'end' : 'middle';
         const dx = anchor === 'start' ? 4 : anchor === 'end' ? -4 : 0;
         const dy = y > 61 ? 8 : y < 59 ? 0 : 3;
-        return { x: (x + dx).toFixed(1), y: (y + dy).toFixed(1), anchor, text: axis.short ?? axis.label };
+        return {
+          x: (x + dx).toFixed(1),
+          y: (y + dy).toFixed(1),
+          anchor,
+          text: axis.short ?? axis.label,
+        };
       }),
     };
   }
-  protected watch(index: number) {
+  /** Opens a tournament replay in the arena. */
+  protected watch(index: number): void {
     const replay = this.tournament.replays.get(index);
     if (!replay) return;
     this.arena.loadReplay(replay, true);
-    this.router.navigateByUrl('/');
+    void this.router.navigateByUrl('/');
   }
-  protected result(r: any) {
-    const report = this.tournament.report();
-    return r.score === 0.5 ? 'Draw' : botName(report.bots[r.score === 1 ? r.a : r.b]) + ' wins';
+  /** The outcome of a match in words. */
+  protected result(r: MatchRecord): string {
+    const bot = this.tournament.report()?.bots[r.score === 1 ? r.a : r.b];
+    return r.score === 0.5 ? 'Draw' : `${bot ? botName(bot) : 'Robot'} wins`;
+  }
+  /** Name of the controller at a report index. */
+  protected botAt(index: number): string {
+    const bot = this.tournament.report()?.bots[index];
+    return bot ? botName(bot) : 'Robot';
   }
 }
