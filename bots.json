@@ -97,5 +97,23 @@
     "provider": "OpenAI",
     "file": "packages/bots/gpt-5-5-xhigh.js",
     "provenance": "iterative"
+  },
+  {
+    "id": "deepseek-v4-pro-0813",
+    "model": "DeepSeek V4 Pro 0813",
+    "thinking": null,
+    "harness": "OpenCode",
+    "provider": "DeepSeek",
+    "file": "packages/bots/deepseek-v4-pro-0813.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "glm-5-3-flash",
+    "model": "GLM 5.3 Flash",
+    "thinking": null,
+    "harness": "OpenCode",
+    "provider": "Z.ai",
+    "file": "packages/bots/glm-5-3-flash.js",
+    "provenance": "iterative"
   }
 ]
