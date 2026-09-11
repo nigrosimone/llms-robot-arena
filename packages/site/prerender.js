@@ -70,6 +70,7 @@ function layout({ path, title, description, main, schema, baseUrl, app = false }
   <link rel="icon" href="${SITE.icon}">
   <link rel="stylesheet" href="${to("style.css")}">
   <script type="application/ld+json">${jsonLd(schema)}</script>
+  ${SITE.analytics}
 </head>
 <body>
 ${app ? '<div id="app">' : ""}<header class="header">
@@ -640,6 +641,7 @@ const notFoundPage = (baseUrl) => `<!doctype html>
   <title>Page not found - ${esc(SITE.name)}</title>
   <meta name="robots" content="noindex">
   <link rel="icon" href="${SITE.icon}">
+  ${SITE.analytics}
   <style>
     body { margin: 0; min-height: 100vh; display: grid; place-content: center; gap: 12px;
       text-align: center; background: #101317; color: #e6edf1;

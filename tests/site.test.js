@@ -128,7 +128,7 @@ test("rules, standings and controller pages carry the content they exist for", a
   const alpha = files.get("bots/alpha-max/index.html");
   assert.ok(alpha.includes("a".repeat(64)), "the source hash identifies the measured file");
   assert.ok(alpha.includes("&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;"), "sources are escaped, never executed");
-  assert.doesNotMatch(alpha.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g, ""), /<script/);
+  assert.doesNotMatch(alpha.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/g, "").replace(SITE.analytics, ""), /<script/);
 });
 
 test("the panel pages boot the application, the reference pages stay plain", async () => {
