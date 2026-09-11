@@ -5,7 +5,7 @@
 import { spawn } from "node:child_process";
 import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createViewerServer } from "../../packages/viewer/serve.js";
 
 const CANDIDATES = [
@@ -26,8 +26,10 @@ export async function findChrome() {
   return null;
 }
 
+// SITE_DIST points the suite at another build, such as the Angular app.
 export async function startSite() {
-  const server = createViewerServer();
+  const dist = process.env.SITE_DIST ? resolve(process.env.SITE_DIST) : undefined;
+  const server = createViewerServer(dist ? { dist, spa: true } : {});
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   return { url: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((r) => server.close(r)) };
 }
@@ -58,7 +60,7 @@ export async function launchBrowser({ mobile = false } = {}) {
     downloads,
     async page() {
       const created = await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: "PUT" }).then((r) => r.json());
-      return openPage(created.webSocketDebuggerUrl, { mobile, downloads });
+      return openPage(created.webSocketDebuggerUrl, { mobile, downloads, close: () => fetch(`http://127.0.0.1:${port}/json/close/${created.id}`) });
     },
     async close() {
       process_.kill();
@@ -69,7 +71,7 @@ export async function launchBrowser({ mobile = false } = {}) {
   return browser;
 }
 
-async function openPage(wsUrl, { mobile, downloads }) {
+async function openPage(wsUrl, { mobile, downloads, close }) {
   const ws = new WebSocket(wsUrl);
   await new Promise((resolve, reject) => {
     ws.onopen = resolve;
@@ -139,8 +141,10 @@ async function openPage(wsUrl, { mobile, downloads }) {
       const { nodeId } = await send("DOM.querySelector", { nodeId: root.nodeId, selector });
       await send("DOM.setFileInputFiles", { nodeId, files });
     },
+    // The tab goes too: a closed test must not keep simulating in the background.
     async close() {
       ws.close();
+      await close?.().catch(() => {});
     },
   };
   return page;

@@ -44,6 +44,25 @@ const card = (title, tag, body) =>
 const facts = (rows) =>
   table(["Field", "Value"], rows.map(([k, v]) => [esc(k), `<span class="mono">${esc(v)}</span>`]));
 
+// The application shell names its bundles (hashed by the Angular build) and
+// its host element; the static pages reuse both so the app can take over.
+export function shellAssets(index) {
+  const attributes = (tag, attribute) =>
+    [...index.matchAll(new RegExp(`<${tag}\\b[^>]*>`, "g"))]
+      .map(([element]) => element.match(new RegExp(`${attribute}="([^"]+)"`))?.[1])
+      .filter(Boolean)
+      .map((value) => value.replace(/^\.\//, ""));
+  const links = [...index.matchAll(/<link\b[^>]*>/g)].map(([element]) => element);
+  const href = (element) => element.match(/href="([^"]+)"/)?.[1]?.replace(/^\.\//, "");
+  return {
+    styles: links.filter((l) => /rel="stylesheet"/.test(l)).map(href).filter(Boolean),
+    preloads: links.filter((l) => /rel="modulepreload"/.test(l)).map(href).filter(Boolean),
+    scripts: attributes("script", "src").filter((src) => !/gc\.zgo\.at/.test(src)),
+    host: index.includes("<app-root") ? "app-root" : "div",
+  };
+}
+let ASSETS = { styles: ["style.css"], preloads: [], scripts: ["app.js"], host: "div" };
+
 function layout({ path, title, description, main, schema, baseUrl, app = false }) {
   const depth = depthOf(path);
   const to = (target) => relative(depth, target);
@@ -69,12 +88,12 @@ function layout({ path, title, description, main, schema, baseUrl, app = false }
   <meta property="og:url" content="${esc(canonical)}">
   <meta name="twitter:card" content="summary">
   <link rel="icon" href="${SITE.icon}">
-  <link rel="stylesheet" href="${to("style.css")}">
+  ${ASSETS.styles.map((style) => `<link rel="stylesheet" href="${to(style)}">`).join("\n  ")}
   <script type="application/ld+json">${jsonLd(schema)}</script>
   ${SITE.analytics}
 </head>
 <body>
-${app ? '<div id="app">' : ""}<header class="header">
+${app ? `<${ASSETS.host} id="app">` : ""}<header class="header">
  <a class="brand" href="${to("")}" aria-label="${esc(SITE.name)}, home"><span class="brand-mark" aria-hidden="true">R<span>↗</span></span><span>llms-<span class="brand-second">robot-arena</span></span></a>
  <nav aria-label="Main navigation">${nav}</nav>
  <div class="header-end"><span class="version">SPEC ${SPEC_VERSION.replace("-draft", "")} </span></div>
@@ -83,7 +102,7 @@ ${app ? '<div id="app">' : ""}<header class="header">
 <footer class="footer"><span><a href="${SITE.repository}" title="View ${esc(SITE.name)} on GitHub">${esc(SITE.name)}</a></span><nav class="footer-links" aria-label="Reference pages"><a href="${to(
     CONTROLLERS.route,
   )}">${esc(CONTROLLERS.label)}</a></nav><span>Code makes the difference.</span><span>ENGINE ${ENGINE_VERSION}</span></footer>
-${app ? `</div>\n<script type="module" src="${to("app.js")}"></script>` : ""}
+${app ? `</${ASSETS.host}>\n${ASSETS.preloads.map((p) => `<link rel="modulepreload" href="${to(p)}">`).join("\n")}${ASSETS.scripts.map((s) => `<script type="module" src="${to(s)}"></script>`).join("\n")}` : ""}
 </body>
 </html>
 `;
@@ -691,6 +710,7 @@ export function renderSite({
   now = new Date(),
 }) {
   const base = baseUrl.endsWith("/") ? baseUrl : baseUrl + "/";
+  ASSETS = shellAssets(index);
   const slugs = bots.map(botSlug);
   if (slugs.some((slug) => !slug) || new Set(slugs).size !== slugs.length)
     throw new Error("Bot IDs must produce unique, non-empty URL slugs.");

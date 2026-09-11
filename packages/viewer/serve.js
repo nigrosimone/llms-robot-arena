@@ -23,9 +23,12 @@ function safePath(base, relative) {
   return target.startsWith(base + sep) ? target : null;
 }
 
+// `spa` answers unknown paths with index.html, for a build without the
+// prerendered pages, the way GitHub Pages does with its 404 page.
 export function createViewerServer({
   dist = resolve(root, "dist"),
   replays = resolve(root, "results"),
+  spa = false,
 } = {}) {
   return createServer(async (req, res) => {
     function send(status, body, type = "text/plain; charset=utf-8") {
@@ -97,10 +100,10 @@ export function createViewerServer({
         types[extname(file)] || "application/octet-stream",
       );
     } catch (error) {
-      send(
-        error.code === "ENOENT" || error.code === "ENOTDIR" ? 404 : 500,
-        "File unavailable",
-      );
+      const missing = error.code === "ENOENT" || error.code === "ENOTDIR";
+      if (missing && spa && !extname(req.url.split("?")[0]))
+        return send(200, await readFile(resolve(dist, "index.html")), types[".html"]);
+      send(missing ? 404 : 500, "File unavailable");
     }
   });
 }

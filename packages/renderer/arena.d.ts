@@ -66,6 +66,7 @@ export class ArenaViewer {
   setCameraView(view: "auto" | number, options?: { withRival?: boolean }): void;
   setFocus(index: number | null): void;
   setMinimumRows(rows: number): void;
+  applySize(): void;
   beginOffline(width: number, height: number): void;
   renderAt(t: number, dt: number): HTMLCanvasElement;
   endOffline(): void;

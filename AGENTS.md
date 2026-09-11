@@ -585,10 +585,11 @@ When asked to return a standalone bot submission as your response, respond with 
 
 ## Run locally
 
-Use **Node.js 24 or newer**:
+Use **Node.js 24 or newer**. The front end is an Angular application in `apps/web` with its own dependencies:
 
 ```sh
 npm ci
+npm ci --prefix apps/web
 npm start
 ```
 
@@ -709,4 +710,9 @@ To check a platform change and rebuild:
 ```sh
 npm test
 npm run build
+npm run e2e
 ```
+
+`npm run e2e` drives the built site in a local Chrome (new headless mode, the GPU when there is one) through the DevTools protocol, no browser download: the opening match, a match link and a rumble, a challenge link beaten from the keyboard, the panels with the gate and the standings, the touch buttons on a phone. Those scenarios define the parity of the front end; a change to the app must keep them green.
+
+The front end is an Angular application (`apps/web`: zoneless, standalone components, signals, `ng-simple-state` stores) over plain JavaScript packages that know nothing about it: `packages/sim`, `packages/runtime`, `packages/tournament`, `packages/renderer` (the three.js viewer, sound, recorder and clip, with `.d.ts` contracts) and `packages/site` (page content and the prerender). The 60 Hz stream from the match worker goes straight to the renderer; the stores only hold what changes slowly. `scripts/build.mjs` runs the Angular build, adds the bot worker, the standings and the music, then prerenders the static pages with the hashed bundles.

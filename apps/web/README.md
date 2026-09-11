@@ -1,59 +1,10 @@
-# Web
+# apps/web
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.1.8.
+The front end: Angular 22, zoneless, standalone components, signals, `ng-simple-state` stores. It imports the plain JavaScript packages of the repository as they are (`packages/sim`, `runtime`, `tournament`, `renderer`, `site`) and adds only what the page needs: routes, panels, forms and the slow state around a match.
 
-## Development server
+- `src/app/arena`: the arena panel. `ViewerService` owns the one renderer for the life of the app (its canvas host moves in and out of the page), the sound, the intro, the recorder and the offline clip. `ArenaStore` holds settings, the replay on the stage, the live match and the challenge links; the 60 Hz stream from the match worker goes straight to the renderer.
+- `src/app/lab`, `src/app/tournament`, `src/app/rules`: the other panels, lazy.
+- `src/app/core`: icons, toast, URL helpers, the catalog store and the worker service (one match worker at a time).
+- `src/generated/bots.ts` is written by `scripts/build.mjs` from the catalog; the bot worker the match worker spawns is bundled by the same script.
 
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+From the repository root, `npm ci --prefix apps/web` once, then `npm run build` (the whole site into `dist/`) and `npm run e2e` (the parity scenarios in a local Chrome). `npx ng build` and `npx ng serve` work from this directory for a quicker loop, after `node ../../scripts/build.mjs` has generated the catalog module once.

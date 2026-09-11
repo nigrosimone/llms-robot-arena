@@ -16,6 +16,7 @@ Use Node.js 24 or newer. Install dependencies and start the viewer:
 
 ```sh
 npm ci
+npm ci --prefix apps/web
 npm start
 ```
 

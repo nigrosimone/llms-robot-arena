@@ -1,14 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { renderSite, botSlug } from "../packages/site/prerender.js";
 import { RULE_CARDS, HAZARD_CARDS, SITE, TABS, normalizeRoute, tabForRoute } from "../packages/site/content.js";
 import { projectRoot } from "../packages/bot-catalog-node.js";
 
 const BASE = "https://example.test/arena/";
-const shell = () =>
-  readFile(resolve(projectRoot, "packages/viewer/public/index.html"), "utf8");
+// The shell the Angular build writes: hashed bundles, an app-root host.
+const shell = async () => `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="llms-robot-arena. Two identical robots, one difference: code. Simulate, watch and compare autonomous controllers in a deterministic 3D arena.">
+  <title>llms-robot-arena — Autonomous combat lab</title>
+  <link rel="stylesheet" href="styles-ABC123.css">
+  <script data-goatcounter="https://llms-robot-arena.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+</head>
+<body>
+  <app-root id="app"></app-root>
+  <link rel="modulepreload" href="chunk-DEF456.js">
+  <script src="main-XYZ789.js" type="module"></script>
+</body>
+</html>
+`;
 
 const style = () => ({
   closingShare: 0.4, approachSpeed: 0.6, facingShare: 0.6, proximityShare: 0.5,
@@ -95,8 +109,8 @@ test("every page is a complete document with its own title, description, canonic
 
 test("assets and links resolve from any depth, so the site works under a path prefix", async () => {
   const files = await render();
-  assert.match(files.get("rules/index.html"), /<link rel="stylesheet" href="\.\.\/style\.css">/);
-  assert.match(files.get("bots/alpha-max/index.html"), /<link rel="stylesheet" href="\.\.\/\.\.\/style\.css">/);
+  assert.match(files.get("rules/index.html"), /<link rel="stylesheet" href="\.\.\/styles-ABC123\.css">/);
+  assert.match(files.get("bots/alpha-max/index.html"), /<link rel="stylesheet" href="\.\.\/\.\.\/styles-ABC123\.css">/);
   assert.match(files.get("bots/index.html"), /href="\.\/alpha-max\/"/);
   for (const [path, html] of files)
     if (path.endsWith(".html"))
@@ -106,7 +120,7 @@ test("assets and links resolve from any depth, so the site works under a path pr
 test("the application shell keeps its script and gains metadata plus crawlable links", async () => {
   const files = await render();
   const home = files.get("index.html");
-  assert.match(home, /<script type="module" src="\.\/app\.js"><\/script>/);
+  assert.match(home, /<script src="main-XYZ789\.js" type="module"><\/script>/);
   assert.match(home, /<link rel="canonical" href="https:\/\/example\.test\/arena\/">/);
   assert.match(home, /"@type":"WebApplication"/);
   for (const path of ["./rules/", "./tournament/", "./bots/"])
@@ -136,8 +150,9 @@ test("the panel pages boot the application, the reference pages stay plain", asy
   for (const tab of TABS) {
     const path = tab.route + "index.html";
     const html = files.get(path);
-    assert.ok(html.includes('<div id="app">'), `${path} must give its content to the application`);
-    assert.match(html, /<script type="module" src="[^"]*app\.js"><\/script>/, path);
+    assert.ok(html.includes('<app-root id="app">'), `${path} must give its content to the application`);
+    assert.match(html, /<link rel="modulepreload" href="[^"]*chunk-DEF456\.js">/, path);
+    assert.match(html, /<script[^>]*src="[^"]*main-XYZ789\.js"[^>]*><\/script>/, path);
     assert.equal(html.match(/<title>(.*?)<\/title>/)[1], tab.title, path);
     // What the application intercepts has to be a real link for a crawler.
     if (tab.route)
@@ -146,7 +161,7 @@ test("the panel pages boot the application, the reference pages stay plain", asy
   }
   for (const path of ["bots/index.html", "bots/alpha-max/index.html"]) {
     assert.doesNotMatch(files.get(path), /src="[^"]*app\.js"/, path);
-    assert.ok(!files.get(path).includes('<div id="app">'), path);
+    assert.ok(!files.get(path).includes('<app-root id="app">'), path);
   }
 });
 
