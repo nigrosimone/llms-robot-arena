@@ -4,7 +4,7 @@ import { botMetadata } from "../bot-catalog.js";
 
 export const HUMAN_BOT = Object.freeze({
   id: "human",
-  model: "You",
+  model: "Human",
   provider: "Keyboard",
   thinking: null,
   harness: null,

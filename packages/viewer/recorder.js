@@ -72,9 +72,7 @@ export function matchOutcome(replay) {
     title:
       winner === null
         ? "Draw."
-        : winner.id === "human"
-          ? "You win."
-          : botName(winner) + " wins.",
+        : botName(winner) + " wins.",
     reason:
       {
         ["ring-out"]: "Ring-out",
