@@ -80,12 +80,15 @@ export function parseTranscript(harness, text) {
       summary.outputTokens = result.usage?.output_tokens ?? 0;
     }
   } else {
+    // Codex counts one turn per prompt; the commands it ran say more.
+    summary.commands = 0;
     for (const e of events) {
       if (e.type === "turn.completed") {
         summary.turns++;
         summary.inputTokens += e.usage?.input_tokens ?? 0;
         summary.outputTokens += e.usage?.output_tokens ?? 0;
       }
+      if (e.type === "item.completed" && e.item?.type === "command_execution") summary.commands++;
     }
   }
   return summary;
@@ -283,8 +286,8 @@ export async function generateBot({
       : "repository copy without other controllers, on the operator machine (the operator CLAUDE.md reaches Claude Code)",
     promptSha256: sha256(template), agentsSha256: sha256(agents),
     specVersion: SPEC_VERSION, engineVersion: ENGINE_VERSION,
-    startedAt: started.toISOString(), durationMs: Date.now() - started.getTime(),
-    ...summary, ...measured, codeSha256: sha256(source), transcript: `artifacts/generations/${batch}.jsonl`,
+    startedAt: started.toISOString(),
+    ...summary, durationMs: summary.durationMs ?? Date.now() - started.getTime(), ...measured, codeSha256: sha256(source), transcript: `artifacts/generations/${batch}.jsonl`,
   };
   await mkdir(join(root, "generations"), { recursive: true });
   if (!measured.gate.eligible) {

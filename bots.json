@@ -61,5 +61,41 @@
     "provider": "OpenAI",
     "file": "packages/bots/gpt-5-6-terra-ultra.js",
     "provenance": "iterative"
+  },
+  {
+    "id": "haiku-4-5-max",
+    "model": "Claude Haiku 4.5",
+    "thinking": "max",
+    "harness": "Claude Code",
+    "provider": "Anthropic",
+    "file": "packages/bots/haiku-4-5-max.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "gpt-5-3-codex-spark-xhigh",
+    "model": "GPT-5.3 Codex Spark",
+    "thinking": "xhigh",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-5-3-codex-spark-xhigh.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "gpt-5-6-luna-max",
+    "model": "GPT-5.6 Luna",
+    "thinking": "max",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-5-6-luna-max.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "gpt-5-5-xhigh",
+    "model": "GPT-5.5",
+    "thinking": "xhigh",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-5-5-xhigh.js",
+    "provenance": "iterative"
   }
 ]

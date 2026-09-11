@@ -1,0 +1,35 @@
+{
+  "id": "gpt-5-5-xhigh",
+  "model": "GPT-5.5",
+  "harnessModel": "gpt-5.5",
+  "thinking": "xhigh",
+  "harness": "Codex",
+  "harnessVersion": "codex-cli 0.154.0",
+  "provenance": "iterative",
+  "isolation": "docker container with a bare home and a repository copy without other controllers",
+  "promptSha256": "bda8fa43047d0cbf8349ba26934dd374f5e12e8372bc82798665137f994ae259",
+  "agentsSha256": "244a7abb2e6cdf6bb7e8a38d1d9b593fc32674899317629b98e878c7e43b85d2",
+  "specVersion": "0.2.2-draft",
+  "engineVersion": "0.2.2-r2",
+  "startedAt": "2026-09-11T05:59:12.633Z",
+  "turns": 1,
+  "inputTokens": 2308901,
+  "outputTokens": 26197,
+  "cost": null,
+  "durationMs": 998106,
+  "commands": 22,
+  "gate": {
+    "eligible": true,
+    "pass": true,
+    "p99": 1.442700000014156
+  },
+  "baseline": {
+    "matches": 20,
+    "wins": 15,
+    "draws": 3,
+    "losses": 2,
+    "score": 0.825
+  },
+  "codeSha256": "1b16097d85311350bba03afd3d54e7ef30740115d9cf29dab4e30c6eb2e40457",
+  "transcript": "artifacts/generations/gpt-5-5-xhigh-20260911T055912.jsonl"
+}

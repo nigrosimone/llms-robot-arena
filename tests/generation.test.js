@@ -74,6 +74,8 @@ test("the workspace holds Baseline and the new slot only, and the result is regi
   const source = await readFile(join(root, "packages/bots/luna-max.js"), "utf8");
   assert.equal(manifest.codeSha256, sha256(source));
   assert.equal(manifest.turns, 2);
+  assert.equal(manifest.commands, 0);
+  assert.ok(manifest.durationMs >= 0, "a Codex session keeps the measured duration");
   assert.equal(manifest.inputTokens, 30);
   assert.equal(manifest.harnessVersion, "codex-cli 0.154.0");
   assert.match(manifest.isolation, /operator machine/);

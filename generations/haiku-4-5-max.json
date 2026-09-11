@@ -1,0 +1,34 @@
+{
+  "id": "haiku-4-5-max",
+  "model": "Claude Haiku 4.5",
+  "harnessModel": "claude-haiku-4-5",
+  "thinking": "max",
+  "harness": "Claude Code",
+  "harnessVersion": "2.1.268 (Claude Code)",
+  "provenance": "iterative",
+  "isolation": "docker container with a bare home and a repository copy without other controllers",
+  "promptSha256": "bda8fa43047d0cbf8349ba26934dd374f5e12e8372bc82798665137f994ae259",
+  "agentsSha256": "244a7abb2e6cdf6bb7e8a38d1d9b593fc32674899317629b98e878c7e43b85d2",
+  "specVersion": "0.2.2-draft",
+  "engineVersion": "0.2.2-r2",
+  "startedAt": "2026-09-11T05:33:51.768Z",
+  "durationMs": 379397,
+  "turns": 26,
+  "inputTokens": 1072324,
+  "outputTokens": 20220,
+  "cost": 0.31863340000000007,
+  "gate": {
+    "eligible": true,
+    "pass": false,
+    "p99": 2.4398999999975786
+  },
+  "baseline": {
+    "matches": 20,
+    "wins": 14,
+    "draws": 3,
+    "losses": 3,
+    "score": 0.775
+  },
+  "codeSha256": "1125007f1a4992b64b061c1a1b05f7ac734d275d72aef86e739bad9a71599871",
+  "transcript": "artifacts/generations/haiku-4-5-max-20260911T053351.jsonl"
+}
