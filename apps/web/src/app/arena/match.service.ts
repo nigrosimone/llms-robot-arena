@@ -1,7 +1,7 @@
 // The arena state that changes slowly lives in signals; the 60 Hz stream from
 // the worker goes straight to the viewer, never through the framework.
 import { Injectable, signal, computed } from '@angular/core';
-import { ArenaViewer } from '../../../../../packages/viewer/arena.js';
+import { ArenaViewer } from '../../../../../packages/renderer/arena.js';
 import { parseReplay } from '../../../../../packages/sim/replay.js';
 import { SPEC as S, SPEC_VERSION, ENGINE_VERSION } from '../../../../../packages/sim/spec.js';
 import { readMatchSettings, matchSettingsSearch } from '../../../../../packages/viewer/match-link.js';

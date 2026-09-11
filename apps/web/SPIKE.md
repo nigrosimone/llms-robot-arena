@@ -5,7 +5,7 @@ A time-boxed try of the Tappa 3 architecture: Angular 22 (zoneless, standalone, 
 ## What is here
 
 - `src/app/arena/match.service.ts`: the slow state in signals (roster, seed, spawn, status, progress, the loaded replay, a HUD sampled at 10 Hz). The worker messages `replay`, `live-start`, `live-tick`, `live-end` are handled here; the 60 Hz `live-tick` stream is appended to the growing replay object and read by the viewer, never through a signal or a template.
-- `src/app/arena/arena-page.ts`: the stage, playback controls, robot cards, the sidebar with the same CSS classes as the current viewer. The `ArenaViewer` from `packages/viewer/arena.js` is mounted in `afterNextRender` and disposed with the page; the replay outlives the page in the service and is reloaded on return.
+- `src/app/arena/arena-page.ts`: the stage, playback controls, robot cards, the sidebar with the same CSS classes as the current viewer. The `ArenaViewer` from `packages/renderer/arena.js` is mounted in `afterNextRender` and disposed with the page; the replay outlives the page in the service and is reloaded on return.
 - Routes `/`, `/lab`, `/tournament`, `/rules`: the arena in the initial bundle, the others lazy placeholders. The match query string (`?a&b&seed&spawn`) is read and written exactly as today.
 - `tools/bots.mjs` writes `src/generated/bots.ts` (the catalog with sources, what the `arena:bots` esbuild plugin does for the current build); `tools/workers.mjs` bundles `bot-worker.js` into `public/` because the Angular builder bundles only the worker it sees in the app, not the one that worker spawns.
 - Stylesheet: `packages/viewer/public/style.css` imported as is.
