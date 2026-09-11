@@ -1,4 +1,4 @@
-import { SPEC as S, SPEC_VERSION, ENGINE_VERSION } from "../sim/spec.js";
+import { SPEC as S, SPEC_VERSION, ENGINE_VERSION, mulberry32 } from "../sim/spec.js";
 import { renderReport } from "../tournament/report.js";
 import { ArenaViewer } from "./arena.js";
 import { stringifyReplay, parseReplay } from "../sim/replay.js";
@@ -144,7 +144,7 @@ document.querySelector("#app").innerHTML = `
      <div class="seed-row"><div><label for="seed" class="field-label">SEED</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="0"></div><div><label for="spawn" class="field-label">SPAWN</label><select id="spawn"><option value="normal">Standard</option><option value="mirror">Mirrored</option></select></div></div>
      <button id="simulate" class="button accent run-button">${icon("play")}Simulate match${icon("arrow")}</button><p class="field-note">The entire match is computed before playback.</p>
      <button id="play-manual" class="button outline run-button">${icon("bolt")}Play yourself vs Robot B${icon("arrow")}</button><p class="field-note">Manual matches run in real time with the keyboard. Your inputs are logged with the replay, so it can be reproduced and shared. Never ranked.</p>
-     <button id="rumble" class="button outline run-button">${icon("trophy")}Royal rumble: everyone in${icon("arrow")}</button><p class="field-note">Every controller spawns in the same arena and the last one standing wins. Controllers still see one opponent, the closest. Rumbles are exhibitions and are never ranked.</p>
+     <button id="rumble" class="button outline run-button">${icon("trophy")}Royal rumble: everyone in${icon("arrow")}</button><p class="field-note">Up to twelve controllers spawn in the same arena and the last one standing wins; with more in the catalog, the seed draws twelve. Controllers still see one opponent, the closest. Rumbles are exhibitions and are never ranked.</p>
     </div>
     <div class="mode-box"><span class="eyebrow">CURRENT MODE</span><div><span class="mode-symbol">E</span><strong id="current-mode">Local exhibition</strong></div><p id="mode-note">Exhibitions use a deterministic budget. Controller provenance is recorded in each replay.</p></div>
     <div class="event-section"><div class="side-head"><h2>Event log</h2><span class="count" id="event-count">0</span></div><div id="event-log" class="event-log"><p class="empty-note">Events will appear during playback.</p></div></div>
@@ -740,17 +740,28 @@ function startRumble() {
   if (!Number.isInteger(value) || value < 0 || value > 4294967295)
     return toast("Enter an integer seed between 0 and 4294967295.", true);
   if (bots.length < 3) return toast("A rumble needs at least three controllers.", true);
-  if (bots.length > 12) return toast("A rumble supports at most 12 controllers.", true);
+  // The arena holds twelve: a larger roster is drawn by the seed, so the same
+  // seed gives the same rumble.
+  const roster = bots.length > 12 ? drawRoster(bots, 12, value) : bots;
   interruptPlayback();
   if (viewer) viewer.playing = false;
   $("#stage-loading").hidden = false;
   $("#stage-loading b").textContent = "Computing rumble";
-  $("#loading-detail").textContent = `Starting ${bots.length} isolated controllers…`;
+  $("#loading-detail").textContent = `Starting ${roster.length} isolated controllers…`;
   $("#simulation-progress").value = 0;
   $("#cancel").hidden = false;
   $("#result-banner").hidden = true;
   updateUrl({});
-  startOperation("match", { bots, seed: value, mode: "rumble" });
+  if (roster !== bots) toast(`${bots.length} controllers: seed ${value} draws ${roster.length} of them.`);
+  startOperation("match", { bots: roster, seed: value, mode: "rumble" });
+}
+function drawRoster(list, count, seed) {
+  const order = [...list], random = mulberry32(seed ^ 0x72756d62);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order.slice(0, count);
 }
 $("#rumble").onclick = startRumble;
 $("#random-match").onclick = () => {
