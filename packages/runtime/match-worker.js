@@ -3,7 +3,7 @@ import { BotClient } from "./client.js";
 import { runMatch } from "./match.js";
 import { gateBot } from "./gate.js";
 import { runExhibition } from "../tournament/exhibition.js";
-import { runLiveMatch } from "./live-match.js";
+import { runLiveMatch, resimulateLiveMatch } from "./live-match.js";
 const pool = new Set();
 // Manual matches read the newest keyboard state at each tick; input messages
 // arrive between ticks and never queue up.
@@ -57,6 +57,23 @@ self.onmessage = async ({ data }) => {
         replay ? { type: "live-end", replay } : { type: "live-aborted" },
         replay ? [replay.frames.buffer, replay.arenaExtents.buffer] : [],
       );
+    } else if (data.type === "resimulate") {
+      // A challenge link: the logged inputs drive the human slot at full speed.
+      liveStopped = false;
+      const replay = await resimulateLiveMatch({
+        ...data,
+        createClient,
+        stopped: () => liveStopped,
+        onTick: (update) => {
+          if (update.type === "live-tick" && update.tick % 120 === 0)
+            self.postMessage({ type: "progress", progress: update.tick / 7200 });
+        },
+      });
+      if (replay)
+        self.postMessage({ type: "replay", replay }, [
+          replay.frames.buffer,
+          replay.arenaExtents.buffer,
+        ]);
     } else if (data.type === "gate") {
       const client = createClient();
       try {

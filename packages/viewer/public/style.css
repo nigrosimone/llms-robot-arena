@@ -1140,6 +1140,55 @@ progress::-webkit-progress-value {
   gap: 10px;
   margin-top: 10px;
 }
+/* Four thumb buttons over the stage: turn on the left, thrust on the right. */
+.touch-pad {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 16px 16px;
+  pointer-events: none;
+}
+.touch-group {
+  display: flex;
+  gap: 12px;
+  pointer-events: auto;
+}
+.touch-pad button {
+  width: 66px;
+  height: 66px;
+  border-radius: 50%;
+  border: 1px solid #3c4a44;
+  background: #12191ad9;
+  color: #e6efe4;
+  font-size: 22px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.touch-pad button.held {
+  background: var(--lime);
+  color: #101317;
+}
+@media (pointer: coarse) {
+  .live-hud .keys {
+    display: none;
+  }
+  .live-hud {
+    bottom: auto;
+    top: 58px;
+  }
+  /* The thumbs need the bottom of the stage; camera controls are disabled anyway. */
+  .stage:has(.touch-pad:not([hidden])) .camera-actions,
+  .stage:has(.touch-pad:not([hidden])) .stage-note {
+    display: none;
+  }
+}
 #toast {
   position: fixed;
   bottom: 24px;

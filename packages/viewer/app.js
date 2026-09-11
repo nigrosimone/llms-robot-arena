@@ -11,6 +11,16 @@ import { STYLE_AXES, formatStyleValue, styleLabel, styleProfiles } from "../tour
 import { INDEX_TERMS, compositeIndex } from "../tournament/composite.js";
 import { readMatchSettings, matchSettingsSearch } from "./match-link.js";
 import {
+  SHA_PREFIX,
+  challengeFromReplay,
+  encodeChallenge,
+  decodeChallenge,
+  readChallenge,
+  challengeFragment,
+} from "./challenge-link.js";
+import { digest } from "../sim/index.js";
+import { track, trackPage } from "./analytics.js";
+import {
   MatchRecorder,
   recordingSupported,
   recordingFilename,
@@ -45,6 +55,7 @@ const icons = {
   sound: "M4 9h4l5-4v14l-5-4H4V9Zm12 0a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12",
   mute: "M4 9h4l5-4v14l-5-4H4V9Zm12 1 6 6m0-6-6 6",
   stop: "M6 6h12v12H6Z",
+  link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5m-1.5 3.2a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5",
 };
 const icon = (name, size = 18) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${icons[name] ?? icons.arena}"/></svg>`;
@@ -64,11 +75,17 @@ const CONTROL_KEYS = {
   KeyS: "back", ArrowDown: "back",
   KeyA: "left", ArrowLeft: "left",
   KeyD: "right", ArrowRight: "right",
+  "touch:forward": "forward", "touch:back": "back",
+  "touch:left": "left", "touch:right": "right",
 };
+const coarsePointer = () => matchMedia("(pointer: coarse)").matches;
 let replay = null,
   liveReplay = null,
   liveActive = false,
   previousReplay = null,
+  // The replay rebuilt from a challenge link, and the settings to beat it.
+  challengeReplay = null,
+  challengeSettings = null,
   viewer = null,
   worker = null,
   operation = null,
@@ -112,9 +129,10 @@ document.querySelector("#app").innerHTML = `
      <div class="stage-note"><span id="pressure-tag">RAISED PLATFORM</span><span id="camera-hint">Auto camera · follows both robots</span><span id="collapse-warning" role="status" aria-live="polite" hidden></span></div>
      <div class="camera-actions"><select id="camera-view" aria-label="Camera view" aria-describedby="camera-hint"><option value="auto">Auto camera</option></select><label class="camera-toggle"><input id="manual-camera" type="checkbox" aria-describedby="camera-hint">Manual camera</label><button id="sound" class="icon-button" aria-label="Mute sound" title="Sound" aria-pressed="true">${icon("sound")}</button><button id="reset-camera" class="icon-button" aria-label="Reset camera" title="Reset camera">${icon("reset")}</button><button id="fullscreen" class="icon-button" aria-label="Fullscreen" title="Fullscreen">${icon("expand")}</button></div>
      <div id="stage-loading" class="stage-loading"><span class="loader"></span><b>Preparing replay</b><span id="loading-detail">Simulation comes before every frame.</span><progress id="simulation-progress" value="0" max="1"></progress><button id="cancel" class="button outline" hidden>Cancel</button></div>
-     <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><div id="result-standings" class="result-standings" hidden></div><div class="result-actions"><button id="watch-again" class="button accent">${icon("reset")}Watch again</button><button id="random-match" class="button outline">${icon("swap")}Random seed</button></div></div>
+     <div id="result-banner" class="result-banner" hidden><span id="result-label" class="eyebrow">MATCH COMPLETE</span><strong id="result-title"></strong><span id="result-reason"></span><div id="result-standings" class="result-standings" hidden></div><div class="result-actions"><button id="beat-challenge" class="button accent" hidden>${icon("bolt")}Beat this replay</button><button id="watch-again" class="button accent">${icon("reset")}Watch again</button><button id="copy-challenge" class="button outline" hidden>${icon("link")}Copy challenge link</button><button id="random-match" class="button outline">${icon("swap")}Random seed</button></div></div>
      <div id="match-intro" class="match-intro" aria-hidden="true" hidden></div>
-     <div id="live-hud" class="live-hud" hidden><strong>YOU DRIVE ROBOT A</strong><span><b>W</b> <b>S</b> thrust · <b>A</b> <b>D</b> turn</span><button id="live-stop" class="button quiet">Leave match</button></div>
+     <div id="live-hud" class="live-hud" hidden><strong>YOU DRIVE ROBOT A</strong><span class="keys"><b>W</b> <b>S</b> thrust · <b>A</b> <b>D</b> turn</span><button id="live-stop" class="button quiet">Leave match</button></div>
+     <div id="touch-pad" class="touch-pad" hidden><div class="touch-group"><button data-control="left" aria-label="Turn left">&#9664;</button><button data-control="right" aria-label="Turn right">&#9654;</button></div><div class="touch-group"><button data-control="back" aria-label="Reverse">&#9660;</button><button data-control="forward" aria-label="Thrust forward">&#9650;</button></div></div>
     </div>
     <div class="playback"><button id="step-back" class="icon-button" aria-label="Previous frame" title="Previous frame (←)">‹</button><button id="play" class="play-button" aria-label="Play" disabled>${icon("play", 20)}</button><button id="step-forward" class="icon-button" aria-label="Next frame" title="Next frame (→)">›</button><span id="elapsed" class="mono">00:00</span><div class="scrubber"><div id="event-marks"></div><input type="range" id="timeline" aria-label="Replay position" min="0" max="120" step="any" value="0" disabled></div><span id="duration" class="mono secondary">02:00</span><select id="speed" aria-label="Playback speed"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select></div>
     <div class="terrain-legend" aria-label="Arena cells"><span><i class="legend-recharge"></i>Recharge +60</span><span><i class="legend-hole"></i>Hole: instant loss</span><span><i class="legend-flame"></i>Grate: warning then flame</span><span><i class="legend-wear"></i>Cracks: weight damage</span><span><i class="legend-collapse"></i>Red flash: floor collapse</span></div>
@@ -159,7 +177,7 @@ document.querySelector("#app").innerHTML = `
   <div class="rules-grid hazard-rules">${ruleCards(HAZARD_CARDS)}</div>
   <div class="review-note"><strong>${RULES_NOTE.title}</strong><p>${RULES_NOTE.body}</p></div>
  </section>
-</main><footer class="footer"><span><a href="https://github.com/nigrosimone/llms-robot-arena" title="View llms-robot-arena on GitHub">llms-robot-arena</a></span><nav class="footer-links" aria-label="Reference pages"><a href="${pagePath(CONTROLLERS.route)}">${CONTROLLERS.label}</a></nav><span>Code makes the difference.</span><span>ENGINE ${ENGINE_VERSION}</span></footer><div id="toast" role="status" aria-live="polite" hidden></div>`;
+</main><footer class="footer"><span><a href="https://github.com/nigrosimone/llms-robot-arena" title="View llms-robot-arena on GitHub">llms-robot-arena</a></span><nav class="footer-links" aria-label="Reference pages"><a href="${pagePath(CONTROLLERS.route)}">${CONTROLLERS.label}</a></nav><span>Code makes the difference.</span><span>ENGINE ${ENGINE_VERSION}</span><span>Cookie-free analytics</span></footer><div id="toast" role="status" aria-live="polite" hidden></div>`;
 function toast(message, error = false) {
   const el = $("#toast");
   el.textContent = message;
@@ -203,7 +221,10 @@ function selectTab(id, { push = false } = {}) {
     link.setAttribute("aria-current", selected ? "page" : "false");
   });
   document.title = tab.title;
-  if (push) history.pushState(null, "", pagePath(tab.route) + location.search);
+  if (push) {
+    history.pushState(null, "", pagePath(tab.route) + location.search + location.hash);
+    trackPage(pagePath(tab.route));
+  }
   if (tab.id === "arena") armArena();
 }
 addEventListener("click", (event) => {
@@ -314,6 +335,8 @@ function renderFrame(frame) {
         .join("");
     $("#result-reason").textContent =
       outcome.reason + " · " + clock(viewer.duration);
+    $("#copy-challenge").hidden = !shareableChallenge(replay);
+    $("#beat-challenge").hidden = replay !== challengeReplay;
     if (recorder?.recording && recorderStop === null)
       recorderStop = setTimeout(finishRecording, OUTRO_SECONDS * 1000);
   }
@@ -492,6 +515,7 @@ async function finishRecording() {
   if (!clip?.blob.size) return toast("Recording produced no video.", true);
   const name = recordingFilename(replay, clip.extension);
   download(name, clip.blob, clip.blob.type);
+  track("video-exported", clip.extension);
   toast("Video saved: " + name);
 }
 // A new match cancels a running intro and closes the clip already recorded.
@@ -584,7 +608,7 @@ function startOperation(type, data) {
   });
   worker.onmessage = ({ data }) => {
     if (data.type === "progress") {
-      if (operation === "match") {
+      if (operation === "match" || operation === "resimulate") {
         $("#simulation-progress").value = data.progress;
         $("#loading-detail").textContent =
           `Simulation ${Math.round(data.progress * 100)}% · ${clock(data.progress * 120)} / 02:00`;
@@ -625,7 +649,10 @@ function startOperation(type, data) {
     }
     if (data.type === "replay") {
       loadReplay(data.replay, true);
-      toast("Match computed. The replay is ready.");
+      if (operation === "resimulate") {
+        challengeReplay = data.replay;
+        toast("Challenge rebuilt from its input log. Beat it after the replay.");
+      } else toast("Match computed. The replay is ready.");
     }
     if (data.type === "gate") {
       renderGate(data.gate);
@@ -674,6 +701,15 @@ function cancelOperation() {
 }
 $("#cancel").onclick = cancelOperation;
 $("#cancel-tournament").onclick = cancelOperation;
+// The address describes what is on the stage; the channel tag of the visit stays.
+function updateUrl({ search = "", hash = "" }) {
+  const url = new URL(location.href);
+  const ref = url.searchParams.get("ref");
+  url.search = search;
+  url.hash = hash;
+  if (ref) url.searchParams.set("ref", ref);
+  history.replaceState(null, "", url);
+}
 function simulateMatch() {
   const value = Number($("#seed").value);
   if (!Number.isInteger(value) || value < 0 || value > 4294967295)
@@ -689,12 +725,12 @@ function simulateMatch() {
   const a = +$("#bot-a").value,
     b = +$("#bot-b").value,
     mirrored = $("#spawn").value === "mirror";
-  const url = new URL(location.href);
   // Only registered controllers can be reloaded from a link; local ones exist in this tab alone.
-  url.search = a < builtins.length && b < builtins.length
-    ? matchSettingsSearch({ a: bots[a].id, b: bots[b].id, seed: value, mirrored })
-    : "";
-  history.replaceState(null, "", url);
+  updateUrl({
+    search: a < builtins.length && b < builtins.length
+      ? matchSettingsSearch({ a: bots[a].id, b: bots[b].id, seed: value, mirrored })
+      : "",
+  });
   startOperation("match", { bots: [bots[a], bots[b]], seed: value, mirrored });
 }
 $("#simulate").onclick = simulateMatch;
@@ -713,6 +749,7 @@ function startRumble() {
   $("#simulation-progress").value = 0;
   $("#cancel").hidden = false;
   $("#result-banner").hidden = true;
+  updateUrl({});
   startOperation("match", { bots, seed: value, mode: "rumble" });
 }
 $("#rumble").onclick = startRumble;
@@ -748,6 +785,7 @@ function setLiveUI(active) {
   // The driver keeps their own camera: the view cannot be changed mid-match.
   $("#camera-view").disabled = active || !viewer || $("#manual-camera").checked;
   viewer?.setFocus(active ? LIVE_PLAYER : null);
+  $("#touch-pad").hidden = !active || !coarsePointer();
   if (!active && heldKeys.size) heldKeys.clear();
 }
 function startLiveMatch() {
@@ -763,13 +801,18 @@ function startLiveMatch() {
   $("#simulation-progress").value = 0;
   $("#cancel").hidden = true;
   $("#result-banner").hidden = true;
+  updateUrl({});
   startOperation("live", {
     bot: bots[+$("#bot-b").value],
     seed,
     mirrored: $("#spawn").value === "mirror",
     player: LIVE_PLAYER,
+    control: coarsePointer() ? "touch" : "keyboard",
   });
-  if (operation === "live") setLiveUI(true);
+  if (operation === "live") {
+    setLiveUI(true);
+    track("play-started", botName(bots[+$("#bot-b").value]));
+  }
 }
 // The replay grows tick by tick while the match is played, so the viewer, the
 // robot cards and the event log keep using the ordinary replay format.
@@ -837,6 +880,78 @@ function finishLiveMatch(final) {
   $("#timeline").max = r.result.ticks / 60;
   $("#duration").textContent = clock(r.result.ticks / 60);
   renderEventMarks(r);
+  track("play-finished", `${matchOutcome(r).title} ${botName(r.bots[1 - LIVE_PLAYER])}`);
+  // The address bar becomes the challenge link as soon as the match is over.
+  if (shareableChallenge(r))
+    encodeChallenge(challengeFromReplay(r)).then((encoded) => {
+      if (replay === r) updateUrl({ hash: challengeFragment(encoded) });
+    });
+}
+// A manual duel against a registered controller, with its inputs logged.
+function shareableChallenge(r) {
+  if (r?.mode !== "manual" || !r.inputs || r.bots.length !== 2) return false;
+  const opponent = r.bots[1 - r.bots.findIndex((bot) => bot.id === "human")];
+  return builtins.some((b) => b.id === opponent?.id);
+}
+$("#copy-challenge").onclick = async () => {
+  if (!shareableChallenge(replay)) return;
+  const url = new URL(location.href);
+  url.search = "";
+  url.hash = challengeFragment(await encodeChallenge(challengeFromReplay(replay)));
+  history.replaceState(null, "", url);
+  track("challenge-copied");
+  try {
+    await navigator.clipboard.writeText(url.href);
+    toast("Challenge link copied. Paste it anywhere.");
+  } catch {
+    toast("The challenge link is in the address bar: copy it from there.", true);
+  }
+};
+$("#beat-challenge").onclick = () => {
+  if (!challengeSettings) return;
+  $("#seed").value = String(challengeSettings.seed);
+  $("#spawn").value = challengeSettings.mirrored ? "mirror" : "normal";
+  $("#bot-b").value = String(challengeSettings.bot);
+  track("challenge-beat");
+  startLiveMatch();
+};
+// A link with `#m=` rebuilds the match it describes before anything else.
+async function openChallenge(text) {
+  const failed = (message, reason) => {
+    track("challenge-opened", reason);
+    if (viewer) $("#stage-loading").hidden = true;
+    toast(message, true);
+  };
+  let c;
+  try {
+    c = await decodeChallenge(text);
+  } catch (error) {
+    return failed(error.message + " You can simulate a new match.", "damaged");
+  }
+  const index = builtins.findIndex((b) => b.id === c.botId);
+  const bot = builtins[index];
+  if (!bot) return failed(`This challenge was played against "${c.botId}", a controller this arena does not have.`, "unknown bot");
+  $("#seed").value = String(c.seed);
+  $("#spawn").value = c.mirrored ? "mirror" : "normal";
+  $("#bot-b").value = String(index);
+  challengeSettings = { seed: c.seed, mirrored: c.mirrored, bot: index };
+  const playable = ` You can still play the same seed against ${botName(bot)}: press "Play yourself vs Robot B".`;
+  if (c.engineVersion !== ENGINE_VERSION)
+    return failed(`This challenge was recorded with engine ${c.engineVersion}; this arena runs ${ENGINE_VERSION}, so the replay cannot be rebuilt.` + playable, "engine mismatch");
+  if (digest(bot.source).slice(0, SHA_PREFIX) !== c.sha)
+    return failed(`${botName(bot)} was updated after this match was played, so the replay cannot be rebuilt.` + playable, "controller updated");
+  track("challenge-opened", "ok");
+  interruptPlayback();
+  if (viewer) viewer.playing = false;
+  $("#stage-loading").hidden = false;
+  $("#stage-loading b").textContent = "Rebuilding the challenge";
+  $("#loading-detail").textContent = `Replaying the logged inputs against ${botName(bot)}…`;
+  $("#simulation-progress").value = 0;
+  $("#cancel").hidden = false;
+  $("#result-banner").hidden = true;
+  const inputs = [];
+  inputs[c.player] = c.inputs;
+  startOperation("resimulate", { bot, seed: c.seed, mirrored: c.mirrored, player: c.player, inputs });
 }
 function abortLiveMatch() {
   liveReplay = null;
@@ -877,6 +992,25 @@ document.addEventListener("keydown", (e) => {
 document.addEventListener("keyup", (e) => {
   if (heldKeys.delete(e.code)) sendLiveInput();
 });
+// Touch buttons feed the same held set as the keys: a finger down is a key down.
+for (const button of document.querySelectorAll("#touch-pad button")) {
+  const code = "touch:" + button.dataset.control;
+  const release = () => {
+    button.classList.remove("held");
+    if (heldKeys.delete(code)) sendLiveInput();
+  };
+  button.onpointerdown = (e) => {
+    e.preventDefault();
+    button.setPointerCapture(e.pointerId);
+    button.classList.add("held");
+    if (!heldKeys.has(code)) {
+      heldKeys.add(code);
+      sendLiveInput();
+    }
+  };
+  button.onpointerup = button.onpointercancel = button.onlostpointercapture = release;
+  button.oncontextmenu = (e) => e.preventDefault();
+}
 addEventListener("blur", () => {
   if (!heldKeys.size) return;
   heldKeys.clear();
@@ -1192,9 +1326,7 @@ $("#replay-library").onchange = async (e) => {
   const path = "./replays/" + encodeURIComponent(e.target.value);
   try {
     await loadReplayUrl(path);
-    const url = new URL(location.href);
-    url.searchParams.set("replay", path);
-    history.replaceState(null, "", url);
+    updateUrl({ search: "?" + new URLSearchParams({ replay: path }) });
   } catch (error) {
     toast(error.message, true);
   }
@@ -1224,6 +1356,7 @@ fetch(siteUrl("replays.json"))
   })
   .catch(() => {});
 const requestedReplay = new URLSearchParams(location.search).get("replay");
+const requestedChallenge = readChallenge(location.hash);
 let armed = false;
 // The opening match waits for the arena: a visitor who followed a link to the
 // rules should not pay for a simulation they are not looking at.
@@ -1232,7 +1365,9 @@ function armArena() {
   // opening match must not overwrite what the visitor asked to watch.
   if (armed || replay) return;
   armed = true;
-  if (requestedReplay) {
+  if (requestedChallenge) {
+    openChallenge(requestedChallenge);
+  } else if (requestedReplay) {
     loadReplayUrl(requestedReplay).catch((e) => {
       if (viewer) $("#stage-loading").hidden = true;
       toast(e.message + " You can simulate a new match.", true);

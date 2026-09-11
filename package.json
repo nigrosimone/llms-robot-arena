@@ -19,7 +19,8 @@
     "viewer": "node packages/viewer/serve.js",
     "test": "node --test tests/*.test.js",
     "gate": "node packages/runtime/gate-cli.js",
-    "standings": "node scripts/standings.mjs"
+    "standings": "node scripts/standings.mjs",
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "three": "0.180.0",

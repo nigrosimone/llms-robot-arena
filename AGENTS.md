@@ -687,6 +687,8 @@ Engine `0.2.2-r2` computes `sin`, `cos`, `atan2` and `hypot` with its own fdlibm
 
 Manual matches (mode `manual`, one robot driven from the keyboard in the browser) log the human inputs in the replay field `inputs`: one entry per robot slot, `null` for controllers and a list of `[tick, code]` changes for the human, where `code = (thrust + 1) * 3 + (turn + 1)` with both values in {-1, 0, 1} and the neutral state 4 implied at tick 0. The same seed, controller source and log rebuild the match with identical state hashes (`resimulateLiveMatch` in `packages/runtime/live-match.js`). Manual replays are never ranked.
 
+A challenge link (`#m=<payload>` on the arena URL, built by `packages/viewer/challenge-link.js`) carries the engine version, seed, spawn, controller id, the first 16 hex digits of the controller digest and the input log, deflated and base64url encoded. Opening it rebuilds the match in the browser; a different engine version or an updated controller is reported instead of silently playing something else. `npm run verify -- <replay.json | link>` rebuilds a manual replay or a link in Node and, for a replay, checks that every state hash matches.
+
 Controllers receive the public arena state through `arena.cells`. Energy management must account for recharge pickups and the absence of passive regeneration. Implementing or updating a controller requires its own bot task and must respect the black-box policy above.
 
 To check a platform change and rebuild:

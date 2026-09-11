@@ -34,6 +34,8 @@ Open the live site to automatically simulate and play the default match. Choose 
 
 The complete match is calculated before playback. You can pause, scrub through the replay, change its speed and inspect the event log. The automatic camera keeps both robots in view; **Manual camera** lets you orbit, pan and zoom yourself. Replays can be exported and imported as JSON.
 
+**Play yourself vs Robot B** puts you at the keyboard (WASD or arrows, on-screen buttons on a phone) against the selected controller in real time. When the match ends, **Copy challenge link** gives you a link that rebuilds your match from its input log: whoever opens it watches your run and can try to beat it on the same seed against the same controller. No account, no server.
+
 | Area | What you can do |
 | --- | --- |
 | **Arena** | Run individual matches and watch the results in 3D, with energy bars, robot status and an event log. |
