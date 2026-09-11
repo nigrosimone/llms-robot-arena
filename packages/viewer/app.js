@@ -31,6 +31,7 @@ import {
   OUTRO_SECONDS,
 } from "./recorder.js";
 import { MatchAudio } from "./audio.js";
+import { clipSupported, renderClip } from "./clip.js";
 import { CONTRACT_CARD, CONTROLLERS, HAZARD_CARDS, RULE_CARDS, RULES_NOTE, TABS, ruleCards, tabForRoute } from "../site/content.js";
 import { currentRoute, pagePath, siteUrl } from "./base.js";
 const icons = {
@@ -366,7 +367,7 @@ function loadReplay(r, autoplay = false) {
   $("#play").disabled = false;
   $("#timeline").disabled = false;
   $("#export-replay").disabled = false;
-  $("#record").disabled = !viewer || !recordingSupported();
+  $("#record").disabled = !viewer || !(clipSupported() || recordingSupported());
   $("#timeline").max = r.result.ticks / 60;
   $("#duration").textContent = clock(r.result.ticks / 60);
   $("#replay-seed").textContent =
@@ -482,8 +483,67 @@ function recorderState() {
         : Math.min(1, (performance.now() - introStart) / (INTRO_SECONDS * 1000)),
   };
 }
+// The offline clip: every frame rendered and encoded at 1080p60, then the
+// replay plays once more in real time for the sound.
+let clipAbort = null;
+async function renderClipFile() {
+  if (!viewer || !replay) return toast("Simulate or import a match first.", true);
+  if (clipAbort) return toast("A clip is already being rendered.", true);
+  const source = replay;
+  audio.resume();
+  interruptPlayback();
+  viewer.playing = false;
+  clipAbort = new AbortController();
+  $("#record").disabled = true;
+  $("#stage-loading").hidden = false;
+  $("#stage-loading b").textContent = "Rendering the clip";
+  $("#loading-detail").textContent = "Every frame at 1080p, then the sound.";
+  $("#simulation-progress").hidden = false;
+  $("#simulation-progress").value = 0;
+  $("#cancel").hidden = false;
+  try {
+    const clip = await renderClip({
+      viewer, replay: source, audio, signal: clipAbort.signal,
+      frame: () => lastFrame,
+      onProgress: ({ phase, done, total }) => {
+        $("#simulation-progress").value = done / total;
+        $("#loading-detail").textContent = phase === "video"
+          ? `Frame ${done} of ${total}`
+          : `Recording the sound, ${clock(done)} / ${clock(total)}`;
+      },
+      playAudio: ({ signal }) => new Promise((resolve, reject) => {
+        // The sound pass is the ordinary playback with its intro and verdict.
+        $("#stage-loading").hidden = true;
+        $("#record-label").textContent = "SOUND";
+        playWithIntro();
+        const poll = setInterval(() => {
+          if (signal.aborted) {
+            clearInterval(poll);
+            reject(Error("Clip cancelled."));
+          } else if (!viewer.playing && viewer.time >= viewer.playbackDuration && introTimer === null) {
+            clearInterval(poll);
+            setTimeout(resolve, OUTRO_SECONDS * 1000);
+          }
+        }, 100);
+      }),
+    });
+    const name = recordingFilename(source, clip.extension);
+    download(name, clip.blob, clip.blob.type);
+    track("video-exported", clip.sound ? "clip" : "clip-silent");
+    toast(`Video saved: ${name}${clip.sound ? "" : " (without sound: this browser cannot encode it)"}`);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    clipAbort = null;
+    $("#record").disabled = !viewer || !replay;
+    $("#record-label").textContent = liveActive ? "LIVE" : "REPLAY";
+    if (viewer) $("#stage-loading").hidden = true;
+    $("#cancel").hidden = true;
+  }
+}
 function startRecording() {
   if (!viewer || !replay) return toast("Simulate or import a match first.", true);
+  if (clipSupported()) return renderClipFile();
   if (!recordingSupported())
     return toast("This browser cannot record video.", true);
   audio.resume();
@@ -528,6 +588,10 @@ async function finishRecording() {
 function interruptPlayback() {
   cancelIntro();
   if (recorder?.recording) finishRecording();
+}
+// Leaving the arena for a new match or a challenge stops a clip in progress.
+function abortClip() {
+  clipAbort?.abort();
 }
 $("#record").onclick = () =>
   recorder?.recording ? finishRecording() : startRecording();
@@ -700,6 +764,10 @@ function finishOperation() {
   operation = null;
 }
 function cancelOperation() {
+  if (clipAbort) {
+    abortClip();
+    return;
+  }
   if (worker) {
     worker.postMessage({ type: "cancel" });
     toast("Operation canceled.");

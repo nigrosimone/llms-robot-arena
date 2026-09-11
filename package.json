@@ -12,7 +12,9 @@
   "bugs": {
     "url": "https://github.com/nigrosimone/llms-robot-arena/issues"
   },
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "build": "node scripts/build.mjs",
     "start": "npm run build && node packages/viewer/serve.js",
@@ -24,11 +26,15 @@
     "generate": "node scripts/generate.mjs"
   },
   "dependencies": {
-    "three": "0.180.0",
-    "acorn": "8.18.0",
-    "quickjs-emscripten": "0.31.0",
     "@jitl/quickjs-singlefile-browser-release-sync": "0.31.0",
-    "@noble/hashes": "1.8.0"
+    "@noble/hashes": "1.8.0",
+    "acorn": "8.18.0",
+    "mp4-muxer": "^5.2.2",
+    "quickjs-emscripten": "0.31.0",
+    "three": "0.180.0"
   },
-  "devDependencies": { "esbuild": "0.25.10", "typescript": "5.9.3" }
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "typescript": "5.9.3"
+  }
 }

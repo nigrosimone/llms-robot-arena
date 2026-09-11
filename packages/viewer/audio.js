@@ -58,6 +58,7 @@ export class MatchAudio {
     limiter.release.value = 0.2;
     this.master.connect(limiter);
     limiter.connect(ctx.destination);
+    this.limiter = limiter;
     this.tap = ctx.createMediaStreamDestination();
     limiter.connect(this.tap);
     // The flame is one looping noise source; only its gain follows the match.
@@ -87,6 +88,35 @@ export class MatchAudio {
   // The audio track the recorder mixes into the clip.
   get stream() {
     return this.tap?.stream ?? null;
+  }
+  // PCM from the mix for the clip encoder, with times from the tap's start: a
+  // ScriptProcessor, which every browser still runs. Returns the sample rate.
+  startCapture(onData) {
+    const ctx = this.resume();
+    if (!ctx) return null;
+    this.stopCapture();
+    const node = ctx.createScriptProcessor(4096, 2, 2), mute = ctx.createGain();
+    mute.gain.value = 0;
+    const start = ctx.currentTime;
+    node.onaudioprocess = (e) => {
+      const at = e.playbackTime - start;
+      if (at < 0) return;
+      const channels = [0, 1].map((c) => e.inputBuffer.getChannelData(Math.min(c, e.inputBuffer.numberOfChannels - 1)));
+      onData(channels, at, ctx.sampleRate);
+    };
+    this.limiter.connect(node);
+    node.connect(mute).connect(ctx.destination);
+    this.capture = { node, mute };
+    return ctx.sampleRate;
+  }
+  stopCapture() {
+    if (!this.capture) return;
+    const { node, mute } = this.capture;
+    node.onaudioprocess = null;
+    this.limiter.disconnect(node);
+    node.disconnect();
+    mute.disconnect();
+    this.capture = null;
   }
   noise() {
     if (!this.buffer) {

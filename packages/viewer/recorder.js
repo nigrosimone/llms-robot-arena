@@ -7,9 +7,9 @@ export const INTRO_SECONDS = 4;
 export const OUTRO_SECONDS = 3;
 // The overlay is laid out in 1280x720 units and drawn scaled: the clip itself
 // is 1080p, the least YouTube treats as HD.
-const WIDTH = 1280,
-  HEIGHT = 720,
-  OUTPUT_SCALE = 1.5,
+export const WIDTH = 1280,
+  HEIGHT = 720;
+const OUTPUT_SCALE = 1.5,
   FPS = 30;
 const SANS = '"DM Sans", system-ui, sans-serif';
 const MONO = '"IBM Plex Mono", monospace';
@@ -156,7 +156,7 @@ function drawRobotPanel(ctx, x, y, width, robot, state, energyMax) {
   text(ctx, `${state.flips} / 2 FLIPS`, right, y + 50, `500 12px ${MONO}`, "#8e999f", "right");
   bar(ctx, left, y + height - 20, width - 36, 5, state.energy / energyMax, low ? "#ee956b" : robot.color);
 }
-function drawOverlay(ctx, { replay, frame, duration }) {
+export function drawOverlay(ctx, { replay, frame, duration }) {
   const card = introCard(replay);
   const gradient = ctx.createLinearGradient(0, 0, 0, 150);
   gradient.addColorStop(0, "rgba(11,15,18,.72)");
@@ -196,7 +196,7 @@ function drawOverlay(ctx, { replay, frame, duration }) {
   text(ctx, outcome.title.toUpperCase(), WIDTH / 2, HEIGHT / 2 + 20, `700 82px ${DISPLAY}`, "#c3f179", "center", "2px");
   text(ctx, `${outcome.reason} · ${clock(duration)}`, WIDTH / 2, HEIGHT / 2 + 60, `500 15px ${MONO}`, "#b0bbb9");
 }
-function drawIntro(ctx, { replay }, progress) {
+export function drawIntro(ctx, { replay }, progress) {
   const card = introCard(replay);
   const alpha = Math.min(1, progress / 0.12, (1 - progress) / 0.15);
   ctx.save();

@@ -289,6 +289,30 @@ export class ArenaViewer {
     this.minimumRows = rows;
     this.applySize();
   }
+  // Clip rendering: the loop stops, the buffer takes the clip size and the
+  // frames are stepped one at a time with a fixed dt, from the start.
+  beginOffline(width, height) {
+    this.offline = true;
+    this.playing = false;
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(width, height, false);
+    this.effects.setHeight(height);
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.seek(0);
+  }
+  renderAt(t, dt) {
+    this.time = t;
+    this.playing = t < this.playbackDuration;
+    this.draw(dt);
+    this.renderer.render(this.scene, this.camera);
+    return this.renderer.domElement;
+  }
+  endOffline() {
+    this.offline = false;
+    this.playing = false;
+    this.applySize();
+  }
   setRobotCount(count) {
     // Loading a shorter roster must not leave the camera on a robot that is
     // gone. No redraw here: the replay around it is still being swapped.
@@ -402,6 +426,11 @@ export class ArenaViewer {
   animate(now) {
     const dt = this.last ? Math.min((now - this.last) / 1000, 0.1) : 0;
     this.last = now;
+    // A clip render steps the frames itself.
+    if (this.offline) {
+      this.raf = requestAnimationFrame(this.animate);
+      return;
+    }
     if (this.playing && this.replay) {
       const limit = this.live ? this.duration : this.playbackDuration;
       this.time = Math.min(limit, this.time + dt * this.speed);
@@ -518,7 +547,7 @@ export class ArenaViewer {
     const fresh = freshEvents(past, this.cueTime, this.time);
     this.cueTime = this.time;
     const ended = !this.live && this.time >= this.playbackDuration;
-    this.audio?.frame(fresh, {
+    if (!this.offline) this.audio?.frame(fresh, {
       burning: this.playing ? this.burning : 0,
       ended,
       playing: this.playing,
