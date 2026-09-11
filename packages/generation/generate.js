@@ -6,7 +6,11 @@ import { spawn } from "node:child_process";
 import { access, appendFile, cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
+import { Worker } from "node:worker_threads";
 import { SPEC_VERSION, ENGINE_VERSION } from "../sim/spec.js";
+import { BotClient } from "../runtime/client.js";
+import { gateBot } from "../runtime/gate.js";
+import { runExhibition } from "../tournament/exhibition.js";
 
 export const HARNESSES = {
   "claude-code": { label: "Claude Code", provider: "Anthropic", command: "claude", home: ".claude", credentials: ".credentials.json" },
@@ -34,19 +38,22 @@ export const workspaceCatalog = (catalog, entry) => [
 ];
 
 // Arguments for a non-interactive session reading its prompt from stdin.
-export function harnessArgs({ harness, model, thinking, maxCost }) {
+export function harnessArgs({ harness, model, thinking, maxCost, mode = "docker" }) {
   if (harness === "claude-code")
     return [
       "-p", "--model", model, "--effort", thinking,
       "--output-format", "stream-json", "--verbose", "--no-session-persistence",
-      // Only the workspace settings: the operator's own CLAUDE.md never reaches the agent.
       "--setting-sources", "project",
       "--allowedTools", "Read", "Write", "Edit", "MultiEdit", "Glob", "Grep", "LS", "Bash(node *)", "Bash(npm *)",
+      // A print session ends when the agent stops: deferred work would never run.
+      "--disallowedTools", "ScheduleWakeup", "Monitor", "CronCreate", "Agent", "Workflow",
       ...(maxCost ? ["--max-budget-usd", String(maxCost)] : []),
     ];
   if (harness === "codex")
     return [
-      "exec", "--json", "--skip-git-repo-check", "--sandbox", "workspace-write",
+      "exec", "--json", "--skip-git-repo-check",
+      // Codex's own sandbox (bubblewrap) cannot start inside Docker; there the container is the sandbox.
+      "--sandbox", mode === "docker" ? "danger-full-access" : "workspace-write",
       "-m", model, "-c", `model_reasoning_effort=${JSON.stringify(thinking)}`,
       "-C", ".",
     ];
@@ -135,7 +142,7 @@ export async function prepareWorkspace({ root, dir, entry, catalog, log = () => 
   const archive = spawn("git", ["archive", "--format=tar", "HEAD"], { cwd: root, stdio: ["ignore", "pipe", "inherit"] });
   archive.stdout.on("error", () => {});
   // The system tar on Windows understands its own paths; the MSYS one does not.
-  const tar = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\Windows", "System32", "tar.exe") : "tar";
+  const tar = process.platform === "win32" ? join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
   await run(tar, ["-x", "-f", "-", "-C", dir], { input: archive.stdout });
   for (const name of await readdir(join(dir, "packages/bots")))
     if (name !== "baseline.js") await rm(join(dir, "packages/bots", name));
@@ -153,7 +160,7 @@ export async function linkNodeModules(root, dir) {
 // The real session: the harness command, its prompt on stdin, the JSONL
 // stream mirrored to the transcript as it arrives so a killed run keeps it.
 export async function runHarness({ harness, model, thinking, maxCost, dir, prompt, transcript, timeoutMinutes, dryRun, log, mode = "docker", root }) {
-  const args = harnessArgs({ harness, model, thinking, maxCost });
+  const args = harnessArgs({ harness, model, thinking, maxCost, mode });
   const stream = {
     input: prompt,
     timeoutMs: timeoutMinutes * 60 * 1000,
@@ -208,6 +215,35 @@ export async function runHarness({ harness, model, thinking, maxCost, dir, promp
   }
 }
 
+// The generator measures the result itself: the conformity gate and the
+// standard 20-match series against Baseline, whatever the agent reported.
+export async function measureBot({ root, entry, source, log = () => {}, concurrency = 4 }) {
+  const baseline = JSON.parse(await readFile(join(root, "bots.json"), "utf8")).find((bot) => bot.id === "Baseline");
+  const createClient = () =>
+    new BotClient(new Worker(new URL("../runtime/node-worker.js", import.meta.url)));
+  const client = createClient();
+  let gate;
+  try {
+    gate = await gateBot(client, source, "fuel");
+  } finally {
+    client.close();
+  }
+  log(`Gate: admission ${gate.eligible ? "PASS" : "FAIL"}, full conformity ${gate.pass ? "PASS" : "FAIL"}.`);
+  if (!gate.eligible) return { gate: { eligible: false, pass: false, failed: gate.checks.filter((c) => !c.pass).map((c) => c.name) }, baseline: null };
+  const roster = [{ ...entry, source }, { ...baseline, source: await readFile(join(root, baseline.file), "utf8") }];
+  const report = await runExhibition({ bots: roster, format: "round-robin", createClient, concurrency });
+  const scores = report.records.map((r) => (r.a === 0 ? r.score : 1 - r.score));
+  const series = {
+    matches: scores.length,
+    wins: scores.filter((s) => s === 1).length,
+    draws: scores.filter((s) => s === 0.5).length,
+    losses: scores.filter((s) => s === 0).length,
+    score: scores.reduce((sum, s) => sum + s, 0) / scores.length,
+  };
+  log(`Against Baseline: ${series.wins} wins, ${series.draws} draws, ${series.losses} losses (${(series.score * 100).toFixed(1)}%).`);
+  return { gate: { eligible: true, pass: gate.pass, p99: gate.p99 ?? null }, baseline: series };
+}
+
 // Prepares the workspace, runs the session and registers what it produced.
 export async function generateBot({
   root, harness, model, thinking, name, id = `${slug(name)}-${thinking}`,
@@ -238,6 +274,7 @@ export async function generateBot({
   const source = await readFile(join(dir, entry.file), "utf8").catch(() => null);
   if (!source) throw Error(`The agent left no ${entry.file} in ${dir}.`);
   const summary = parseTranscript(harness, output);
+  const measured = await measureBot({ root, entry, source, log });
   const manifest = {
     id, model: name, harnessModel: model, thinking, harness: HARNESSES[harness].label, harnessVersion: version,
     provenance: "iterative",
@@ -247,8 +284,17 @@ export async function generateBot({
     promptSha256: sha256(template), agentsSha256: sha256(agents),
     specVersion: SPEC_VERSION, engineVersion: ENGINE_VERSION,
     startedAt: started.toISOString(), durationMs: Date.now() - started.getTime(),
-    ...summary, codeSha256: sha256(source), transcript: `artifacts/generations/${batch}.jsonl`,
+    ...summary, ...measured, codeSha256: sha256(source), transcript: `artifacts/generations/${batch}.jsonl`,
   };
+  await mkdir(join(root, "generations"), { recursive: true });
+  if (!measured.gate.eligible) {
+    // Not admitted: the source and the manifest stay on record, the catalog does not change.
+    await mkdir(join(root, "generations/failed"), { recursive: true });
+    await writeFile(join(root, "generations/failed", `${id}.js`), source);
+    await writeFile(join(root, "generations/failed", `${id}.json`), JSON.stringify(manifest, null, 2) + "\n");
+    if (!keep) await rm(dir, { recursive: true, force: true });
+    throw Error(`${id} fails the conformity gate (${manifest.gate.failed.join(", ")}): kept in generations/failed/, not registered.`);
+  }
   // Into the repository: the source, its catalog entry, the local results and the manifest.
   await writeFile(join(root, entry.file), source);
   // Re-read the catalog: another generation may have registered meanwhile.
@@ -256,7 +302,6 @@ export async function generateBot({
   if (!current.some((bot) => bot.id === id))
     await writeFile(join(root, "bots.json"), JSON.stringify([...current, entry], null, 2) + "\n");
   await cp(join(dir, "results"), join(root, "results"), { recursive: true, force: false }).catch(() => {});
-  await mkdir(join(root, "generations"), { recursive: true });
   await writeFile(join(root, "generations", `${id}.json`), JSON.stringify(manifest, null, 2) + "\n");
   if (!keep) await rm(dir, { recursive: true, force: true });
   return { manifest, entry, dir };

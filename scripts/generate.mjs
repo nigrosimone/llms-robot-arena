@@ -32,7 +32,8 @@ try {
   else {
     const m = result.manifest;
     console.log(`Registered ${m.id}: ${m.turns} turns, ${(m.durationMs / 60000).toFixed(1)} min` +
-      (m.cost != null ? `, $${m.cost.toFixed(2)}` : "") + `. Gate it with: npm run gate -- ${result.entry.file}`);
+      (m.cost != null ? `, $${m.cost.toFixed(2)}` : "") +
+      `; against Baseline ${m.baseline.wins}/${m.baseline.draws}/${m.baseline.losses} (${(m.baseline.score * 100).toFixed(1)}%).`);
   }
 } catch (error) {
   console.error(error.message);

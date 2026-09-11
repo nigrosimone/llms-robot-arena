@@ -22,12 +22,14 @@ try {
       format: { type: "string" },
       out: { type: "string" },
       readme: { type: "string" },
+      concurrency: { type: "string" },
+      cache: { type: "string" },
       help: { type: "boolean" },
     },
   });
   if (values.help) {
     console.log(
-      "npm run standings -- --format round-robin --out packages/viewer/public/standings.json --readme README.md\nUse --format quick for a short run, --bots match-bots.json to pick the roster, --readme none to keep the README unchanged.",
+      "npm run standings -- --format round-robin --out packages/viewer/public/standings.json --readme README.md\nUse --format quick for a short run, --bots match-bots.json to pick the roster, --readme none to keep the README unchanged.\n--concurrency N runs N matches at once (default: half the cores). --cache <file> keeps every played match keyed by engine, sources, seed and spawn (default results/standings-cache.json, none to disable), so only new pairs are played again.",
     );
     process.exit(0);
   }
@@ -54,8 +56,26 @@ try {
     }
   }
   const started = Date.now();
+  const concurrency = Math.max(1, Number(values.concurrency) || Math.floor(cpus().length / 2));
+  const cacheFile = values.cache === "none" ? null : resolve(root, values.cache ?? "results/standings-cache.json");
+  const store = new Map(cacheFile ? Object.entries(JSON.parse(await readFile(cacheFile, "utf8").catch(() => "{}"))) : []);
+  const played = store.size;
+  let unsaved = 0;
+  const saveCache = async () => {
+    if (!cacheFile) return;
+    await mkdir(dirname(cacheFile), { recursive: true });
+    await writeFile(cacheFile, JSON.stringify(Object.fromEntries(store)) + "\n");
+    unsaved = 0;
+  };
+  const cache = cacheFile && {
+    get: (key) => store.get(key),
+    set: (key, record) => {
+      store.set(key, record);
+      if (++unsaved >= 20) saveCache();
+    },
+  };
   const report = await runExhibition({
-    bots, format, gates, createClient,
+    bots, format, gates, createClient, concurrency, cache,
     onUpdate: (update) => {
       if (update.type !== "progress") return;
       const [a, b] = update.pairing;
@@ -65,6 +85,7 @@ try {
     },
   });
   process.stdout.write("\r");
+  await saveCache();
   // Source paths let the README link each controller; roster files outside the
   // project are published without a path.
   const files = new Map(bots.map((bot) => {
@@ -95,7 +116,7 @@ try {
     await writeFile(readme, updateStandingsSection(await readFile(readme, "utf8"), markdown));
   console.log(markdown);
   console.log(
-    `\n${report.records.length} matches in ${((Date.now() - started) / 60000).toFixed(1)} min -> ${out}${readme ? " and " + readme : ""}`,
+    `\n${report.records.length} matches (${store.size - played} played now, ${concurrency} at a time) in ${((Date.now() - started) / 60000).toFixed(1)} min -> ${out}${readme ? " and " + readme : ""}`,
   );
 } catch (e) {
   console.error(e.message);

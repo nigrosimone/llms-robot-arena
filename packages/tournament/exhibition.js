@@ -33,8 +33,15 @@ export function exhibitionSchedule(count, format = "quick") {
   return { format, rounds, matches };
 }
 
+// A match depends on the engine, the two sources, the seed and the spawn:
+// a record played under the same key is the same record.
+export const recordKey = (shaA, shaB, seed, mirrored) =>
+  `${ENGINE_VERSION}:${shaA}:${shaB}:${seed}:${mirrored ? 1 : 0}`;
+
+// `concurrency` matches run at once; `cache` (get/set by record key) skips the
+// ones already played, so a new controller only costs its own pairs.
 export async function runExhibition({ bots, format = "quick", gates = [], createClient,
-  onUpdate = () => {}, matchRunner = runMatch }) {
+  onUpdate = () => {}, matchRunner = runMatch, concurrency = 1, cache = null }) {
   const schedule = exhibitionSchedule(bots.length, format);
   const records = [];
   const metadata = bots.map(bot => ({ ...botMetadata(bot), codeSha256: digest(bot.source) }));
@@ -50,20 +57,32 @@ export async function runExhibition({ bots, format = "quick", gates = [], create
     };
   };
   onUpdate({ type: "tournament-update", report: snapshot() });
-  for (const match of schedule.matches) {
+  const play = async (match) => {
     const { a, b, seed, mirrored, round } = match;
     const progress = (fraction = 0) => onUpdate({
       type: "progress", progress: (records.length + fraction) / schedule.matches.length,
       completed: records.length, total: schedule.matches.length,
       round, rounds: schedule.rounds, pairing: [metadata[a], metadata[b]],
     });
+    const key = recordKey(metadata[a].codeSha256, metadata[b].codeSha256, seed, mirrored);
+    const cached = cache?.get(key);
+    if (cached) return { record: { ...cached, a, b, round }, replay: null };
     progress();
     const replay = await matchRunner({
       bots: [bots[a], bots[b]], seed, mirrored, mode: "exhibition",
       budgetMode: "fuel", createClient, onProgress: progress,
     });
-    records.push({ ...matchRecord(replay, a, b), round });
-    onUpdate({ type: "tournament-update", replay, report: snapshot() });
+    const { a: _a, b: _b, ...record } = matchRecord(replay, a, b);
+    cache?.set(key, record);
+    return { record: { ...record, a, b, round }, replay };
+  };
+  // Records keep the schedule order whatever finishes first.
+  for (let i = 0; i < schedule.matches.length; i += concurrency) {
+    const played = await Promise.all(schedule.matches.slice(i, i + concurrency).map(play));
+    for (const { record, replay } of played) {
+      records.push(record);
+      onUpdate({ type: "tournament-update", replay, report: snapshot() });
+    }
   }
   return snapshot("complete");
 }

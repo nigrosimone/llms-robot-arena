@@ -101,3 +101,38 @@ test("full tournaments compute confidence intervals only after all mirrored seed
   assert.equal(report.replicates, 1000);
   assert.ok(report.ranking.every(r => r.ci.length === 2 && r.ci.every(Number.isFinite)));
 });
+
+test("a cache replays nothing twice and concurrency keeps the schedule order", async () => {
+  const store = new Map();
+  const cache = { get: (key) => store.get(key), set: (key, record) => store.set(key, record) };
+  const runner = () => {
+    let running = 0, peak = 0, calls = 0;
+    const matchRunner = async (options) => {
+      calls++;
+      peak = Math.max(peak, ++running);
+      await new Promise((r) => setTimeout(r, options.seed === 0 && !options.mirrored ? 15 : 1));
+      running--;
+      return replayFor(options);
+    };
+    return { matchRunner, stats: () => ({ peak, calls }) };
+  };
+  // Distinct sources: two identical controllers would rightly share their records.
+  const roster = bots.slice(0, 3).map((bot) => ({ ...bot, source: `controller ${bot.id}` }));
+  const sequential = runner();
+  const first = await runExhibition({ bots: roster, format: "round-robin", matchRunner: sequential.matchRunner, cache });
+  assert.deepEqual(sequential.stats(), { peak: 1, calls: 60 });
+  assert.equal(store.size, 60);
+  const parallel = runner();
+  const second = await runExhibition({ bots: roster, format: "round-robin", matchRunner: parallel.matchRunner, cache, concurrency: 4 });
+  assert.deepEqual(parallel.stats(), { peak: 0, calls: 0 }, "everything came from the cache");
+  assert.deepEqual(second.records, first.records);
+  assert.deepEqual(second.ranking, first.ranking);
+  // A changed source plays only its own pairs, and several at once.
+  const changed = [...roster.slice(0, 2), { ...roster[2], source: "a different controller" }];
+  const partial = runner();
+  const third = await runExhibition({ bots: changed, format: "round-robin", matchRunner: partial.matchRunner, cache, concurrency: 4 });
+  assert.equal(partial.stats().calls, 40);
+  assert.ok(partial.stats().peak > 1);
+  assert.deepEqual(third.records.map((r) => [r.a, r.b, r.seed, r.mirrored, r.round]), first.records.map((r) => [r.a, r.b, r.seed, r.mirrored, r.round]));
+  assert.ok(third.records.every((r) => !Object.hasOwn(r, "_a")));
+});

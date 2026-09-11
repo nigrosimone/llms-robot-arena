@@ -77,6 +77,10 @@ test("the workspace holds Baseline and the new slot only, and the result is regi
   assert.equal(manifest.inputTokens, 30);
   assert.equal(manifest.harnessVersion, "codex-cli 0.154.0");
   assert.match(manifest.isolation, /operator machine/);
+  // Measured by the generator, not reported by the agent.
+  assert.equal(manifest.gate.eligible, true);
+  assert.equal(manifest.baseline.matches, 20);
+  assert.equal(manifest.baseline.wins + manifest.baseline.draws + manifest.baseline.losses, 20);
   assert.equal(manifest.promptSha256, sha256("Implement `{{id}}` for {{name}} ({{provider}}).\n"));
   assert.equal(await readFile(join(root, "results/luna-max/iteration-1/RESULTS.md"), "utf8"), "# results\n");
   assert.equal(JSON.parse(await readFile(join(root, "generations/luna-max.json"), "utf8")).id, "luna-max");
