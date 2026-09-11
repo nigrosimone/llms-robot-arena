@@ -4,8 +4,8 @@ import { createMatch, step, sensorsFor, closeReplay, digest } from "../packages/
 import { SPEC as S, halfExtent } from "../packages/sim/spec.js";
 import { cellSnapshots, flamePhase, crossesCell, isHole } from "../packages/sim/terrain.js";
 import { stringifyReplay, parseReplay } from "../packages/sim/replay.js";
-import { samplePlayback } from "../packages/viewer/playback.js";
-import { deckGeometry, decalGeometry, TerrainView } from "../packages/viewer/terrain.js";
+import { samplePlayback } from "../packages/renderer/playback.js";
+import { deckGeometry, decalGeometry, TerrainView } from "../packages/renderer/terrain.js";
 import { Mesh, MeshBasicMaterial, Raycaster, Vector3, Scene } from "three";
 const idle = () => [0, 1].map(() => ({ actions: { thrust: 0, turn: 0 } }));
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-8, `${a} != ${b}`);

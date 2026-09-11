@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { eventCue } from "../packages/viewer/audio.js";
+import { eventCue } from "../packages/renderer/audio.js";
 import {
   pickRecordingType,
   recordingFilename,
   introCard,
   matchOutcome,
-} from "../packages/viewer/recorder.js";
+} from "../packages/renderer/recorder.js";
 
 const bots = [
   { id: "alpha", model: "Alpha One", provider: "OpenAI" },

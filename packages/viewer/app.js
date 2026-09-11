@@ -1,9 +1,9 @@
 import { SPEC as S, SPEC_VERSION, ENGINE_VERSION, mulberry32 } from "../sim/spec.js";
 import { renderReport } from "../tournament/report.js";
-import { ArenaViewer } from "./arena.js";
+import { ArenaViewer } from "../renderer/arena.js";
 import { stringifyReplay, parseReplay } from "../sim/replay.js";
 import builtins from "arena:bots";
-import { robotColor } from "./palette.js";
+import { robotColor } from "../renderer/palette.js";
 import { botName, botDetails } from "../bot-catalog.js";
 import { sortedBotOptions, controllerFilename } from "./controllers.js";
 import { exhibitionSchedule } from "../tournament/exhibition.js";
@@ -29,9 +29,9 @@ import {
   matchOutcome,
   INTRO_SECONDS,
   OUTRO_SECONDS,
-} from "./recorder.js";
-import { MatchAudio } from "./audio.js";
-import { clipSupported, renderClip } from "./clip.js";
+} from "../renderer/recorder.js";
+import { MatchAudio } from "../renderer/audio.js";
+import { clipSupported, renderClip } from "../renderer/clip.js";
 import { CONTRACT_CARD, CONTROLLERS, HAZARD_CARDS, RULE_CARDS, RULES_NOTE, TABS, ruleCards, tabForRoute } from "../site/content.js";
 import { currentRoute, pagePath, siteUrl } from "./base.js";
 const icons = {

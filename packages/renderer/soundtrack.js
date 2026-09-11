@@ -5,8 +5,9 @@
 //
 // The file is local and is not part of the repository. Without it the viewer
 // stays silent, and only the sound effects play.
-import { siteUrl } from "./base.js";
-export const TRACK_URL = siteUrl("music/bed.mp3").href;
+// The music sits next to the bundle, whatever page loaded it: the renderer
+// has no notion of the site, only of where its own code came from.
+export const TRACK_URL = new URL("music/bed.mp3", import.meta.url).href;
 const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
 export class Soundtrack {

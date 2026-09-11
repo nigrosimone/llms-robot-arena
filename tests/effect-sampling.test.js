@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { poseAt, robotHeat } from "../packages/viewer/effect-sampling.js";
+import { poseAt, robotHeat } from "../packages/renderer/effect-sampling.js";
 
 const flame = Object.freeze({
   id: "flame-0", type: "flame", state: "flaming", x: 0.5, y: 0.5, size: 1,

@@ -7,7 +7,7 @@ import {
   freshEvents,
   burnIntensity,
   matchIntensity,
-} from "../packages/viewer/playback.js";
+} from "../packages/renderer/playback.js";
 
 // Generate public engine data without loading any controller implementation.
 const fixture = createMatch(0, false, ["a", "b"].map(id => ({

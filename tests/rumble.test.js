@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createMatch as createEngineMatch, step, sensorsFor, closeReplay, digest } from "../packages/sim/index.js";
 import { SPEC as S } from "../packages/sim/spec.js";
 import { parseReplay, stringifyReplay } from "../packages/sim/replay.js";
-import { samplePlayback } from "../packages/viewer/playback.js";
+import { samplePlayback } from "../packages/renderer/playback.js";
 
 const refs = (n) =>
   Array.from({ length: n }, (_, i) => ({

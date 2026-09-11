@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Box3, Scene } from "three";
-import { TerrainView, floorGridGeometry } from "../packages/viewer/terrain.js";
-import { CombatEffects } from "../packages/viewer/effects.js";
+import { TerrainView, floorGridGeometry } from "../packages/renderer/terrain.js";
+import { CombatEffects } from "../packages/renderer/effects.js";
 
 const epsilon = 1e-7;
 const hole = (x, y) => ({ id: `hole-${x}-${y}`, type: "hole", x, y, size: 1 });

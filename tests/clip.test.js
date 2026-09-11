@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clipTimeline, videoConfigs, audioConfigs } from "../packages/viewer/clip.js";
+import { clipTimeline, videoConfigs, audioConfigs } from "../packages/renderer/clip.js";
 
 test("a clip is the intro card, one frame per tick and the verdict", () => {
   const t = clipTimeline(33.5, 60);

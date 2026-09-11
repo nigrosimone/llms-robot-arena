@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Scene } from "three";
-import { ParticleField } from "../packages/viewer/particles.js";
+import { ParticleField } from "../packages/renderer/particles.js";
 
 function field(count = 4) {
   return new ParticleField(new Scene(), { count });

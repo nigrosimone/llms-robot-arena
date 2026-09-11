@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PerspectiveCamera, Vector3 } from "three";
-import { FollowCamera } from "../packages/viewer/camera.js";
+import { FollowCamera } from "../packages/renderer/camera.js";
 
 function setup(aspect) {
   const camera = new PerspectiveCamera(39, aspect, 0.1, 160);

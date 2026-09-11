@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Scene } from "three";
-import { CombatEffects } from "../packages/viewer/effects.js";
-import { samplePlayback } from "../packages/viewer/playback.js";
+import { CombatEffects } from "../packages/renderer/effects.js";
+import { samplePlayback } from "../packages/renderer/playback.js";
 
 // Synthetic public replay data exercises the renderer without loading bots or
 // changing the simulation. Each pose is [x, y, heading, energy, status, timer].

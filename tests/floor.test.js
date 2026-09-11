@@ -6,8 +6,8 @@ import { SPEC as S } from "../packages/sim/spec.js";
 import { floorIndex, floorCapacity, addFloorLoad } from "../packages/sim/floor.js";
 import { cellSnapshots, isHole } from "../packages/sim/terrain.js";
 import { parseReplay, stringifyReplay } from "../packages/sim/replay.js";
-import { samplePlayback } from "../packages/viewer/playback.js";
-import { TerrainView } from "../packages/viewer/terrain.js";
+import { samplePlayback } from "../packages/renderer/playback.js";
+import { TerrainView } from "../packages/renderer/terrain.js";
 
 const idle = [{ actions: { thrust: 0, turn: 0 } }, { actions: { thrust: 0, turn: 0 } }];
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
