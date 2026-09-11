@@ -59,29 +59,37 @@ The published standings come from one exhibition tournament run with `npm run st
 
 <!-- standings:start -->
 
-Round robin (10 seeds per pair, mirrored spawns) · 420 matches · fuel budget · spec 0.2.2-draft / engine 0.2.2-r1 · generated 2026-09-09.
+Round robin (10 seeds per pair, mirrored spawns) · 1100 matches · fuel budget · spec 0.2.2-draft / engine 0.2.2-r2 · generated 2026-09-11.
 
 | # | Controller | Provider | Thinking | Harness | Development | Source | Strength | 95% CI | Score % | W / D / L |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | GPT-6 Astra | OpenAI | ultra | Codex | iterative | [gpt-6-astra-ultra.js](packages/bots/gpt-6-astra-ultra.js) | 217.0 | 168.7 – 283.6 | 75.0 | 88 / 4 / 28 |
-| 2 | Fable 5.1 | Anthropic | max | Claude Code | iterative | [fable-5-1-max.js](packages/bots/fable-5-1-max.js) | 146.8 | 109.1 – 193.6 | 65.0 | 77 / 2 / 41 |
-| 3 | GPT-5.6 Terra | OpenAI | ultra | Codex | iterative | [gpt-5-6-terra-ultra.js](packages/bots/gpt-5-6-terra-ultra.js) | 92.6 | 67.5 – 120.8 | 52.1 | 59 / 7 / 54 |
-| 4 | Claude Sonnet 5 | Anthropic | max | Claude Code | iterative | [sonnet-5-max.js](packages/bots/sonnet-5-max.js) | 78.9 | 55.4 – 108.3 | 47.5 | 54 / 6 / 60 |
-| 5 | Claude Opus 5.1 | Anthropic | max | Claude Code | iterative | [opus-5-1-max.js](packages/bots/opus-5-1-max.js) | 70.2 | 52.9 – 88.2 | 44.2 | 49 / 8 / 63 |
-| 6 | GPT-5.6 Sol | OpenAI | ultra | Codex | iterative | [gpt-5-6-sol-ultra.js](packages/bots/gpt-5-6-sol-ultra.js) | 49.8 | 36.8 – 62.6 | 34.6 | 37 / 9 / 74 |
-| 7 | Baseline | Reference controller | — | — | reference | [baseline.js](packages/bots/baseline.js) | 44.7 | 31.1 – 60.8 | 31.7 | 35 / 6 / 79 |
+| 1 | GPT-6 Astra | OpenAI | ultra | Codex | iterative | [gpt-6-astra-ultra.js](packages/bots/gpt-6-astra-ultra.js) | 217.1 | 168.8 – 274.9 | 73.5 | 143 / 8 / 49 |
+| 2 | Fable 5.1 | Anthropic | max | Claude Code | iterative | [fable-5-1-max.js](packages/bots/fable-5-1-max.js) | 182.9 | 145.3 – 231.9 | 69.5 | 138 / 2 / 60 |
+| 3 | GPT-5.6 Terra | OpenAI | ultra | Codex | iterative | [gpt-5-6-terra-ultra.js](packages/bots/gpt-5-6-terra-ultra.js) | 126.6 | 102.0 – 160.9 | 60.3 | 113 / 15 / 72 |
+| 4 | Claude Sonnet 5 | Anthropic | max | Claude Code | iterative | [sonnet-5-max.js](packages/bots/sonnet-5-max.js) | 110.9 | 86.7 – 139.7 | 56.8 | 106 / 15 / 79 |
+| 5 | GPT-5.5 | OpenAI | xhigh | Codex | iterative | [gpt-5-5-xhigh.js](packages/bots/gpt-5-5-xhigh.js) | 99.1 | 78.2 – 121.9 | 53.8 | 97 / 21 / 82 |
+| 6 | Claude Haiku 4.5 | Anthropic | max | Claude Code | iterative | [haiku-4-5-max.js](packages/bots/haiku-4-5-max.js) | 87.8 | 68.4 – 109.9 | 50.5 | 93 / 16 / 91 |
+| 7 | Claude Opus 5.1 | Anthropic | max | Claude Code | iterative | [opus-5-1-max.js](packages/bots/opus-5-1-max.js) | 84.6 | 66.6 – 103.3 | 49.5 | 94 / 10 / 96 |
+| 8 | GPT-5.6 Luna | OpenAI | max | Codex | iterative | [gpt-5-6-luna-max.js](packages/bots/gpt-5-6-luna-max.js) | 59.7 | 46.0 – 73.0 | 40.3 | 73 / 15 / 112 |
+| 9 | GPT-5.6 Sol | OpenAI | ultra | Codex | iterative | [gpt-5-6-sol-ultra.js](packages/bots/gpt-5-6-sol-ultra.js) | 56.4 | 44.7 – 68.9 | 38.8 | 65 / 25 / 110 |
+| 10 | Baseline | Reference controller | — | — | reference | [baseline.js](packages/bots/baseline.js) | 39.7 | 30.9 – 49.8 | 30.0 | 52 / 16 / 132 |
+| 11 | GPT-5.3 Codex Spark | OpenAI | xhigh | Codex | iterative | [gpt-5-3-codex-spark-xhigh.js](packages/bots/gpt-5-3-codex-spark-xhigh.js) | 35.3 | 25.6 – 46.3 | 27.3 | 45 / 19 / 136 |
 
 **Play style.** Measured from the recorded frames of the same matches. The profile names the axis where a controller stands out most against this roster.
 
 | Controller | Profile | Contact | Closing | Wedge | Engagements / min | Speed | Turn rate | Edge time | Energy / s | Recharges |
 |---|---|---|---|---|---|---|---|---|---|---|
-| GPT-6 Astra | Energy burn | 22% | 46% | 66% | 7.4 | 1.27 m/s | 0.61 rad/s | 3% | 13.0 | 4.1 |
-| Fable 5.1 | Edge play | 16% | 38% | 71% | 8.4 | 0.87 m/s | 0.59 rad/s | 28% | 9.2 | 2.2 |
-| GPT-5.6 Terra | Pressure | 25% | 40% | 62% | 5.3 | 0.85 m/s | 0.51 rad/s | 5% | 10.6 | 2.2 |
-| Claude Sonnet 5 | Pressure | 26% | 42% | 47% | 7.8 | 0.72 m/s | 0.57 rad/s | 3% | 9.9 | 1.0 |
-| Claude Opus 5.1 | Mobility | 12% | 21% | 42% | 6.8 | 1.61 m/s | 0.82 rad/s | 5% | 8.1 | 2.5 |
-| GPT-5.6 Sol | Pressure | 31% | 41% | 59% | 5.2 | 0.71 m/s | 0.40 rad/s | 7% | 11.5 | 1.1 |
-| Baseline | Aggression | 30% | 52% | 84% | 4.3 | 1.08 m/s | 0.36 rad/s | 6% | 12.1 | 0.4 |
+| GPT-6 Astra | Energy burn | 26% | 41% | 66% | 7.3 | 1.16 m/s | 0.57 rad/s | 4% | 13.6 | 3.7 |
+| Fable 5.1 | Edge play | 16% | 37% | 67% | 8.5 | 0.87 m/s | 0.62 rad/s | 30% | 9.3 | 1.6 |
+| GPT-5.6 Terra | Pressure | 29% | 37% | 67% | 5.3 | 0.78 m/s | 0.46 rad/s | 5% | 11.7 | 2.0 |
+| Claude Sonnet 5 | Pressure | 31% | 40% | 59% | 6.5 | 0.64 m/s | 0.49 rad/s | 4% | 10.8 | 0.9 |
+| GPT-5.5 | Aggression | 36% | 48% | 89% | 4.7 | 0.91 m/s | 0.23 rad/s | 6% | 14.2 | 0.3 |
+| Claude Haiku 4.5 | Energy burn | 33% | 42% | 78% | 6.9 | 1.12 m/s | 0.47 rad/s | 6% | 13.7 | 1.3 |
+| Claude Opus 5.1 | Mobility | 13% | 21% | 45% | 7.2 | 1.70 m/s | 0.89 rad/s | 7% | 8.5 | 2.3 |
+| GPT-5.6 Luna | Pressure | 30% | 39% | 70% | 4.5 | 0.79 m/s | 0.49 rad/s | 2% | 11.5 | 0.8 |
+| GPT-5.6 Sol | Pressure | 35% | 39% | 71% | 4.7 | 0.62 m/s | 0.35 rad/s | 6% | 12.5 | 0.9 |
+| Baseline | Pressure | 33% | 46% | 86% | 4.1 | 0.89 m/s | 0.30 rad/s | 4% | 13.2 | 0.3 |
+| GPT-5.3 Codex Spark | Pressure | 33% | 40% | 69% | 5.8 | 1.09 m/s | 0.45 rad/s | 9% | 12.2 | 0.5 |
 
 **Implementation.** Measured from the submitted source: cyclomatic complexity counts branches and short-circuit operators, nesting counts functions and control statements.
 
@@ -91,21 +99,29 @@ Round robin (10 seeds per pair, mirrored spawns) · 420 matches · fuel budget �
 | Fable 5.1 | js | 591 | 490 | 102 | 15 | 518 | 13 | 35.4 kB |
 | GPT-5.6 Terra | js | 459 | 423 | 4 | 7 | 164 | 8 | 15.4 kB |
 | Claude Sonnet 5 | js | 383 | 296 | 70 | 7 | 191 | 8 | 19.5 kB |
+| GPT-5.5 | js | 59 | 50 | 0 | 1 | 23 | 4 | 1.5 kB |
+| Claude Haiku 4.5 | js | 65 | 54 | 0 | 1 | 26 | 5 | 1.9 kB |
 | Claude Opus 5.1 | js | 450 | 362 | 69 | 10 | 275 | 7 | 23.4 kB |
+| GPT-5.6 Luna | js | 306 | 285 | 0 | 5 | 112 | 6 | 9.9 kB |
 | GPT-5.6 Sol | js | 609 | 564 | 0 | 10 | 201 | 10 | 19.9 kB |
 | Baseline | js | 18 | 15 | 2 | 1 | 4 | 2 | 0.4 kB |
+| GPT-5.3 Codex Spark | js | 173 | 143 | 0 | 1 | 76 | 5 | 4.8 kB |
 
 **Craft index.** One number over results and source: a weighted geometric mean of strength (45%), reliability (20%), consistency (15%), efficiency (10%) and maintainability (10%). Every term is scaled 0 to 1, the first four against this roster and maintainability against ten branches per function and four levels of nesting. It is not the ranking: strength alone decides that.
 
 | Controller | Craft index | Strength | Reliability | Consistency | Efficiency | Maintainability |
 |---|---|---|---|---|---|---|
-| GPT-6 Astra | 90.5 | 1.00 | 1.00 | 0.74 | 1.00 | 0.58 |
-| Fable 5.1 | 67.0 | 0.68 | 1.00 | 0.71 | 0.59 | 0.30 |
-| GPT-5.6 Terra | 54.4 | 0.43 | 0.99 | 0.71 | 0.38 | 0.46 |
-| Claude Sonnet 5 | 49.3 | 0.36 | 0.99 | 0.66 | 0.35 | 0.43 |
-| Claude Opus 5.1 | 47.2 | 0.32 | 0.99 | 0.75 | 0.30 | 0.47 |
-| GPT-5.6 Sol | 38.6 | 0.23 | 0.99 | 0.74 | 0.20 | 0.45 |
-| Baseline | 41.7 | 0.21 | 0.95 | 0.67 | 0.39 | 1.00 |
+| GPT-6 Astra | 90.8 | 1.00 | 1.00 | 0.76 | 1.00 | 0.58 |
+| Fable 5.1 | 76.4 | 0.84 | 1.00 | 0.76 | 0.74 | 0.30 |
+| GPT-5.6 Terra | 65.4 | 0.58 | 0.99 | 0.77 | 0.52 | 0.46 |
+| Claude Sonnet 5 | 60.6 | 0.51 | 0.99 | 0.76 | 0.48 | 0.43 |
+| GPT-5.5 | 62.1 | 0.46 | 0.97 | 0.78 | 0.62 | 0.72 |
+| Claude Haiku 4.5 | 56.7 | 0.40 | 0.97 | 0.76 | 0.54 | 0.59 |
+| Claude Opus 5.1 | 52.7 | 0.39 | 0.99 | 0.78 | 0.36 | 0.47 |
+| GPT-5.6 Luna | 44.2 | 0.28 | 0.97 | 0.77 | 0.26 | 0.56 |
+| GPT-5.6 Sol | 41.7 | 0.26 | 0.99 | 0.79 | 0.22 | 0.45 |
+| Baseline | 40.0 | 0.18 | 0.97 | 0.76 | 0.35 | 1.00 |
+| GPT-5.3 Codex Spark | 32.4 | 0.16 | 0.96 | 0.71 | 0.18 | 0.47 |
 
 <!-- standings:end -->
 
