@@ -499,7 +499,7 @@ function startRecording() {
     return toast(error.message, true);
   }
   viewer.onRender = () => recorder?.capture();
-  viewer.setMinimumRows(1080);
+  viewer.setMinimumRows(720);
   setRecordingUI(true);
   playWithIntro();
   toast("Recording from the start. The video is saved when the match ends.");

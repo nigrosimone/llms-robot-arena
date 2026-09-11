@@ -265,7 +265,8 @@ export class ArenaViewer {
     this.setRobotCount(2);
     this.effects = new CombatEffects(scene, this.arenaClip);
     // While recording the buffer keeps at least this many rows whatever the
-    // stage size on screen, so the clip is not an upscaled small canvas.
+    // stage size on screen, so the clip is not an upscaled small canvas. Full
+    // 1080 rows made the render loop drop frames on an integrated GPU.
     this.minimumRows = 0;
     this.applySize = () => {
       const { width, height } = container.getBoundingClientRect();
