@@ -251,7 +251,10 @@ export async function generateBot({
   };
   // Into the repository: the source, its catalog entry, the local results and the manifest.
   await writeFile(join(root, entry.file), source);
-  await writeFile(join(root, "bots.json"), JSON.stringify([...catalog, entry], null, 2) + "\n");
+  // Re-read the catalog: another generation may have registered meanwhile.
+  const current = JSON.parse(await readFile(join(root, "bots.json"), "utf8"));
+  if (!current.some((bot) => bot.id === id))
+    await writeFile(join(root, "bots.json"), JSON.stringify([...current, entry], null, 2) + "\n");
   await cp(join(dir, "results"), join(root, "results"), { recursive: true, force: false }).catch(() => {});
   await mkdir(join(root, "generations"), { recursive: true });
   await writeFile(join(root, "generations", `${id}.json`), JSON.stringify(manifest, null, 2) + "\n");
