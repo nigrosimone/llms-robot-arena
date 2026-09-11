@@ -499,6 +499,7 @@ function startRecording() {
     return toast(error.message, true);
   }
   viewer.onRender = () => recorder?.capture();
+  viewer.setMinimumRows(1080);
   setRecordingUI(true);
   playWithIntro();
   toast("Recording from the start. The video is saved when the match ends.");
@@ -512,7 +513,10 @@ async function finishRecording() {
   setRecordingUI(false);
   $("#record").disabled = true;
   const clip = await active.stop();
-  if (viewer) viewer.onRender = null;
+  if (viewer) {
+    viewer.onRender = null;
+    viewer.setMinimumRows(0);
+  }
   $("#record").disabled = false;
   if (!clip?.blob.size) return toast("Recording produced no video.", true);
   const name = recordingFilename(replay, clip.extension);

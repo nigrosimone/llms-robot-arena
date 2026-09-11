@@ -264,21 +264,30 @@ export class ArenaViewer {
     this.labels = [];
     this.setRobotCount(2);
     this.effects = new CombatEffects(scene, this.arenaClip);
-    this.resize = new ResizeObserver(() => {
+    // While recording the buffer keeps at least this many rows whatever the
+    // stage size on screen, so the clip is not an upscaled small canvas.
+    this.minimumRows = 0;
+    this.applySize = () => {
       const { width, height } = container.getBoundingClientRect();
       if (!width || !height) return;
+      renderer.setPixelRatio(Math.max(Math.min(devicePixelRatio, 2), this.minimumRows / height));
       renderer.setSize(width, height);
       const buffer = height * renderer.getPixelRatio();
       this.effects.setHeight(buffer);
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
       this.draw(0, true);
-    });
+    };
+    this.resize = new ResizeObserver(this.applySize);
     this.resize.observe(container);
     this.animate = this.animate.bind(this);
     this.raf = requestAnimationFrame(this.animate);
   }
   // A rumble brings more than two robots: meshes and labels follow the roster.
+  setMinimumRows(rows) {
+    this.minimumRows = rows;
+    this.applySize();
+  }
   setRobotCount(count) {
     // Loading a shorter roster must not leave the camera on a robot that is
     // gone. No redraw here: the replay around it is still being swapped.

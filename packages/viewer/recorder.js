@@ -5,8 +5,11 @@ import { botName, botProvider } from "../bot-catalog.js";
 import { robotColor } from "./palette.js";
 export const INTRO_SECONDS = 4;
 export const OUTRO_SECONDS = 3;
+// The overlay is laid out in 1280x720 units and drawn scaled: the clip itself
+// is 1080p, the least YouTube treats as HD.
 const WIDTH = 1280,
   HEIGHT = 720,
+  OUTPUT_SCALE = 1.5,
   FPS = 30;
 const SANS = '"DM Sans", system-ui, sans-serif';
 const MONO = '"IBM Plex Mono", monospace';
@@ -227,17 +230,22 @@ function drawIntro(ctx, { replay }, progress) {
 export class MatchRecorder {
   // source() returns the rendered WebGL canvas, state() the replay and the
   // frame the viewer is showing, so recording never drives the simulation.
-  constructor({ source, state, sound = null, width = WIDTH, height = HEIGHT, fps = FPS }) {
+  constructor({ source, state, sound = null, width = WIDTH, height = HEIGHT, fps = FPS, scale = OUTPUT_SCALE }) {
     this.source = source;
     this.state = state;
     // The synthesized match sound, as a live MediaStream, or null for a silent clip.
     this.sound = sound;
     this.fps = fps;
+    this.scale = scale;
     this.canvas = document.createElement("canvas");
-    this.canvas.width = width;
-    this.canvas.height = height;
+    this.canvas.width = Math.round(width * scale);
+    this.canvas.height = Math.round(height * scale);
     this.ctx = this.canvas.getContext("2d");
     this.media = null;
+  }
+  // The frame size the overlay is drawn in.
+  get frame() {
+    return { width: this.canvas.width / this.scale, height: this.canvas.height / this.scale };
   }
   get recording() {
     return Boolean(this.media);
@@ -255,7 +263,7 @@ export class MatchRecorder {
     if (track) stream.addTrack(track);
     this.media = new MediaRecorder(stream, {
       mimeType: type.mime,
-      videoBitsPerSecond: 8_000_000,
+      videoBitsPerSecond: 16_000_000,
     });
     this.media.ondataavailable = (e) => {
       if (e.data.size) this.chunks.push(e.data);
@@ -271,7 +279,8 @@ export class MatchRecorder {
   capture() {
     if (!this.media) return;
     const { ctx } = this,
-      { width, height } = this.canvas;
+      { width, height } = this.frame;
+    ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
     ctx.fillStyle = "#101316";
     ctx.fillRect(0, 0, width, height);
     const source = this.source?.();
