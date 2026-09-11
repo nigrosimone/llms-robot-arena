@@ -95,6 +95,16 @@ Round robin (10 seeds per pair, mirrored spawns) · 1560 matches · fuel budget 
 | Baseline | Pressure | 33% | 46% | 87% | 4.2 | 0.87 m/s | 0.30 rad/s | 6% | 13.2 | 0.3 |
 | GPT-5.3 Codex Spark | Pressure | 34% | 42% | 68% | 5.8 | 1.12 m/s | 0.46 rad/s | 8% | 12.1 | 0.5 |
 
+**Highlights.** The matches worth watching: total flips first, then engagements. Each link simulates the match again in the arena.
+
+| Match | Seed / spawn | Flips | Engagements | Result | Watch |
+|---|---|---|---|---|---|
+| GPT-6 Astra vs Fable 5.1 | 4 / mirrored | 3 | 5 | GPT-6 Astra wins, flips at 59 s | [simulate](https://llms-robot-arena.sndesign.it/?a=gpt-6-astra-ultra&b=fable-5-1-max&seed=4&spawn=mirror) |
+| Fable 5.1 vs Claude Opus 5.1 | 1 / mirrored | 2 | 12 | Claude Opus 5.1 wins, flips at 62 s | [simulate](https://llms-robot-arena.sndesign.it/?a=fable-5-1-max&b=opus-5-1-max&seed=1&spawn=mirror) |
+| Fable 5.1 vs Claude Haiku 4.5 | 5 / mirrored | 2 | 11 | Fable 5.1 wins, hole at 32 s | [simulate](https://llms-robot-arena.sndesign.it/?a=fable-5-1-max&b=haiku-4-5-max&seed=5&spawn=mirror) |
+| Claude Sonnet 5 vs GLM 5.3 Flash | 7 / standard | 2 | 11 | GLM 5.3 Flash wins, flips at 31 s | [simulate](https://llms-robot-arena.sndesign.it/?a=sonnet-5-max&b=glm-5-3-flash&seed=7&spawn=normal) |
+| GPT-6 Astra vs Fable 5.1 | 8 / mirrored | 2 | 9 | Fable 5.1 wins, flips at 44 s | [simulate](https://llms-robot-arena.sndesign.it/?a=gpt-6-astra-ultra&b=fable-5-1-max&seed=8&spawn=mirror) |
+
 **Implementation.** Measured from the submitted source: cyclomatic complexity counts branches and short-circuit operators, nesting counts functions and control statements.
 
 | Controller | Language | Lines | Code | Comments | Functions | Cyclomatic | Max nesting | Size |

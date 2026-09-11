@@ -1,5 +1,7 @@
 import { botCatalog, botName, botProvider } from "../bot-catalog.js";
 import { renderCodeTable, renderIndexTable, renderStyleTable } from "./report.js";
+import { highlights, highlightLabel } from "./spectacle.js";
+import { SITE } from "../site/content.js";
 
 // Published standings: one static tournament, rendered for the README and
 // reused by the Tournament page until the visitor runs their own.
@@ -39,6 +41,23 @@ function styleSection(report) {
     : [];
 }
 
+function highlightSection(report) {
+  const rows = highlights(report);
+  return rows.length
+    ? [
+        "",
+        "**Highlights.** The matches worth watching: total flips first, then engagements. Each link simulates the match again in the arena.",
+        "",
+        "| Match | Seed / spawn | Flips | Engagements | Result | Watch |",
+        "|---|---|---|---|---|---|",
+        ...rows.map((h) => {
+          const { match, result, search } = highlightLabel(report, h);
+          return `| ${cell(match)} | ${h.seed} / ${h.mirrored ? "mirrored" : "standard"} | ${h.flips} | ${h.engagements} | ${cell(result)}, ${cell(h.reason)} at ${Math.round(h.ticks / 60)} s | [simulate](${SITE.url}${search}) |`;
+        }),
+      ]
+    : [];
+}
+
 function codeSection(report) {
   const table = renderCodeTable(report.bots, report.ranking);
   return table.length
@@ -70,6 +89,7 @@ export function renderStandings(report) {
       `| ${i + 1} | ${cell(botName(r))} | ${cell(botProvider(r))} | ${cell(r.thinking ?? "—")} | ${cell(r.harness ?? "—")} | ${cell(r.provenance ?? "—")} | ${sourceLink(report, r)} | ${fmt(r.score)} | ${r.ci?.map((n) => fmt(n)).join(" – ") ?? "—"} | ${fmt(r.winRate * 100)} | ${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws} |`,
     ),
     ...styleSection(report),
+    ...highlightSection(report),
     ...codeSection(report),
     ...indexSection(report),
   ].join("\n");

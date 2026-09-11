@@ -9,6 +9,7 @@ import { sortedBotOptions, controllerFilename } from "./controllers.js";
 import { exhibitionSchedule } from "../tournament/exhibition.js";
 import { STYLE_AXES, formatStyleValue, styleLabel, styleProfiles } from "../tournament/style.js";
 import { INDEX_TERMS, compositeIndex } from "../tournament/composite.js";
+import { highlights, highlightLabel } from "../tournament/spectacle.js";
 import { readMatchSettings, matchSettingsSearch } from "./match-link.js";
 import {
   SHA_PREFIX,
@@ -166,6 +167,7 @@ document.querySelector("#app").innerHTML = `
   <div id="tournament-gates" aria-label="Tournament controller checks" hidden></div>
   <div id="ranking-surface" class="ranking-surface"><div class="empty-ranking"><span>${icon("trophy", 44)}</span><h2>No verdict yet.</h2><p>Select at least two controllers and start the tournament.<br>Results and provisional rankings update after every match.</p></div></div>
   <div id="tournament-style" class="style-grid"></div>
+  <div id="tournament-highlights" class="tournament-matches"></div>
   <div id="tournament-code" class="tournament-matches"></div>
   <div id="tournament-index" class="tournament-matches"></div>
   <div id="tournament-matches" class="tournament-matches"></div>
@@ -1192,6 +1194,7 @@ $("#run-tournament").onclick = () => {
   $("#export-report").disabled = true;
   $("#ranking-surface").innerHTML = '<div class="empty-ranking"><h2>Checking controllers…</h2><p>The provisional ranking updates after every completed match.</p></div>';
   $("#tournament-style").innerHTML = "";
+  $("#tournament-highlights").innerHTML = "";
   $("#tournament-code").innerHTML = "";
   $("#tournament-index").innerHTML = "";
   $("#tournament-matches").innerHTML = "";
@@ -1215,6 +1218,7 @@ function renderRanking() {
   $("#ranking-surface").innerHTML =
     `<div class="ranking-header"><h2>${heading}</h2><span class="tag">${tag}</span></div><div class="table-scroll"><table><thead><tr><th>#</th><th>Controller</th><th>Bradley–Terry</th><th>95% CI</th><th>Score %</th><th>W / D / L</th><th>Δ Flip</th><th>Ring-out + / −</th><th>Mean energy</th><th>First contact</th><th>Violations / match</th><th>Timeouts</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td class="rank-number">${String(i + 1).padStart(2, "0")}</td><td><strong>${esc(botName(r))}</strong><small>${esc(botDetails(r))}</small></td><td class="bt-score">${r.score.toFixed(1)}</td><td class="mono">${r.ci?.map((n) => n.toFixed(1)).join(" – ") ?? "—"}</td><td>${(r.winRate * 100).toFixed(1)}%</td><td class="mono">${r.wins} / ${r.draws} / ${r.matches - r.wins - r.draws}</td><td>${r.flipDifferential > 0 ? "+" : ""}${r.flipDifferential}</td><td>${r.ringOutsInflicted} / ${r.ringOutsTaken}</td><td>${r.meanEnergy.toFixed(1)}</td><td>${r.meanFirstContactTick === null ? "—" : (r.meanFirstContactTick / 60).toFixed(1) + " s"}</td><td>${r.violationsPerMatch.toFixed(2)}</td><td>${r.timeouts}</td></tr>`).join("")}</tbody></table></div>`;
   renderStyle();
+  renderHighlights();
   renderCode();
   renderIndex();
 }
@@ -1248,6 +1252,16 @@ function renderStyle() {
   const profiles = styleProfiles(report.ranking);
   $("#tournament-style").innerHTML = profiles
     ? `<div class="ranking-header"><h2>Play style</h2><span class="tag">MEASURED OVER THE SAME MATCHES · SCALED ON THIS ROSTER</span></div><div class="style-cards">${report.ranking.map((r, i) => `<article class="style-card"><header><strong>${esc(botName(r))}</strong><span class="tag">${esc(styleLabel(profiles[i]))}</span></header>${radarShape(profiles[i])}<dl>${STYLE_AXES.map(axis => `<div><dt>${esc(axis.label)}</dt><dd>${esc(formatStyleValue(axis, r.style))}</dd></div>`).join("")}</dl></article>`).join("")}</div>`
+    : "";
+}
+// The matches worth watching, simulated again from their settings.
+function renderHighlights() {
+  const rows = highlights(report);
+  $("#tournament-highlights").innerHTML = rows.length
+    ? `<div class="ranking-header"><h2>Highlights</h2><span class="tag">FLIPS FIRST, THEN ENGAGEMENTS</span></div><div class="table-scroll"><table><thead><tr><th>Match</th><th>Seed / spawn</th><th>Flips</th><th>Engagements</th><th>Result</th><th>Watch</th></tr></thead><tbody>${rows.map((h) => {
+        const { match, result, search } = highlightLabel(report, h);
+        return `<tr><td><strong>${esc(match)}</strong></td><td>${h.seed} / ${h.mirrored ? "Mirrored" : "Standard"}</td><td class="mono">${h.flips}</td><td class="mono">${h.engagements}</td><td>${esc(result)}<small>${esc(h.reason)} · ${clock(h.ticks / 60)}</small></td><td><a class="button outline" href="${pagePath("")}${esc(search)}">${icon("play")}Simulate</a></td></tr>`;
+      }).join("")}</tbody></table></div>`
     : "";
 }
 // Results and source folded into one number. The ranking stays the ranking.

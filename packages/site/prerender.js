@@ -4,6 +4,7 @@
 import { SPEC_VERSION, ENGINE_VERSION } from "../sim/spec.js";
 import { botName, botDetails, botProvider } from "../bot-catalog.js";
 import { STYLE_AXES, formatStyleValue, styleLabel, styleProfiles } from "../tournament/style.js";
+import { highlights, highlightLabel } from "../tournament/spectacle.js";
 import { INDEX_TERMS, compositeIndex } from "../tournament/composite.js";
 import {
   SITE, RULE_CARDS, HAZARD_CARDS, RULES_NOTE, ruleCards, SPEC_TABLE,
@@ -252,6 +253,28 @@ function tournamentPage(standings, baseUrl) {
                   }</span>`,
               ),
             ]),
+          ),
+        )
+      : ""
+  }
+  ${
+    highlights(standings).length
+      ? card(
+          "Highlights",
+          "FLIPS FIRST, THEN ENGAGEMENTS",
+          table(
+            ["Match", "Seed / spawn", "Flips", "Engagements", "Result", "Watch"],
+            highlights(standings).map((h) => {
+              const { match, result, search } = highlightLabel(standings, h);
+              return [
+                `<strong>${esc(match)}</strong>`,
+                `<span class="mono">${h.seed} / ${h.mirrored ? "mirrored" : "standard"}</span>`,
+                `<span class="mono">${h.flips}</span>`,
+                `<span class="mono">${h.engagements}</span>`,
+                `${esc(result)}, ${esc(h.reason)} at ${Math.round(h.ticks / 60)} s`,
+                `<a class="text-link" href="../${esc(search)}">Simulate</a>`,
+              ];
+            }),
           ),
         )
       : ""

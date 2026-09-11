@@ -13,6 +13,7 @@ import { gateBot } from "../packages/runtime/gate.js";
 import { runExhibition } from "../packages/tournament/exhibition.js";
 import { renderStandings, updateStandingsSection } from "../packages/tournament/standings.js";
 import { codeMetrics } from "../packages/tournament/code-metrics.js";
+import { highlights } from "../packages/tournament/spectacle.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 try {
@@ -101,6 +102,7 @@ try {
     // Per-match style samples stay out of the published file; the ranking keeps
     // the averages.
     records: report.records.map(({ style, ...record }) => record),
+    highlights: highlights(report),
     generatedAt: new Date().toISOString(),
     environment: {
       node: process.version,
