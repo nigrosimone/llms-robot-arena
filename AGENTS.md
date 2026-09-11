@@ -621,6 +621,19 @@ Official catalog additions are maintainer-managed. Pull requests adding new mode
 
 When registering your assigned bot, add or update only its own entry. Rename its ID and path consistently when explicitly requested. Catalog metadata and file paths are public; registration never authorizes inspecting another implementation. The build loads sources opaquely and fails for duplicate IDs, invalid metadata or missing files. Rebuild after changing the catalog. Replays and reports store metadata snapshots and code hashes; historical results are not additional roster definitions and must retain their recorded provenance.
 
+## Generating a catalog controller
+
+The maintainer adds a model with `npm run generate`, which runs a coding harness non-interactively on the fixed task in `prompts/bot-task.md`:
+
+```sh
+npm run generate -- --harness codex --model gpt-5.6-luna --thinking max --name "GPT-5.6 Luna"
+npm run generate -- --harness claude-code --model claude-haiku-4-5 --thinking max --name "Claude Haiku 4.5" --id haiku-4-5-max
+```
+
+The harness works in a copy of the repository exported from `HEAD` that holds only Baseline and the empty slot of the new controller, inside a Docker container with a bare home (image built from `generations/Dockerfile`, credentials copied for the session, dependencies installed in the workspace). It gets the gate and the tournament CLI, so the controller is developed iteratively against Baseline like the existing ones, and nothing else: no other controller, no results, no history, no operator instructions. `--host` runs the harness on the machine instead; `--dry-run` prepares the workspace and prints the command; `--max-cost` caps a Claude Code session in dollars; `--keep` keeps the workspace.
+
+The result is registered as is: the source in `packages/bots/<id>.js`, the entry in `bots.json` with provenance `iterative`, the local results in `results/<id>/`, the JSONL transcript in `artifacts/generations/` (not versioned) and a versioned manifest in `generations/<id>.json` with harness version, model, thinking, prompt and AGENTS.md digests, engine version, turns, tokens, the cost estimate and the source digest. A session that ends without a controller registers nothing. Rerunning a model is a new id, never a replacement.
+
 ## Tournament CLI
 
 Run an exhibition with all controllers registered in `bots.json`:
