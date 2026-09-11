@@ -1,6 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runLiveMatch, HUMAN_BOT } from "../packages/runtime/live-match.js";
+import { readFile } from "node:fs/promises";
+import { Worker } from "node:worker_threads";
+import {
+  runLiveMatch,
+  resimulateLiveMatch,
+  encodeInput,
+  decodeInput,
+  replayInputs,
+  HUMAN_BOT,
+} from "../packages/runtime/live-match.js";
+import { BotClient } from "../packages/runtime/client.js";
 import { stringifyReplay, parseReplay } from "../packages/sim/replay.js";
 
 const inertClient = () => ({
@@ -98,4 +108,68 @@ test("leaving a manual match stops the loop without a replay", async () => {
   });
   assert.equal(replay, null);
   assert.equal(ticks.length, 10);
+});
+
+test("inputs are quantized to nine states and logged only when they change", async () => {
+  const script = (tick) =>
+    tick < 20 ? { thrust: 0.4, turn: -3 } : tick < 40 ? { thrust: 1, turn: NaN } : { thrust: 1, turn: 0 };
+  const replay = await runLiveMatch({
+    bot,
+    createClient: inertClient,
+    readInput: script,
+    pacer: instant,
+  });
+  assert.deepEqual(replay.inputs, [[[0, 6], [20, 7]], null]);
+  assert.deepEqual(decodeInput(6), { thrust: 1, turn: -1 });
+  assert.equal(encodeInput(), 4);
+  for (let code = 0; code < 9; code++) assert.equal(encodeInput(decodeInput(code)), code);
+  const read = replayInputs(replay.inputs[0]);
+  assert.deepEqual([read(0), read(19), read(20), read(500)].map(encodeInput), [6, 6, 7, 7]);
+  assert.doesNotThrow(() => parseReplay(stringifyReplay(replay)));
+});
+
+test("a manual match is rebuilt hash for hash from its seed, controller and input log", async () => {
+  const baseline = {
+    id: "baseline",
+    model: "Baseline",
+    source: await readFile(new URL("../packages/bots/baseline.js", import.meta.url), "utf8"),
+  };
+  const createClient = () =>
+    new BotClient(new Worker(new URL("../packages/runtime/node-worker.js", import.meta.url)));
+  // A drive with a few turns, ending in the void: enough log entries and collisions.
+  const script = (tick) => ({ thrust: 1, turn: tick < 45 ? 1 : tick < 90 ? -1 : 0 });
+  const played = await runLiveMatch({ bot: baseline, seed: 11, createClient, readInput: script, pacer: instant });
+  assert.ok(played.inputs[0].length >= 3);
+  const rebuilt = await resimulateLiveMatch({
+    bot: baseline,
+    seed: 11,
+    inputs: played.inputs,
+    createClient,
+  });
+  assert.deepEqual(rebuilt.stateHashes, played.stateHashes);
+  assert.deepEqual([...rebuilt.frames], [...played.frames]);
+  assert.deepEqual(rebuilt.result, played.result);
+  assert.deepEqual(rebuilt.inputs, played.inputs);
+  assert.equal(rebuilt.runtime.control, "replayed");
+});
+
+test("the replay parser rejects a malformed input log", async () => {
+  const replay = await runLiveMatch({
+    bot,
+    createClient: inertClient,
+    readInput: () => ({ thrust: 1, turn: 0 }),
+    pacer: instant,
+  });
+  const withInputs = (inputs) => stringifyReplay({ ...replay, inputs });
+  assert.doesNotThrow(() => parseReplay(withInputs([[], null])));
+  for (const inputs of [
+    [[[0, 7]]],
+    [[[0, 9]], null],
+    [[[5, 7], [5, 4]], null],
+    [[[replay.result.ticks, 7]], null],
+    [[[0, 7, 1]], null],
+    [[0, 7], null],
+    "none",
+  ])
+    assert.throws(() => parseReplay(withInputs(inputs)), /input log/, JSON.stringify(inputs));
 });

@@ -125,7 +125,7 @@ document.querySelector("#app").innerHTML = `
     <div class="side-body"><label class="field-label" for="bot-a"><span class="color-square a"></span>ROBOT A</label><select id="bot-a" class="bot-select"></select><label class="field-label" for="bot-b"><span class="color-square b"></span>ROBOT B</label><select id="bot-b" class="bot-select"></select>
      <div class="seed-row"><div><label for="seed" class="field-label">SEED</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="0"></div><div><label for="spawn" class="field-label">SPAWN</label><select id="spawn"><option value="normal">Standard</option><option value="mirror">Mirrored</option></select></div></div>
      <button id="simulate" class="button accent run-button">${icon("play")}Simulate match${icon("arrow")}</button><p class="field-note">The entire match is computed before playback.</p>
-     <button id="play-manual" class="button outline run-button">${icon("bolt")}Play yourself vs Robot B${icon("arrow")}</button><p class="field-note">Manual matches run in real time with the keyboard. They are exhibitions: not deterministic and never ranked.</p>
+     <button id="play-manual" class="button outline run-button">${icon("bolt")}Play yourself vs Robot B${icon("arrow")}</button><p class="field-note">Manual matches run in real time with the keyboard. Your inputs are logged with the replay, so it can be reproduced and shared. Never ranked.</p>
      <button id="rumble" class="button outline run-button">${icon("trophy")}Royal rumble: everyone in${icon("arrow")}</button><p class="field-note">Every controller spawns in the same arena and the last one standing wins. Controllers still see one opponent, the closest. Rumbles are exhibitions and are never ranked.</p>
     </div>
     <div class="mode-box"><span class="eyebrow">CURRENT MODE</span><div><span class="mode-symbol">E</span><strong id="current-mode">Local exhibition</strong></div><p id="mode-note">Exhibitions use a deterministic budget. Controller provenance is recorded in each replay.</p></div>
@@ -359,7 +359,7 @@ function loadReplay(r, autoplay = false) {
             ? "Royal rumble"
             : "Local exhibition";
   $("#mode-note").textContent = r.mode === "manual"
-    ? "A human drove one robot in real time. The match is not deterministic and cannot be reproduced from its seed."
+    ? "A human drove one robot in real time. The logged inputs reproduce the match from its seed; it is never ranked."
     : `${r.runtime?.budgetMode === "wall" ? "2 ms wall-clock budget." : "Deterministic instruction budget."} ${r.mode === "exhibition" ? "Exhibition of the selected controllers. Provenance is recorded in exported metadata." : "See exported metadata for provenance."}`;
   renderEventMarks(r);
   viewer?.load(r);
@@ -804,7 +804,7 @@ function beginLiveMatch(data) {
   renderCameraViews(data.bots, LIVE_PLAYER);
   $("#current-mode").textContent = "Manual duel";
   $("#mode-note").textContent =
-    "You drive one robot in real time. The match is not deterministic and cannot be reproduced from its seed.";
+    "You drive one robot in real time. Your inputs are logged with the replay, so it can be reproduced and shared.";
   $("#timeline").max = S.MATCH_DURATION;
   $("#duration").textContent = clock(S.MATCH_DURATION);
   $("#stage-loading").hidden = true;

@@ -685,6 +685,8 @@ Replays retain their recorded rules, energy limit, arena dimensions, cell layout
 
 Engine `0.2.2-r2` computes `sin`, `cos`, `atan2` and `hypot` with its own fdlibm port (`packages/sim/math.js`) instead of `Math`, whose results ECMAScript leaves to the engine. The same seed, controllers and inputs therefore produce the same state hashes in Node and in every browser. Replays recorded with `0.2.2-r1` still load; their hashes are not comparable with `r2`.
 
+Manual matches (mode `manual`, one robot driven from the keyboard in the browser) log the human inputs in the replay field `inputs`: one entry per robot slot, `null` for controllers and a list of `[tick, code]` changes for the human, where `code = (thrust + 1) * 3 + (turn + 1)` with both values in {-1, 0, 1} and the neutral state 4 implied at tick 0. The same seed, controller source and log rebuild the match with identical state hashes (`resimulateLiveMatch` in `packages/runtime/live-match.js`). Manual replays are never ranked.
+
 Controllers receive the public arena state through `arena.cells`. Energy management must account for recharge pickups and the absence of passive regeneration. Implementing or updating a controller requires its own bot task and must respect the black-box policy above.
 
 To check a platform change and rebuild:

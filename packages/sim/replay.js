@@ -188,6 +188,28 @@ export function parseReplay(text) {
   }
   if (!["exhibition", "one-shot", "iterative", "manual", "rumble"].includes(r.mode))
     throw new Error("Invalid mode.");
+  // Manual matches log the human inputs as [tick, code] changes per robot slot,
+  // so the replay can be rebuilt from its seed. Older exports have no log.
+  if (r.inputs !== undefined) {
+    const validLog = (log) =>
+      log === null ||
+      (Array.isArray(log) &&
+        log.length <= count &&
+        log.every(
+          (entry, i) =>
+            Array.isArray(entry) &&
+            entry.length === 2 &&
+            Number.isInteger(entry[0]) &&
+            entry[0] >= 0 &&
+            entry[0] < count &&
+            (i === 0 || entry[0] > log[i - 1][0]) &&
+            Number.isInteger(entry[1]) &&
+            entry[1] >= 0 &&
+            entry[1] <= 8,
+        ));
+    if (!Array.isArray(r.inputs) || r.inputs.length !== robots || !r.inputs.every(validLog))
+      throw new Error("Invalid input log.");
+  }
   if (
     !Array.isArray(r.stateHashes) ||
     r.stateHashes.some(
