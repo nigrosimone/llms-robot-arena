@@ -32,8 +32,10 @@
     "eslint": "^10.9.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jsdoc": "^64.3.9",
+    "jsdom": "^28.1.0",
     "prettier": "^3.9.6",
     "typescript": "~6.0.2",
-    "typescript-eslint": "8.69.0"
+    "typescript-eslint": "8.69.0",
+    "vitest": "^4.1.11"
   }
 }

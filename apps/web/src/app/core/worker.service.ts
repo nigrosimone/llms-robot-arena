@@ -7,7 +7,7 @@ export interface OperationHandlers {
   onError?: (message: string) => void;
   onFinish?: () => void;
 }
-const TERMINAL = new Set<WorkerMessage['type']>([
+export const TERMINAL = new Set<WorkerMessage['type']>([
   'replay',
   'live-end',
   'live-aborted',

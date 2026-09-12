@@ -600,7 +600,7 @@ npm run build
 npm run viewer -- --port 4173
 ```
 
-`npm run dev` serves the front end with hot reload on **http://localhost:4200** (it first writes the catalog module and `apps/web/public/`, which the Angular build and dev server both use). On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. No API keys are required; the application makes no LLM API calls.
+On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. No API keys are required; the application makes no LLM API calls.
 
 ## Publish
 
@@ -705,14 +705,4 @@ A challenge link (`#m=<payload>` on the arena URL, built by `packages/viewer/cha
 
 Controllers receive the public arena state through `arena.cells`. Energy management must account for recharge pickups and the absence of passive regeneration. Implementing or updating a controller requires its own bot task and must respect the black-box policy above.
 
-To check a platform change and rebuild:
-
-```sh
-npm test
-npm run build
-npm run e2e
-```
-
-`npm run e2e` drives the built site in a local Chrome (new headless mode, the GPU when there is one) through the DevTools protocol, no browser download: the opening match, a match link and a rumble, a challenge link beaten from the keyboard, the panels with the gate and the standings, the touch buttons on a phone. Those scenarios define the parity of the front end; a change to the app must keep them green.
-
-The front end is an Angular application (`apps/web`: zoneless, standalone components, signals, `ng-simple-state` stores) over plain JavaScript packages that know nothing about it: `packages/sim`, `packages/runtime`, `packages/tournament`, `packages/renderer` (the three.js viewer, sound, recorder and clip, with `.d.ts` contracts) and `packages/site` (page content and the prerender). The 60 Hz stream from the match worker goes straight to the renderer; the stores only hold what changes slowly. `scripts/build.mjs` runs the Angular build, adds the bot worker, the standings and the music, then prerenders the static pages with the hashed bundles. The app is held to strict TypeScript, type-checked ESLint and Prettier (`npm run lint --prefix apps/web`, also in CI), with one line of JSDoc on every class, function and method; see `apps/web/README.md`.
+Platform changes (engine, runtime, site) are checked as described in `CONTRIBUTING.md`; a bot task never touches them.

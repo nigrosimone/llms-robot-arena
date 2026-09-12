@@ -83,6 +83,15 @@ module.exports = defineConfig([
     },
   },
   {
+    // Specs and fakes: the one-line docs and the null assertions are noise there.
+    files: ['**/*.spec.ts', 'src/testing/**/*.ts'],
+    rules: {
+      'jsdoc/require-jsdoc': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
+  {
     files: ['**/*.html'],
     extends: [angular.configs.templateRecommended, angular.configs.templateAccessibility],
     rules: {

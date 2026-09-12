@@ -20,7 +20,7 @@ npm ci --prefix apps/web
 npm start
 ```
 
-Open http://127.0.0.1:8080. On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. For front end work, `npm run dev` serves the app with hot reload on http://localhost:4200.
+Open http://127.0.0.1:8080. On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. For front end work, `npm run dev` serves the app with hot reload on http://localhost:4200: it first writes the catalog module and `apps/web/public/` (the bot worker, the standings, the Search Console file), which the Angular build and the dev server both use.
 
 Before submitting a platform change, run:
 
@@ -28,9 +28,24 @@ Before submitting a platform change, run:
 npm test
 npm run build
 npm run lint --prefix apps/web
+npm test --prefix apps/web
+npm run e2e
 ```
 
+`npm test` covers the engine, the runtime and the packages. `npm run e2e` drives the built site in a local Chrome (new headless mode, the GPU when there is one) through the DevTools protocol, no browser download: the opening match, a match link and a rumble, a challenge link beaten from the keyboard, the panels with the gate and the standings, the touch buttons on a phone. Those scenarios define the parity of the front end; a change to the app must keep them green.
+
 Add tests for behavioral changes where they help prevent regressions. Explain any checks you could not run. Rule changes must keep the documented constants and engine tests consistent.
+
+## Front end
+
+`apps/web` is an Angular application (zoneless, standalone components, signals, `ng-simple-state` stores) over plain JavaScript packages that know nothing about it: `packages/sim`, `packages/runtime`, `packages/tournament`, `packages/renderer` (the three.js viewer, sound, recorder and clip) and `packages/site` (page content and the prerender). The packages come in through the `.d.ts` files next to them: a new export needs its declaration first. The 60 Hz stream from the match worker goes straight to the renderer; the stores only hold what changes slowly, and replays stay out of the store state.
+
+- `src/app/arena`: the arena panel. `ViewerService` owns the one renderer for the life of the app (its canvas host moves in and out of the page), the sound, the intro, the recorder and the offline clip. `ArenaStore` holds settings, the replay on the stage, the live match and the challenge links.
+- `src/app/lab`, `src/app/tournament`, `src/app/rules`: the other panels, lazy.
+- `src/app/core`: icons, toast, URL helpers, the catalog store and the worker service (one match worker at a time).
+- `src/generated/bots.ts` and `public/` are written by `scripts/build.mjs`, which then runs `ng build` and prerenders the static pages with the hashed bundles.
+
+The rules are strict and CI runs them: TypeScript `strict` with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`, type-checked ESLint (typescript-eslint strict and stylistic, angular-eslint, no `any`, no `$any` in templates, no floating promises, OnPush and signal inputs only) and Prettier. Every class, function and method carries one line of JSDoc saying what it is for; the types say the rest, so no `@param` or `@returns`. `npm run lint` checks, `npm run format` rewrites, both from `apps/web`. `npm test` there runs the Vitest specs in jsdom (`*.spec.ts` next to the code, fakes in `src/testing`): the stores and services against a fake worker and a fake renderer, the pages through the TestBed.
 
 ## Repository files
 
