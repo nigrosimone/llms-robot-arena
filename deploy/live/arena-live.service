@@ -1,0 +1,30 @@
+# /etc/systemd/system/arena-live.service
+[Unit]
+Description=llms-robot-arena live server (MCP for assistants, browser sessions)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/llms-robot-arena
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=8787
+ExecStart=/usr/local/bin/node scripts/live.mjs
+Restart=always
+RestartSec=2
+# A system user that owns nothing: the checkout is read, never written.
+User=arena
+Group=arena
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+# Controllers run in the QuickJS sandbox; this caps what the box gives them.
+MemoryMax=4G
+CPUQuota=300%
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target

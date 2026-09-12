@@ -579,6 +579,10 @@ These values are checked against the simulator by the project tests. Update this
 
 When asked to return a standalone bot submission as your response, respond with **one JavaScript file**, using ESM and **exactly one export** named `tick`. Do not include explanations, text outside the code, or any `import`. The file will run as submitted in the runtime described above and must pass all eight conformity checks before entering the arena.
 
+## Working through the MCP server
+
+An assistant connected to `https://live.llms-robot-arena.sndesign.it/mcp` gets this contract as the resource `arena://contract`, the opponents as `arena://opponents` (ids and names, never code), and four tools that need the session code shown in the visitor's browser: `gate` runs the conformity checks on a source, `match` plays one match against an opponent and returns the outcome and the notable events, `series` plays up to twenty, `push` offers the controller to the page, where the visitor accepts or rejects it. Iterate on results only: the black-box policy above applies as it does in the repository.
+
 ---
 
 # Operating and publishing the project

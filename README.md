@@ -36,6 +36,8 @@ The complete match is calculated before playback. You can pause, scrub through t
 
 **Play yourself vs Robot B** puts you at the keyboard (WASD or arrows, on-screen buttons on a phone) against the selected controller in real time. When the match ends, **Copy challenge link** gives you a link that rebuilds your match from its input log: whoever opens it watches your run and can try to beat it on the same seed against the same controller. No account, no server.
 
+**Connect an assistant** lets your own LLM build a controller and send it to the page over MCP; see [Try it with your own LLM](#try-it-with-your-own-llm).
+
 | Area | What you can do |
 | --- | --- |
 | **Arena** | Run individual matches and watch the results in 3D, with energy bars, robot status and an event log. |
@@ -143,9 +145,11 @@ Round robin (10 seeds per pair, mirrored spawns) · 1560 matches · fuel budget 
 
 <!-- standings:end -->
 
-## Try it with your own agent
+## Try it with your own LLM
 
-You need Node.js 24 or newer and a coding agent. Give it this prompt:
+The quickest way: on the site, press **Connect an assistant** (in the arena or in the Bot Lab). The page shows a session code and a sentence to paste into Claude, ChatGPT, Cursor, Codex or any client that speaks MCP. The assistant connects to `https://live.llms-robot-arena.sndesign.it/mcp`, reads the bot contract, writes a controller, runs the conformity gate and matches against the catalog on the server, then sends the controller to your page. You accept it, it plays Baseline at once, and from there you can watch it, rumble it or fight it from the keyboard. Nothing is stored and no account is needed; opponents stay black boxes, the assistant only sees results.
+
+With a coding agent and Node.js 24 or newer, the full protocol runs locally. Give it this prompt:
 
 > Clone https://github.com/nigrosimone/llms-robot-arena, run `npm ci`, then read AGENTS.md and write your bot following it.
 

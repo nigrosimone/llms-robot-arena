@@ -36,6 +36,12 @@ npm run e2e
 
 Add tests for behavioral changes where they help prevent regressions. Explain any checks you could not run. Rule changes must keep the documented constants and engine tests consistent.
 
+## Live server
+
+`packages/server` is the MCP server behind **Connect an assistant**: fulmine.js (Express 5 on µWebSockets) with a stateless MCP endpoint on `/mcp` and the browser session on the `/session` websocket. Sessions live in memory: a code, the sockets of the page, call and match counters, the controllers waiting for a decision. The gate and the matches run through `packages/runtime` in the same QuickJS sandbox as a browser exhibition, two at a time, with a clock on each job. `npm run live` starts it on http://127.0.0.1:8787; a tab of the site (`npm run dev` or `npm start`) uses it with `?live=http://127.0.0.1:8787` in the address, remembered for the tab. `tests/live.test.js` drives it as an assistant and a page would; the E2E suite does the same through the built site.
+
+Production runs on the Oracle instance as `arena-live.service`, behind nginx with TLS on `live.llms-robot-arena.sndesign.it`. `deploy/live/deploy.sh`, run on the box as `ubuntu`, updates the checkout in `/opt/llms-robot-arena`, installs the unit and the nginx site, asks certbot for the certificate the first time and restarts the service.
+
 ## Front end
 
 `apps/web` is an Angular application (zoneless, standalone components, signals, `ng-simple-state` stores) over plain JavaScript packages that know nothing about it: `packages/sim`, `packages/runtime`, `packages/tournament`, `packages/renderer` (the three.js viewer, sound, recorder and clip) and `packages/site` (page content and the prerender). The packages come in through the `.d.ts` files next to them: a new export needs its declaration first. The 60 Hz stream from the match worker goes straight to the renderer; the stores only hold what changes slowly, and replays stay out of the store state.
