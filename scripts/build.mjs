@@ -39,8 +39,8 @@ await build({
   entryPoints: { "bot-worker": "packages/runtime/bot-worker.js" },
   bundle: true, format: "esm", outdir: dist, platform: "browser", target: "es2022", minify: true, logLevel: "warning",
 });
-await cp(resolve(root, "packages/viewer/public/music"), resolve(dist, "music"), { recursive: true });
-await cp(resolve(root, "packages/viewer/public/standings.json"), resolve(dist, "standings.json"));
+// Music, standings and the Search Console file; the stylesheet is bundled by the app.
+await cp(resolve(root, "packages/viewer/public"), dist, { recursive: true, filter: (src) => !src.endsWith("style.css") });
 await writeFile(resolve(dist, "replays.json"), "[]\n");
 // Static pages, sitemap, robots and llms.txt for readers that never run the app.
 // The Bot Lab page shows the minimal controller from the specification itself,
