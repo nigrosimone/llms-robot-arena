@@ -10,6 +10,8 @@ export interface Tab {
   route: string;
   title: string;
 }
+/** The GitHub mark as an SVG path on a 16x16 box. */
+export const GITHUB_MARK: string;
 export const SITE: {
   name: string;
   title: string;

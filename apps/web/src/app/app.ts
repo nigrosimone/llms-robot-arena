@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ENGINE_VERSION, SPEC_VERSION } from '../../../../packages/sim/spec.js';
-import { CONTROLLERS, TABS } from '../../../../packages/site/content.js';
+import { CONTROLLERS, GITHUB_MARK, SITE, TABS } from '../../../../packages/site/content.js';
 import { trackPage } from '../../../../packages/viewer/analytics.js';
 import { Icon } from './core/icons';
 import { ToastService } from './core/toast.service';
@@ -33,17 +33,19 @@ import { ToastService } from './core/toast.service';
         }
       </nav>
       <div class="header-end">
+        <a class="github-link" [href]="repository" title="Source on GitHub">
+          <svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true">
+            <path [attr.d]="githubMark" />
+          </svg>
+          <span>GitHub</span>
+        </a>
         <span class="version">SPEC {{ spec }} </span>
       </div>
     </header>
     <main><router-outlet /></main>
     <footer class="footer">
       <span
-        ><a
-          href="https://github.com/nigrosimone/llms-robot-arena"
-          title="View llms-robot-arena on GitHub"
-          >llms-robot-arena</a
-        ></span
+        ><a [href]="repository" title="View llms-robot-arena on GitHub">llms-robot-arena</a></span
       >
       <nav class="footer-links" aria-label="Reference pages">
         <a [href]="'/' + controllers.route">{{ controllers.label }}</a>
@@ -65,6 +67,8 @@ import { ToastService } from './core/toast.service';
 export class App {
   protected readonly tabs = TABS;
   protected readonly controllers = CONTROLLERS;
+  protected readonly repository = SITE.repository;
+  protected readonly githubMark = GITHUB_MARK;
   protected readonly spec = SPEC_VERSION.replace('-draft', '');
   protected readonly engine = ENGINE_VERSION;
   protected readonly toast = inject(ToastService);

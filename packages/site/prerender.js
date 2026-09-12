@@ -8,7 +8,7 @@ import { highlights, highlightLabel } from "../tournament/spectacle.js";
 import { INDEX_TERMS, compositeIndex } from "../tournament/composite.js";
 import {
   SITE, RULE_CARDS, HAZARD_CARDS, RULES_NOTE, ruleCards, SPEC_TABLE,
-  TABS, CONTROLLERS, CONTRACT_CARD,
+  TABS, CONTROLLERS, CONTRACT_CARD, GITHUB_MARK,
 } from "./content.js";
 
 export const esc = (value) =>
@@ -96,7 +96,7 @@ function layout({ path, title, description, main, schema, baseUrl, app = false }
 ${app ? `<${ASSETS.host} id="app">` : ""}<header class="header">
  <a class="brand" href="${to("")}" aria-label="${esc(SITE.name)}, home"><span class="brand-mark" aria-hidden="true">R<span>↗</span></span><span>llms-<span class="brand-second">robot-arena</span></span></a>
  <nav aria-label="Main navigation">${nav}</nav>
- <div class="header-end"><span class="version">SPEC ${SPEC_VERSION.replace("-draft", "")} </span></div>
+ <div class="header-end"><a class="github-link" href="${SITE.repository}" title="Source on GitHub"><svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="${GITHUB_MARK}"/></svg><span>GitHub</span></a><span class="version">SPEC ${SPEC_VERSION.replace("-draft", "")} </span></div>
 </header>
 <main>${main}</main>
 <footer class="footer"><span><a href="${SITE.repository}" title="View ${esc(SITE.name)} on GitHub">${esc(SITE.name)}</a></span><nav class="footer-links" aria-label="Reference pages"><a href="${to(

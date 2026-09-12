@@ -209,6 +209,17 @@ button[hidden],
   font: 12px var(--mono);
   color: var(--muted);
 }
+.github-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 12px var(--mono);
+  color: var(--muted);
+  text-decoration: none;
+}
+.github-link:hover {
+  color: var(--text);
+}
 .version b {
   font-weight: 400;
   font-size: 11px;
@@ -1714,7 +1725,8 @@ tbody tr:last-child td {
   .header-end {
     gap: 12px;
   }
-  .version {
+  .version,
+  .github-link span {
     display: none;
   }
   main {
