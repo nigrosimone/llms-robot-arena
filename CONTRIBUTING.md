@@ -26,8 +26,8 @@ Before submitting a platform change, run:
 
 ```sh
 npm test
-npm run lint --prefix apps/web
 npm run build
+npm run lint --prefix apps/web
 ```
 
 Add tests for behavioral changes where they help prevent regressions. Explain any checks you could not run. Rule changes must keep the documented constants and engine tests consistent.
