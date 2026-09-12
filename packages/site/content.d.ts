@@ -19,6 +19,7 @@ export const SITE: {
   description: string;
   repository: string;
   url: string;
+  live: string;
   themeColor: string;
   icon: string;
   analytics: string;

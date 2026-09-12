@@ -48,3 +48,17 @@ export const inputValue = (event: Event): string =>
   (event.target as HTMLInputElement | HTMLSelectElement).value;
 /** The checked state of the checkbox behind an event. */
 export const inputChecked = (event: Event): boolean => (event.target as HTMLInputElement).checked;
+
+/**
+ * The live server: `?live=http://127.0.0.1:8787` points a tab at a local one
+ * and is remembered for the tab, the site's own otherwise.
+ */
+export const liveUrl = (fallback: string): string => {
+  const requested = new URLSearchParams(location.search).get('live');
+  try {
+    if (requested) sessionStorage.setItem('live', requested);
+    return (sessionStorage.getItem('live') ?? fallback).replace(/\/$/, '');
+  } catch {
+    return (requested ?? fallback).replace(/\/$/, '');
+  }
+};

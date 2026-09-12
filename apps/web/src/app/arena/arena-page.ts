@@ -13,6 +13,7 @@ import { botDetails, botName } from '../../../../../packages/bot-catalog.js';
 import { robotColor } from '../../../../../packages/renderer/palette.js';
 import { matchOutcome } from '../../../../../packages/renderer/recorder.js';
 import { type Replay, type ReplayEvent } from '../../../../../packages/sim/replay.js';
+import { AssistantCard } from '../core/assistant-card';
 import { Icon } from '../core/icons';
 import { BotsStore } from '../core/bots.store';
 import { ToastService } from '../core/toast.service';
@@ -34,7 +35,7 @@ const STATUSES = ['ACTIVE', 'FLIPPED', 'RECOVERING', 'OUT'];
 /** The arena panel: the stage with its HUD, the match settings and the replay tools. */
 @Component({
   selector: 'app-arena-page',
-  imports: [Icon],
+  imports: [Icon, AssistantCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     id: 'panel-arena',

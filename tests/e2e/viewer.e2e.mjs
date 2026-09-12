@@ -10,6 +10,9 @@ import { loadBots } from "../../packages/bot-catalog-node.js";
 import { BotClient } from "../../packages/runtime/client.js";
 import { runLiveMatch } from "../../packages/runtime/live-match.js";
 import { challengeFromReplay, encodeChallenge } from "../../packages/viewer/challenge-link.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { createApp } from "../../packages/server/app.js";
 
 const SIMULATION = 240000;
 let site, browser;
@@ -147,5 +150,44 @@ test("on a phone the manual match shows touch buttons that drive the robot", asy
     await page.close();
   } finally {
     await mobile.close();
+  }
+});
+
+test("an assistant pushes a controller over MCP and the visitor accepts it into the arena", async () => {
+  const live = await createApp({ origins: [site.url] });
+  const port = await live.listen(0);
+  const client = new Client({ name: "e2e", version: "1" });
+  try {
+    await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`)));
+    const page = await browser.page();
+    await page.goto(`${site.url}/lab/?live=http://127.0.0.1:${port}`);
+    await page.click("#connect-assistant");
+    await page.waitFor("!!document.querySelector('#assistant-code')?.textContent.trim()");
+    const code = (await page.text("#assistant-code")).trim();
+    assert.match(code, /^[A-Z0-9]{6}$/);
+    assert.match(await page.text("#assistant-invitation"), new RegExp(`session ${code} `));
+    const bots = await loadBots();
+    const source = bots.find((b) => b.id === "Baseline").source;
+    const gate = await client.callTool({ name: "gate", arguments: { session: code, source } });
+    assert.equal(JSON.parse(gate.content[0].text).eligible, true);
+    await page.waitFor("document.querySelector('#assistant-activity')?.textContent.includes('Gate passed')");
+    const pushed = client.callTool({ name: "push", arguments: { session: code, source, name: "Cornerhawk", model: "Test model" } });
+    await page.waitFor("document.querySelector('#assistant-offer') !== null");
+    assert.match(await page.text("#assistant-offer strong"), /Cornerhawk/);
+    await page.click("#accept-controller");
+    assert.equal(JSON.parse((await pushed).content[0].text).decision, "accepted");
+    await page.waitFor("location.pathname === '/'");
+    await loaded(page);
+    assert.equal(await page.text("#robot-name-0"), "Cornerhawk");
+    assert.equal(await page.text("#robot-name-1"), "Baseline");
+    assert.match(await page.text("#robot-provider-0"), /Test model · MCP/);
+    await page.click('[data-tab="lab"]');
+    await page.waitFor("location.pathname === '/lab/'");
+    assert.equal(await page.eval("[...document.querySelectorAll('#edit-bot option')].some((o) => o.textContent.includes('Cornerhawk'))"), true);
+    clean(page);
+    await page.close();
+  } finally {
+    await client.close().catch(() => {});
+    live.close();
   }
 });

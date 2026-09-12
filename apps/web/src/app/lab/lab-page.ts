@@ -11,6 +11,7 @@ import { botDetails, botName } from '../../../../../packages/bot-catalog.js';
 import { controllerFilename } from '../../../../../packages/viewer/controllers.js';
 import { CONTRACT_CARD } from '../../../../../packages/site/content.js';
 import { type GateVerdict } from '../../../../../packages/tournament/exhibition.js';
+import { AssistantCard } from '../core/assistant-card';
 import { Icon } from '../core/icons';
 import { BotsStore } from '../core/bots.store';
 import { ToastService } from '../core/toast.service';
@@ -24,7 +25,7 @@ import { GateResult } from './gate';
  */
 @Component({
   selector: 'app-lab-page',
-  imports: [Icon, GateResult],
+  imports: [Icon, GateResult, AssistantCard],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { id: 'panel-lab', class: 'panel' },
   templateUrl: './lab-page.html',

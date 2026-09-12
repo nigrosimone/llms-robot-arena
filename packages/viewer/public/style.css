@@ -1401,6 +1401,103 @@ p code {
 .gate-card .button {
   margin-top: 8px;
 }
+/* The assistant card: the same card in the lab sidebar and, compact, in the arena column. */
+.assistant-card {
+  display: block;
+}
+.assistant-card.compact {
+  margin-top: 22px;
+  padding: 18px;
+}
+.assistant-card.compact h2 {
+  font-size: 21px;
+  margin: 8px 0 10px;
+}
+.assistant-card.compact p {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+}
+.assistant-note {
+  color: #87959b;
+}
+.assistant-session {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 6px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.assistant-session b {
+  font: 600 22px var(--mono);
+  letter-spacing: 3px;
+  color: var(--lime);
+}
+.assistant-session .button {
+  margin-left: auto;
+}
+.assistant-hint {
+  margin: 8px 0 6px;
+  font-size: 0.8125rem;
+}
+.assistant-invitation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.assistant-invitation code,
+.assistant-setup code {
+  display: block;
+  background: #10161a;
+  padding: 10px 12px;
+  border: 1px solid #313d3e;
+  border-radius: 4px;
+  font: 12px/1.6 var(--mono);
+  color: #c8d9b7;
+  word-break: break-word;
+}
+.assistant-setup {
+  margin: 12px 0;
+  font-size: 0.8125rem;
+}
+.assistant-setup summary {
+  cursor: pointer;
+  color: var(--lime);
+}
+.assistant-offer {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8125rem;
+}
+.assistant-offer strong {
+  font-family: var(--display);
+  font-size: 22px;
+}
+.assistant-offer .pass {
+  color: var(--lime);
+}
+.assistant-offer .advisory {
+  color: var(--orange);
+}
+.assistant-decision {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.assistant-activity {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  font: 12px/1.7 var(--mono);
+  color: #a9b6bb;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
 .gate-running {
   display: flex;
   align-items: center;
