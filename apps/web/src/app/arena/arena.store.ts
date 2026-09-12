@@ -1,4 +1,4 @@
-import { Service, computed, effect, inject } from '@angular/core';
+import { Service, computed, effect, inject, signal } from '@angular/core';
 import { NgSimpleStateBaseSignalStore, type NgSimpleStateStoreConfig } from 'ng-simple-state';
 import {
   ENGINE_VERSION,
@@ -44,9 +44,7 @@ export interface ArenaState {
   mirrored: boolean;
   loading: Loading | null;
   live: boolean;
-  replay: Replay | null;
-  // The replay rebuilt from a challenge link, and the settings to beat it.
-  challengeReplay: Replay | null;
+  // The settings to beat the challenge rebuilt from a link.
   challengeSettings: { seed: number; mirrored: boolean; bot: number } | null;
   library: string[];
 }
@@ -98,8 +96,11 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
   readonly mirrored = this.selectState((s) => s.mirrored);
   readonly loading = this.selectState((s) => s.loading);
   readonly live = this.selectState((s) => s.live);
-  readonly replay = this.selectState((s) => s.replay);
-  readonly challengeReplay = this.selectState((s) => s.challengeReplay);
+  // Replays live outside the store state: their frames are typed arrays,
+  // which the dev-mode deep freeze of the state cannot handle, and the live
+  // one grows in place while the renderer reads it.
+  readonly replay = signal<Replay | null>(null);
+  readonly challengeReplay = signal<Replay | null>(null);
   readonly library = this.selectState((s) => s.library);
   readonly busy = computed(() => this.worker.operation() !== null);
   readonly mode = computed(() => {
@@ -172,8 +173,6 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
         cancel: false,
       },
       live: false,
-      replay: null,
-      challengeReplay: null,
       challengeSettings: null,
       library: [],
     };
@@ -402,7 +401,9 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
       engineViolations: 0,
       runtime: {},
     };
-    this.setState({ replay: this.liveReplay, loading: null, challengeReplay: null });
+    this.replay.set(this.liveReplay);
+    this.challengeReplay.set(null);
+    this.setState({ loading: null });
     this.viewer.load(this.liveReplay, { live: true });
     this.viewer.viewer?.setFocus(LIVE_PLAYER);
   }
@@ -433,7 +434,8 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
       this.viewer.viewer.live = false;
       this.viewer.viewer.playing = true;
     }
-    this.setState({ replay: { ...r }, live: false });
+    this.replay.set({ ...r });
+    this.setState({ live: false });
     this.setLive(false);
     const opponent = r.bots[1 - LIVE_PLAYER];
     track('play-finished', `${matchOutcome(r).title} ${opponent ? botName(opponent) : ''}`);
@@ -455,7 +457,8 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
       this.loadReplay(this.previousReplay);
       return;
     }
-    this.setState({ replay: null, loading: ABANDONED });
+    this.replay.set(null);
+    this.setState({ loading: ABANDONED });
   }
   /** The human gives up the manual duel. */
   leaveLive(): void {
@@ -488,8 +491,8 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
 
   /** Puts a replay on the stage. */
   loadReplay(replay: Replay, autoplay = false): void {
+    this.replay.set(replay);
     this.setState({
-      replay,
       loading: this.viewer.available()
         ? null
         : {
@@ -661,7 +664,7 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
             this.progress(data.progress, simulationDetail(data.progress));
           if (data.type === 'replay') {
             this.loadReplay(data.replay, true);
-            this.setState({ challengeReplay: data.replay });
+            this.challengeReplay.set(data.replay);
             this.toast.show('Challenge rebuilt from its input log. Beat it after the replay.');
           }
         },
