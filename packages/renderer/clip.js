@@ -49,13 +49,7 @@ export async function renderClip({
   const audioConfig = sampleRate && typeof AudioEncoder !== "undefined" && playAudio
     ? await supportedConfig(AudioEncoder, audioConfigs(sampleRate))
     : null;
-  const muxer = new Muxer({
-    target: new ArrayBufferTarget(),
-    video: { codec: "avc", width, height, frameRate: fps },
-    ...(audioConfig ? { audio: { codec: audioConfig.codec === "opus" ? "opus" : "aac", sampleRate, numberOfChannels: 2 } } : {}),
-    fastStart: "in-memory",
-    firstTimestampBehavior: "permissive",
-  });
+  const muxer = new Muxer(muxerOptions({ width, height, fps, audioConfig, sampleRate }));
   let failure = null;
   const encoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
@@ -110,6 +104,18 @@ export async function renderClip({
   if (audioConfig) await recordSound({ audio, playAudio, muxer, config: audioConfig, signal, onProgress, seconds: timeline.total / fps });
   muxer.finalize();
   return { blob: new Blob([muxer.target.buffer], { type: "video/mp4" }), extension: "mp4", sound: Boolean(audioConfig) };
+}
+
+// Both tracks are on the clip's own clock: each one starts at its first chunk
+// instead of failing on a timestamp that is not exactly zero.
+export function muxerOptions({ width, height, fps, audioConfig, sampleRate }) {
+  return {
+    target: new ArrayBufferTarget(),
+    video: { codec: "avc", width, height, frameRate: fps },
+    ...(audioConfig ? { audio: { codec: audioConfig.codec === "opus" ? "opus" : "aac", sampleRate, numberOfChannels: 2 } } : {}),
+    fastStart: "in-memory",
+    firstTimestampBehavior: "offset",
+  };
 }
 
 // The real-time pass: the replay plays as usual while the mix is tapped and

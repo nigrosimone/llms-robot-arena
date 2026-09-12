@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clipTimeline, videoConfigs, audioConfigs } from "../packages/renderer/clip.js";
+import { Muxer } from "mp4-muxer";
+import { clipTimeline, videoConfigs, audioConfigs, muxerOptions } from "../packages/renderer/clip.js";
 
 test("a clip is the intro card, one frame per tick and the verdict", () => {
   const t = clipTimeline(33.5, 60);
@@ -16,4 +17,13 @@ test("encoder configurations prefer High profile on hardware and keep the clip s
   ]);
   assert.ok(configs.every((c) => c.width === 1920 && c.height === 1080 && c.framerate === 60 && c.avc.format === "avc"));
   assert.deepEqual(audioConfigs(48000).map((c) => c.codec), ["opus", "mp4a.40.2"]);
+});
+
+test("the muxer accepts the clip options, with and without sound", () => {
+  const silent = muxerOptions({ width: 1920, height: 1080, fps: 60, audioConfig: null, sampleRate: null });
+  assert.doesNotThrow(() => new Muxer(silent));
+  assert.equal(silent.audio, undefined);
+  const sound = muxerOptions({ width: 1280, height: 720, fps: 60, audioConfig: { codec: "opus" }, sampleRate: 48000 });
+  assert.doesNotThrow(() => new Muxer(sound));
+  assert.deepEqual(sound.audio, { codec: "opus", sampleRate: 48000, numberOfChannels: 2 });
 });
