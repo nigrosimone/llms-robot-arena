@@ -20,6 +20,7 @@
     "start": "npm run build && node packages/viewer/serve.js",
     "dev": "node scripts/build.mjs --prepare && npm run start --prefix apps/web",
     "viewer": "node packages/viewer/serve.js",
+    "live": "node scripts/live.mjs",
     "test": "node --test tests/*.test.js",
     "e2e": "node --test --test-concurrency=1 tests/e2e/*.e2e.mjs",
     "gate": "node packages/runtime/gate-cli.js",
@@ -29,11 +30,14 @@
   },
   "dependencies": {
     "@jitl/quickjs-singlefile-browser-release-sync": "0.31.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@noble/hashes": "1.8.0",
     "acorn": "8.18.0",
+    "fulmine.js": "^5.19.8",
     "mp4-muxer": "^5.2.2",
     "quickjs-emscripten": "0.31.0",
-    "three": "0.180.0"
+    "three": "0.180.0",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "esbuild": "0.25.10",
