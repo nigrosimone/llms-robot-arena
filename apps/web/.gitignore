@@ -44,3 +44,5 @@ __screenshots__/
 Thumbs.db
 public/bot-worker.js
 src/generated/
+# Written by scripts/build.mjs: the bot worker and the static files.
+/public/

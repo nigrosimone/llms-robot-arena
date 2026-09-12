@@ -600,7 +600,7 @@ npm run build
 npm run viewer -- --port 4173
 ```
 
-On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. No API keys are required; the application makes no LLM API calls.
+`npm run dev` serves the front end with hot reload on **http://localhost:4200** (it first writes the catalog module and `apps/web/public/`, which the Angular build and dev server both use). On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. No API keys are required; the application makes no LLM API calls.
 
 ## Publish
 

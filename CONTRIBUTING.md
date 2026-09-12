@@ -20,7 +20,7 @@ npm ci --prefix apps/web
 npm start
 ```
 
-Open http://127.0.0.1:8080. On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`.
+Open http://127.0.0.1:8080. On Windows PowerShell, use `npm.cmd` if execution policy blocks `npm.ps1`. For front end work, `npm run dev` serves the app with hot reload on http://localhost:4200.
 
 Before submitting a platform change, run:
 
