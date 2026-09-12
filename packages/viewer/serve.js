@@ -4,6 +4,7 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { gzipSync } from "node:zlib";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const types = {
@@ -31,11 +32,18 @@ export function createViewerServer({
   spa = false,
 } = {}) {
   return createServer(async (req, res) => {
+    // Text is gzipped like GitHub Pages does, so local measurements match.
     function send(status, body, type = "text/plain; charset=utf-8") {
+      const zip =
+        /^(text\/|application\/(json|xml|wasm))/.test(type) &&
+        Buffer.byteLength(body) > 1024 &&
+        (req.headers["accept-encoding"] ?? "").includes("gzip");
+      if (zip) body = gzipSync(body);
       res.writeHead(status, {
         "content-type": type,
         "content-length": Buffer.byteLength(body),
         "cache-control": "no-cache",
+        ...(zip ? { "content-encoding": "gzip", vary: "accept-encoding" } : {}),
       });
       res.end(req.method === "HEAD" ? undefined : body);
     }
@@ -125,7 +133,7 @@ if (
     const port = Number(values.port);
     if (!Number.isInteger(port) || port < 0 || port > 65535)
       throw new Error("Invalid port.");
-    await stat(resolve(root, "dist/app.js")).catch(() => {
+    await stat(resolve(root, "dist/index.html")).catch(() => {
       throw new Error("Build missing: run npm run build or npm start.");
     });
     const server = createViewerServer({ replays: resolve(values.replays) });

@@ -282,7 +282,17 @@ export class ArenaViewer {
     this.resize = new ResizeObserver(this.applySize);
     this.resize.observe(container);
     this.animate = this.animate.bind(this);
-    this.raf = requestAnimationFrame(this.animate);
+    // The shaders compile off the main thread where the browser allows it
+    // (KHR_parallel_shader_compile); the loop starts once they are ready
+    // instead of blocking the first frame for a second.
+    this.raf = 0;
+    this.disposed = false;
+    renderer
+      .compileAsync(this.scene, this.camera)
+      .catch(() => {})
+      .then(() => {
+        if (!this.disposed) this.raf = requestAnimationFrame(this.animate);
+      });
   }
   // A rumble brings more than two robots: meshes and labels follow the roster.
   setMinimumRows(rows) {
@@ -578,6 +588,7 @@ export class ArenaViewer {
     }
   }
   dispose() {
+    this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.resize.disconnect();
     this.controls.dispose();
