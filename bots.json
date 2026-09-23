@@ -115,5 +115,14 @@
     "provider": "Z.ai",
     "file": "packages/bots/glm-5-3-flash.js",
     "provenance": "iterative"
+  },
+  {
+    "id": "opus-5-5-max",
+    "model": "Claude Opus 5.5",
+    "thinking": "max",
+    "harness": "Claude Code",
+    "provider": "Anthropic",
+    "file": "packages/bots/opus-5-5-max.js",
+    "provenance": "iterative"
   }
 ]
