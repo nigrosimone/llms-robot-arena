@@ -1,11 +1,11 @@
 [
   {
-    "id": "gpt-6-astra-ultra",
-    "model": "GPT-6 Astra",
+    "id": "gpt-6-2-astra-ultra",
+    "model": "GPT-6.2 Astra",
     "thinking": "ultra",
     "harness": "Codex",
     "provider": "OpenAI",
-    "file": "packages/bots/gpt-6-astra-ultra.js",
+    "file": "packages/bots/gpt-6-2-astra-ultra.js",
     "provenance": "iterative"
   },
   {
@@ -15,6 +15,15 @@
     "harness": "Claude Code",
     "provider": "Anthropic",
     "file": "packages/bots/fable-5-1-max.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "gpt-6-astra-ultra",
+    "model": "GPT-6 Astra",
+    "thinking": "ultra",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-6-astra-ultra.js",
     "provenance": "iterative"
   },
   {
@@ -126,15 +135,6 @@
     "provenance": "iterative"
   },
   {
-    "id": "gpt-6-2-astra-ultra",
-    "model": "GPT-6.2 Astra",
-    "thinking": "ultra",
-    "harness": "Codex",
-    "provider": "OpenAI",
-    "file": "packages/bots/gpt-6-2-astra-ultra.js",
-    "provenance": "iterative"
-  },
-  {
     "id": "gpt-6-2-sol-ultra",
     "model": "GPT-6.2 Sol",
     "thinking": "ultra",
@@ -177,6 +177,33 @@
     "harness": "Codex",
     "provider": "OpenAI",
     "file": "packages/bots/gpt-6-luna-max.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "fable-5-2-max",
+    "model": "Fable 5.2",
+    "thinking": "max",
+    "harness": "Claude Code",
+    "provider": "Anthropic",
+    "file": "packages/bots/fable-5-2-max.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "haiku-5-5-max",
+    "model": "Claude Haiku 5.5",
+    "thinking": "max",
+    "harness": "Claude Code",
+    "provider": "Anthropic",
+    "file": "packages/bots/haiku-5-5-max.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "sonnet-5-5-max",
+    "model": "Claude Sonnet 5.5",
+    "thinking": "max",
+    "harness": "Claude Code",
+    "provider": "Anthropic",
+    "file": "packages/bots/sonnet-5-5-max.js",
     "provenance": "iterative"
   }
 ]

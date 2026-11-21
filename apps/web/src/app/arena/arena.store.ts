@@ -165,7 +165,7 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
       a: 0,
       b: 1,
       seed: 0,
-      mirrored: false,
+      mirrored: true,
       loading: {
         title: 'Preparing replay',
         detail: 'Simulation comes before every frame.',
