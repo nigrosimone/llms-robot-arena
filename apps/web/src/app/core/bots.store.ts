@@ -1,7 +1,7 @@
 import { Service, computed } from '@angular/core';
 import { NgSimpleStateBaseSignalStore, type NgSimpleStateStoreConfig } from 'ng-simple-state';
 import { type BotDefinition } from '../../../../../packages/bot-catalog.js';
-import { sortedBotOptions } from '../../../../../packages/viewer/controllers.js';
+import { groupedBotOptions, sortedBotOptions } from '../../../../../packages/viewer/controllers.js';
 import { BOTS } from '../../generated/bots';
 
 export interface Bot extends BotDefinition {
@@ -36,6 +36,8 @@ export class BotsStore extends NgSimpleStateBaseSignalStore<BotsState> {
   readonly builtins = builtins();
   readonly bots = this.selectState((s) => s.bots);
   readonly options = computed(() => sortedBotOptions(this.bots()));
+  /** The same options grouped by provider, for the selectors. */
+  readonly groups = computed(() => groupedBotOptions(this.bots()));
   /** Store name for the devtools. */
   storeConfig(): NgSimpleStateStoreConfig<BotsState> {
     return { storeName: 'bots' };

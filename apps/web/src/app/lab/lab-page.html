@@ -11,10 +11,14 @@
   <div class="editor-panel">
     <div class="editor-toolbar">
       <select id="edit-bot" aria-label="Controller to edit" (change)="load(+value($event))">
-        @for (option of bots.options(); track option.index) {
-          <option [value]="option.index" [selected]="option.index === editing()">
-            {{ name(option.bot) }} / {{ details(option.bot) }}
-          </option>
+        @for (group of bots.groups(); track group.label) {
+          <optgroup [label]="group.label">
+            @for (option of group.options; track option.index) {
+              <option [value]="option.index" [selected]="option.index === editing()">
+                {{ name(option.bot) }} / {{ details(option.bot) }}
+              </option>
+            }
+          </optgroup>
         }
       </select>
     </div>
