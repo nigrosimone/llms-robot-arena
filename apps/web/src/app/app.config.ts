@@ -1,13 +1,19 @@
 import { APP_BASE_HREF } from '@angular/common';
-import { type ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import {
+  type ApplicationConfig,
+  provideAppInitializer,
+  provideBrowserGlobalErrorListeners,
+} from '@angular/core';
 import { UrlSerializer, provideRouter, withInMemoryScrolling } from '@angular/router';
 import { provideNgSimpleState } from 'ng-simple-state';
 import { routes } from './app.routes';
+import { loadBotSources } from './core/bots.store';
 import { TrailingSlashUrlSerializer } from './core/url';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
+    provideAppInitializer(loadBotSources),
     provideRouter(routes, withInMemoryScrolling({ scrollPositionRestoration: 'top' })),
     provideNgSimpleState({}),
     { provide: UrlSerializer, useClass: TrailingSlashUrlSerializer },

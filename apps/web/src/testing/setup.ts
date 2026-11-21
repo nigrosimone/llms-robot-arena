@@ -1,5 +1,9 @@
 // Runs before every spec file: the browser APIs jsdom lacks and the app touches.
 import { afterEach, vi } from 'vitest';
+import { loadBotSources } from '../app/core/bots.store';
+
+// The app initializer loads the catalog sources before any page; so do the specs.
+await loadBotSources();
 
 // The pages rename their host element through `host: { id }`, so the TestBed
 // no longer recognises its root elements and leaves them in the body.

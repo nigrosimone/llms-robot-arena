@@ -10,7 +10,22 @@ export interface Bot extends BotDefinition {
 export interface BotsState {
   bots: Bot[];
 }
-const BUILTINS: readonly Bot[] = BOTS;
+let BUILTINS: readonly Bot[] | null = null;
+
+/**
+ * Loads the catalog sources, kept in their own chunk so the main bundle does
+ * not grow with the catalog. The app initializer awaits it before any page.
+ */
+export async function loadBotSources(): Promise<void> {
+  if (BUILTINS) return;
+  const { SOURCES } = await import('../../generated/bot-sources');
+  BUILTINS = BOTS.map((bot) => ({ ...bot, source: SOURCES[bot.id] ?? '' }));
+}
+/** The catalog controllers with their sources, once loaded. */
+function builtins(): readonly Bot[] {
+  if (!BUILTINS) throw new Error('The bot sources are not loaded yet.');
+  return BUILTINS;
+}
 
 /**
  * The registered controllers plus the ones written in the Bot Lab, which live
@@ -18,7 +33,7 @@ const BUILTINS: readonly Bot[] = BOTS;
  */
 @Service()
 export class BotsStore extends NgSimpleStateBaseSignalStore<BotsState> {
-  readonly builtins = BUILTINS;
+  readonly builtins = builtins();
   readonly bots = this.selectState((s) => s.bots);
   readonly options = computed(() => sortedBotOptions(this.bots()));
   /** Store name for the devtools. */
@@ -27,16 +42,16 @@ export class BotsStore extends NgSimpleStateBaseSignalStore<BotsState> {
   }
   /** Called by the base constructor, before the fields of this class exist. */
   initialState(): BotsState {
-    return { bots: [...BUILTINS] };
+    return { bots: [...builtins()] };
   }
   /** True for a controller from the catalog, false for a Bot Lab one. */
   isRegistered(index: number): boolean {
-    return index < BUILTINS.length;
+    return index < BOTS.length;
   }
   /** The next free `custom-N` id. */
   customId(): string {
     const bots = this.bots();
-    let number = bots.length - BUILTINS.length + 1;
+    let number = bots.length - BOTS.length + 1;
     while (bots.some((bot) => bot.id === 'custom-' + String(number))) number++;
     return 'custom-' + String(number);
   }
