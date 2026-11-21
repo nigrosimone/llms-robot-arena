@@ -14,6 +14,7 @@ import { robotColor } from '../../../../../packages/renderer/palette.js';
 import { matchOutcome } from '../../../../../packages/renderer/recorder.js';
 import { type Replay, type ReplayEvent } from '../../../../../packages/sim/replay.js';
 import { AssistantCard } from '../core/assistant-card';
+import { FEATURES } from '../core/features';
 import { Icon } from '../core/icons';
 import { BotsStore } from '../core/bots.store';
 import { ToastService } from '../core/toast.service';
@@ -50,6 +51,7 @@ export class ArenaPage {
   protected readonly arena = inject(ArenaStore);
   protected readonly viewer = inject(ViewerService);
   protected readonly bots = inject(BotsStore);
+  protected readonly features = FEATURES;
   private readonly toast = inject(ToastService);
   protected readonly clock = clock;
   protected readonly value = inputValue;

@@ -12,6 +12,7 @@ import { controllerFilename } from '../../../../../packages/viewer/controllers.j
 import { CONTRACT_CARD } from '../../../../../packages/site/content.js';
 import { type GateVerdict } from '../../../../../packages/tournament/exhibition.js';
 import { AssistantCard } from '../core/assistant-card';
+import { FEATURES } from '../core/features';
 import { Icon } from '../core/icons';
 import { BotsStore } from '../core/bots.store';
 import { ToastService } from '../core/toast.service';
@@ -32,6 +33,7 @@ import { GateResult } from './gate';
 })
 export class LabPage {
   protected readonly bots = inject(BotsStore);
+  protected readonly features = FEATURES;
   protected readonly worker = inject(WorkerService);
   private readonly toast = inject(ToastService);
   protected readonly contract = CONTRACT_CARD;
