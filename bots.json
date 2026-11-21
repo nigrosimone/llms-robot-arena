@@ -124,5 +124,59 @@
     "provider": "Anthropic",
     "file": "packages/bots/opus-5-5-max.js",
     "provenance": "iterative"
+  },
+  {
+    "id": "gpt-6-2-astra-ultra",
+    "model": "GPT-6.2 Astra",
+    "thinking": "ultra",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-6-2-astra-ultra.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "gpt-6-2-sol-ultra",
+    "model": "GPT-6.2 Sol",
+    "thinking": "ultra",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-6-2-sol-ultra.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "gpt-6-1-terra-ultra",
+    "model": "GPT-6.1 Terra",
+    "thinking": "ultra",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-6-1-terra-ultra.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "gpt-6-1-sol-ultra",
+    "model": "GPT-6.1 Sol",
+    "thinking": "ultra",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-6-1-sol-ultra.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "gpt-6-sol-ultra",
+    "model": "GPT-6 Sol",
+    "thinking": "ultra",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-6-sol-ultra.js",
+    "provenance": "iterative"
+  },
+  {
+    "id": "gpt-6-luna-max",
+    "model": "GPT-6 Luna",
+    "thinking": "max",
+    "harness": "Codex",
+    "provider": "OpenAI",
+    "file": "packages/bots/gpt-6-luna-max.js",
+    "provenance": "iterative"
   }
 ]

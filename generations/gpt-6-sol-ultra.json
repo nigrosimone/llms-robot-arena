@@ -1,0 +1,35 @@
+{
+  "id": "gpt-6-sol-ultra",
+  "model": "GPT-6 Sol",
+  "harnessModel": "gpt-6-sol",
+  "thinking": "ultra",
+  "harness": "Codex",
+  "harnessVersion": "codex-cli 0.171.0",
+  "provenance": "iterative",
+  "isolation": "docker container with a bare home and a repository copy without other controllers",
+  "promptSha256": "bda8fa43047d0cbf8349ba26934dd374f5e12e8372bc82798665137f994ae259",
+  "agentsSha256": "3c492ec14284f1a66350017bbd8c4d851a81c8d66f927486d7571d1a9160cd0c",
+  "specVersion": "0.2.2-draft",
+  "engineVersion": "0.2.2-r2",
+  "startedAt": "2026-11-21T15:29:46.593Z",
+  "turns": 1,
+  "inputTokens": 1513037,
+  "outputTokens": 21654,
+  "cost": null,
+  "durationMs": 730057,
+  "commands": 19,
+  "gate": {
+    "eligible": true,
+    "pass": true,
+    "p99": 0.8233000000473112
+  },
+  "baseline": {
+    "matches": 20,
+    "wins": 18,
+    "draws": 1,
+    "losses": 1,
+    "score": 0.925
+  },
+  "codeSha256": "a8710f4ebafac19ef228d0645d343b8bbb02e711c401ff5c38d61e5c2b3b3395",
+  "transcript": "artifacts/generations/gpt-6-sol-ultra-20261121T152946.jsonl"
+}
