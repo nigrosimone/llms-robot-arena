@@ -164,7 +164,7 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
     return {
       a: 0,
       b: 1,
-      seed: 0,
+      seed: 4,
       mirrored: true,
       loading: {
         title: 'Preparing replay',

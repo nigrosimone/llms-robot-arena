@@ -2,7 +2,9 @@
 // manages energy and floor wear, and finishes disabled opponents.
 const PI = Math.PI;
 const TAU = 2 * Math.PI;
-const DBG = true;
+const DBG = false;
+// Retreat pacing: the gap (m) held to a pursuer, and the speed added per metre of gap lost.
+const GAP = 3.2, GK = 1.4;
 
 function wrap(a) {
   if (!(a > -1e6 && a < 1e6)) return 0;
@@ -121,6 +123,33 @@ export function tick(sensors, memory) {
     return maxD;
   }
 
+  // Deepest intrusion into a hazard margin along the path I would really drive when steering toward
+  // direction a at my present speed (n steps of two ticks, same steering law as steer); 0 = clear.
+  function arcDep(a, n) {
+    let x = mx, y = my, th = mh, vx = mvx, vy = mvy, w = mw, c = ch, s = sh;
+    const u = clamp(vLong / 5, -1, 1);
+    const tgt = vLong < 0 ? a + PI : a;
+    const h = 1 / 30;
+    let worst = 0, tA = 0;
+    for (let k = 0; k < n; k++) {
+      const e = wrap(tgt - th), ae = e < 0 ? -e : e;
+      let wd = ae < 0.32 ? 5 * ae : Math.sqrt(8 * ae);
+      if (wd > 3) wd = 3;
+      if (e < 0) wd = -wd;
+      const rr = clamp(wd / 3 + 1.5 * (wd - w), -1, 1);
+      vx += (8 * u * c - 1.6 * vx) * h; vy += (8 * u * s - 1.6 * vy) * h;
+      x += vx * h; y += vy * h;
+      w += (5.4 * rr - 1.8 * w) * h; th += w * h;
+      c = Math.cos(th); s = Math.sin(th);
+      const vl = vx * c + vy * s, vt = (vy * c - vx * s) * 0.0225;
+      vx = vl * c - vt * s; vy = vl * s + vt * c;
+      tA += h;
+      const d = hazD(NH, hNext - hDrop * tA, x, y, tA, 0.4);
+      if (d > worst) worst = d;
+    }
+    return worst;
+  }
+
   // Turning costs energy with the square of the command: `eco` trades turning speed for economy and
   // is switched on whenever nothing urgent is going on.
   let eco = false;
@@ -201,10 +230,8 @@ export function tick(sensors, memory) {
   let ot = typeof M0.ot === 'number' ? M0.ot : 0;   // time spent circling a hole without result
   let flow = false;         // keep speed through the goal instead of stopping on it
   let loopDir = null, loopV = 0;   // retreat-loop command: direction of motion and speed
-  let freeze = false;       // spend nothing this tick
-  let finalDir = null;      // last-moment step into a recharge cell: heading to drive along
   let holdDir = null;       // heading to keep while parked
-  let dbgx = '';
+  let tag = '';          // debug only: what overrode the plan this tick
   let fg = M0.fg === 1 ? 1 : 0;   // committed to the last walk into a recharge cell
   const cx0 = Math.floor(mx) + 0.5, cy0 = Math.floor(my) + 0.5;
   const myIdx = clamp(Math.floor(my) + 8, 0, 15) * 16 + clamp(Math.floor(mx) + 8, 0, 15);
@@ -297,10 +324,19 @@ export function tick(sensors, memory) {
 
   if (mustLeave) {
     const p = pickCell(1, 0.12) || pickCell(2, 0.12);
-    if (p) { gx = p[0]; gy = p[1]; vmax = 4.5; mode = 'leave'; phiUse = PI; }
+    // a disabled opponent in the way is an obstacle to route around
+    if (p) { gx = p[0]; gy = p[1]; vmax = 4.5; mode = 'leave'; phiUse = PI; usePlan = !opActive && dist < 2.5; }
   } else if (opDead || opStuck) {
     mode = 'safe';
-    if (!opFlipped && me.flipsTaken > op.flipsTaken) mode = 'strike';
+    if (!opFlipped && me.flipsTaken > op.flipsTaken) {
+      // Behind on flips against an immobile, upright opponent. The floor gives way under it by
+      // itself; only when the bell would come first do I have to go and flip it.
+      const oi = clamp(Math.floor(oy) + 8, 0, 15) * 16 + clamp(Math.floor(ox) + 8, 0, 15);
+      let tFall = (integ[oi] === undefined ? 1 : integ[oi]) * 12 + 3.3;
+      const ocx = Math.floor(ox) + 0.5, ocy = Math.floor(oy) + 0.5;
+      for (let i = 0; i < HZ.length; i += 3) if (HZ[i] === ocx && HZ[i + 1] === ocy) tFall = HZ[i + 2];
+      if (opSpeed > 0.15 || tFall > (7200 - tickN) / 60 - 1.5) mode = 'strike';
+    }
   } else if (opFlipped) {
     mode = 'flipwait';
     if (op.statusTimer > 0.7 && dist < 4 && me.energy > op.energy * 0.4 + 40) {
@@ -369,7 +405,8 @@ export function tick(sensors, memory) {
       const sx = ox + bs * 2.3 * px, sy = oy + bs * 2.3 * py;
       const lat = (mx - ox) * Math.cos(oh) + (my - oy) * Math.sin(oh);
       const out = ((mx - ox) * px + (my - oy) * py) * bs;
-      if ((lat < 0.14 && lat > -0.14 && out > 0.9) || (M0.sg === 1 && lat < 0.3 && lat > -0.3 && out > 0.5)) {
+      // (a charge that ended in a shove instead of a flip is broken off and set up again)
+      if ((lat < 0.14 && lat > -0.14 && out > 0.9) || (M0.sg === 1 && !(inContact && mySpeed < 1.5) && lat < 0.3 && lat > -0.3 && out > 0.5)) {
         gx = ox; gy = oy; vmax = 5; phiUse = PI; mode = 'strikeGo';
       } else { gx = sx; gy = sy; vmax = 3; phiUse = PI; usePlan = true; }
     }
@@ -411,7 +448,6 @@ export function tick(sensors, memory) {
         if (!free) continue;
         td = de; tc = c; tw = wait;
       }
-      if (DBG) dbgx = ' eg:' + (tc ? tc.id + '/' + td.toFixed(2) + '/' + tw.toFixed(2) : 'none') + '/' + RC.map((c) => c.id.slice(-1) + c.state[0] + (c.timeUntilChange == null ? '' : c.timeUntilChange.toFixed(1))).join(',');
       if (tc !== null && deficit > 6) {
         // time to get in: turn toward it (either end first), then a short walk
         const dc = Math.atan2(tc.y - my, tc.x - mx);
@@ -481,10 +517,13 @@ export function tick(sensors, memory) {
           if (k === i) continue;
           const ddx = Math.abs(HZ[k] - hx), ddy = Math.abs(HZ[k + 1] - hy);
           const qx = ddx > 0.5 ? ddx - 0.5 : 0, qy = ddy > 0.5 ? ddy - 0.5 : 0;
-          if (Math.hypot(qx, qy) < RHO + 0.45 && Math.hypot(ddx + 0.5, ddy + 0.5) > RHO - 0.45) ok = false;
+          if (Math.hypot(qx, qy) < RHO + 0.9 && Math.hypot(ddx + 0.5, ddy + 0.5) > RHO - 0.45) ok = false;
         }
         if (!ok) continue;
-        let s = -Math.hypot(hx - mx, hy - my);
+        const dh = Math.hypot(hx - mx, hy - my);
+        // not a hole that lies toward the charger and nearer to it: I would have to run at it
+        if (dh > RHO + 0.9 && Math.hypot(hx - ox, hy - oy) < dh + 1.0 && (hx - mx) * dx + (hy - my) * dy > 0.5 * dh * dist) continue;
+        let s = -dh;
         if (pid !== null && pid[0] === hx && pid[1] === hy) s += 2.5;
         if (s > hbs) { hbs = s; hb = i; }
       }
@@ -501,47 +540,55 @@ export function tick(sensors, memory) {
       // an opponent that walks round the hole, or shoves me toward it from outside, is not fooled
       if (!slowOp && M0.om === 1 && dist < 1.5 && pc > r + 0.25) nh = tickN + 900;
       else if (ot > 720) { nh = tickN + 1200; ot = 0; }
+      // a hole the charger would reach before me is no cover: getting there means going past it
+      else if (r > RHO + 0.9 && !pFar && pc < r + 0.3) od = 0;
       else if (slowOp || pFar || (cov && r < RHO + 0.9)) {
         handled = true;
         oc = [cx, cy];
         orbCx = cx; orbCy = cy; orbR = RHO;
         covered = cov;
         if (slowOp) phiUse = PI;
+        // Which way round: the short way to the point opposite the charger. While the charger is
+        // nearly on my side both ways are as long, so one is picked once (the way I already move,
+        // else the one leading away from it) and kept: hesitating there is how I get caught.
+        if (Math.abs(dA) < 2.2) od = dA > 0 ? 1 : -1;
+        else if (od === 0) {
+          const lz = rx * mvy - ry * mvx;
+          if (mySpeed > 1.2 && Math.abs(lz) > 0.3 * r * mySpeed) od = lz >= 0 ? 1 : -1;
+          else od = (-ry * (mx - ox) + rx * (my - oy)) >= 0 ? 1 : -1;
+        }
         if (r > RHO + 0.9) {
           mode = 'toHole'; usePlan = true; vmax = near ? 5 : 3.6;
-          let a2 = angT;
-          if (pFar) od = 0;
-          else {
-            // join the circle on a tangent, already heading the way I will keep circling
-            if (od === 0) od = Math.abs(dA) < 2.6 ? (dA > 0 ? 1 : -1) : ((-ry * (mx - ox) + rx * (my - oy)) >= 0 ? 1 : -1);
-            a2 = ang + od * Math.acos(RHO / r);
+          if (pFar && (dist > 6 || vOpToMe < 1.5)) {
+            // plenty of time: walk straight to the far side and stop there
+            gx = cx + RHO * Math.cos(angT); gy = cy + RHO * Math.sin(angT);
+          } else {
+            // chased: join the circle on a tangent, already heading the way I will keep circling
             flow = true;
-          }
-          gx = cx + RHO * Math.cos(a2); gy = cy + RHO * Math.sin(a2);
-          if (flow) {
+            const a2 = ang + od * Math.acos(RHO / r);
+            gx = cx + RHO * Math.cos(a2); gy = cy + RHO * Math.sin(a2);
             // arrive slowly enough to be able to bend onto the circle
             const dT = Math.hypot(gx - mx, gy - my);
             if (dT < 2.2 && vmax > 2.7 + dT) vmax = 2.7 + dT;
           }
         } else if (Math.abs(dA) < 0.15 && Math.abs(r - RHO) < 0.45 && (pFar || cov)) {
           // in the shadow: a straight charge has to cross the hole
-          mode = 'shadow'; holdTan = true; od = 0;
+          mode = 'shadow'; holdTan = true;
         } else if (pFar) {
           // settle on the far side while there is time
-          mode = 'set'; orbDir = dA > 0 ? 1 : -1; od = 0;
+          mode = 'set'; orbDir = od;
           orbV = Math.sqrt(10 * RHO * Math.abs(dA)); if (orbV > 3.4) orbV = 3.4;
         } else if (slowOp) {
-          // charger close: keep circling the hole, always the same way round
-          if (od === 0) {
-            if (mySpeed > 1.2 && Math.abs(rx * mvy - ry * mvx) > 0.4 * r * mySpeed) od = rx * mvy - ry * mvx >= 0 ? 1 : -1;
-            else od = (-ry * (mx - ox) + rx * (my - oy)) >= 0 ? 1 : -1;
-          }
+          // charger close: keep the hole between us, following the point opposite the charger as
+          // the charger moves; never circle toward it
+          const wT = pc > 0.3 ? ((ox - cx) * op.vy - (oy - cy) * op.vx) / (pc * pc) : 0;
+          const vs = od * Math.sqrt(10 * RHO * Math.abs(dA)) + (Math.abs(dA) < 2.2 ? wT * RHO : 0);
           // speed up only as fast as my turn rate can hold the circle
-          mode = 'orbit'; orbDir = od; orbV = clamp(Math.abs(mw) * RHO * 1.25, 2.7, 3.5);
+          mode = 'orbit'; orbDir = vs >= 0 ? 1 : -1; orbV = Math.min(Math.abs(vs), clamp(Math.abs(mw) * RHO * 1.25, 2.7, 3.5));
           ot += 2;
         } else {
           // fast charger at the hole and I am covered: stay put, wedge toward it
-          mode = 'shadow'; vmax = 0; od = 0;
+          mode = 'shadow'; vmax = 0;
         }
       }
     }
@@ -550,7 +597,7 @@ export function tick(sensors, memory) {
       // topping up on the way. It cannot flip a wedge and it pays for the chase.
       od = 0;
       // widest loop round the centre that stays clear of every hole (and of the grates if possible)
-      let RL = clamp(hFut - 1.9, 2.2, 4.2), rlScore = -1;
+      let RL = clamp(hFut - 1.9, 2.2, 3.4), rlScore = -1;
       for (let R = RL; R >= 2.19; R -= 0.4) {
         let sc = 2;
         for (let k = 0; k < HZ.length && sc > 0; k += 3) {
@@ -572,8 +619,8 @@ export function tick(sensors, memory) {
         if (ld === 0) ld = (-my * (mx - ox) + mx * (my - oy)) >= 0 ? 1 : -1;
         const r0 = Math.hypot(mx, my), a0 = Math.atan2(my, mx);
         loopDir = a0 + ld * (PI / 2 - clamp(0.6 * (RL - r0), -0.8, 0.8));
-        // matched retreat: only a little faster than it is coming, so the chase costs it more than me
-        loopV = near ? vK : (vK < 3.4 ? vK : 3.4);
+        // matched retreat: hold a gap rather than outrun it, so the chase costs it at least as much as me
+        loopV = clamp(Math.max(vOpToMe, dist < 4.5 ? 0.8 * opSpeed : 0, 0) + GK * (GAP - dist), near ? 2.6 : 1.6, vK);
         mode = 'loop';
         if (deficit >= 15) {
           // the next ready cell ahead of me, going round the centre my way: sweep through it
@@ -662,11 +709,10 @@ export function tick(sensors, memory) {
 
   let thrust = 0, turn = 0;
   const farOp = !opActive || (dist > 6 && ag < 0.3);
-  if (finalDir !== null) {
-    thrust = 1; turn = steer(wrap(finalDir - mh), 0);
-  } else if (loopDir !== null) {
+  if (loopDir !== null) {
     // Retreat loop. While slow: back straight away from the opponent, wedge toward it, and swing
-    // into the loop only as speed builds (a J-turn). Once moving: keep the flow, never brake.
+    // into the loop only as speed builds (a J-turn). Once moving: keep the flow; the only braking
+    // is along my own axis, to back out when the way on lies behind me.
     let want = loopDir;
     if (opActive && dist < 6) {
       const away = brg + PI;
@@ -677,17 +723,32 @@ export function tick(sensors, memory) {
       // never run into the opponent's half of the floor
       if (dist < 5 && Math.cos(want - brg) > 0.3) want = brg + (wrap(want - brg) >= 0 ? 1 : -1) * (PI / 2 + 0.2);
     }
-    let md = want, best = -1;
-    for (let k = 0; k < 7; k++) {
+    let md = want, best = -1e9;
+    const fast = vLong > 1.2 || vLong < -1.2;
+    const mdir = vLong < 0 ? mh + PI : mh;       // the way I am travelling
+    for (let k = 0; k < 9; k++) {
       const a = want + (k === 0 ? 0 : (k % 2 === 1 ? 1 : -1) * ld * 0.35 * ((k + 1) >> 1));
-      const f = ray(mx, my, Math.cos(a), Math.sin(a), 3, 0.4, 0.6);
-      if (f >= 2.4) { md = a; break; }
-      if (f > best) { best = f; md = a; }
+      // a detour must not take me toward the charger
+      if (k > 0 && opActive && dist < 4.5 && Math.cos(a - brg) > 0.45) continue;
+      // (a direction behind me is reached by braking and backing up, not by an arc)
+      if (fast && Math.cos(a - mdir) >= -0.35) {
+        // at speed a direction is only as good as the arc that gets me onto it
+        const dep = arcDep(a, 14);
+        if (dep <= 0) { md = a; break; }
+        if (-dep > best) { best = -dep; md = a; }
+      } else {
+        const f = ray(mx, my, Math.cos(a), Math.sin(a), 3, 0.4, 0.6);
+        if (f >= 2.4) { md = a; break; }
+        if (f > best) { best = f; md = a; }
+      }
     }
     const eF = wrap(md - mh), eR = wrap(md + PI - mh);
+    // Travelling fast with the way out behind me: brake along my own axis and back up (or drive
+    // off nose-first when backing), rather than sweep a flank round in a U-turn.
+    const cm = Math.cos(md - mh);
     let rev;
-    if (vLong > 1.2) rev = false;
-    else if (vLong < -1.2) rev = true;
+    if (vLong > 1.2) rev = cm < -0.35;
+    else if (vLong < -1.2) rev = cm < 0.35;
     else {
       const cb = Math.cos(md - brg);
       rev = !opActive || (cb > -0.2 && cb < 0.4) ? Math.abs(eR) < Math.abs(eF) : cb <= -0.2;
@@ -771,7 +832,16 @@ export function tick(sensors, memory) {
       if (fwd >= bck) { thrust = 1; turn = steer(wrap(esc - mh), 0); }
       else { thrust = -1; turn = steer(wrap(esc + PI - mh), 0); }
     }
-    mode += '+lmd';
+    tag += '+lmd';
+  }
+
+  // Pressed against a disabled opponent I do not mean to push: its body blocks both my way and my
+  // turn, so back off along my own axis first and go round it afterwards.
+  if (!opActive && dist < 1.05 && lc !== null && lc !== undefined && tickN - lc.tick <= 20 && mode !== 'press' && mode !== 'strikeGo') {
+    const toward = ch * ux + sh * uy;
+    if (toward > 0.25 && thrust > -0.6) thrust = -0.6;
+    else if (toward < -0.25 && thrust < 0.6) thrust = 0.6;
+    tag += '+unstick';
   }
 
   // Opponent wedge pressed on my flank: slide out along my own axis instead of soaking the drain.
@@ -779,7 +849,7 @@ export function tick(sensors, memory) {
     const fwd = ray(mx, my, ch, sh, 2.4, 0.3, 0.6), bck = ray(mx, my, -ch, -sh, 2.4, 0.3, 0.6);
     const toward = ch * ux + sh * uy;
     thrust = fwd - toward * 1.2 >= bck + toward * 1.2 ? 1 : -1;
-    mode += '+clinch';
+    tag += '+clinch';
   }
 
   // ---------- safety filter ----------
@@ -827,15 +897,14 @@ export function tick(sensors, memory) {
       const rk = roll(cand[i], cand[i + 1], cand[i + 2], 13) + cand[i + 3];
       if (rk < bestRisk - 1e-4) { bestRisk = rk; bu = cand[i]; bt = cand[i + 1]; if (rk <= 0.001) break; }
     }
-    thrust = bu; turn = bt; mode += '!';
+    thrust = bu; turn = bt; tag += '!';
     // blocked beside the hole I am using as cover: give that hole up for a while
     if (oc !== null && mySpeed < 0.7) { sk++; if (sk > 10) { bh = [oc[0], oc[1], tickN + 300]; sk = 0; } }
   } else if (sk > 0) sk--;
 
-  if (freeze && mode === 'full') { thrust = 0; turn = 0; }
   if (!(thrust >= -1 && thrust <= 1)) thrust = 0;
   if (!(turn >= -1 && turn <= 1)) turn = 0;
   const out = { ag: ag, vt: vTop, gx: igx, gy: igy, rc: rcid, ss: stSide, sg: mode === 'strikeGo' ? 1 : 0, pa: pa, oc: oc, od: od, ld: ld, bh: bh, sk: sk, nh: nh, ot: ot, np: np, ac: ac, fa: fa, ec: ec, fg: fg, ch: chased ? 1 : 0, pk: pk, pf: pf, om: orbDir !== 0 || holdTan ? 1 : 0 };
-  if (DBG) out.dbg = mode + dbgx + ' g(' + gx.toFixed(1) + ',' + gy.toFixed(1) + ') oc' + (oc ? oc[0] + ',' + oc[1] : '-') + ' ag' + ag.toFixed(2) + ' tH' + tHit.toFixed(2);
+  if (DBG) out.dbg = mode + tag + ' g(' + gx.toFixed(1) + ',' + gy.toFixed(1) + ') oc' + (oc ? oc[0] + ',' + oc[1] : '-') + ' ag' + ag.toFixed(2) + ' tH' + tHit.toFixed(2);
   return { actions: { thrust: thrust, turn: turn }, memory: out };
 }

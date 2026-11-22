@@ -12,25 +12,47 @@
   "specVersion": "0.2.2-draft",
   "engineVersion": "0.2.2-r2",
   "startedAt": "2026-11-21T15:00:59.000Z",
-  "timedOut": true,
-  "note": "The session hit the 180 minute limit and was killed. The controller is the file left in the workspace at that moment, measured and registered by hand.",
-  "durationMs": 10800000,
-  "turns": 190,
-  "inputTokens": 111876359,
-  "outputTokens": 1701,
+  "durationMs": 15589046,
+  "turns": 385,
+  "inputTokens": 145186487,
+  "outputTokens": 220442,
   "cost": null,
+  "timedOut": false,
+  "note": "Two sessions. The first hit the 180 minute limit and was killed in the middle of an experiment. The second continued in the same workspace with the same prompt plus a note that it was a continuation, and ended by itself. Totals sum both; the first session cost is unknown because the kill stopped its report.",
+  "sessions": [
+    {
+      "startedAt": "2026-11-21T15:00:59.000Z",
+      "timedOut": true,
+      "durationMs": 10800000,
+      "turns": 190,
+      "inputTokens": 111876359,
+      "outputTokens": 1701,
+      "cost": null,
+      "transcript": "artifacts/generations/fable-5-2-max-20261121T150059.jsonl"
+    },
+    {
+      "startedAt": "2026-11-21T21:00:21.000Z",
+      "timedOut": false,
+      "durationMs": 4789046,
+      "turns": 195,
+      "inputTokens": 33310128,
+      "outputTokens": 218741,
+      "cost": 22.420189999999995,
+      "transcript": "artifacts/generations/fable-5-2-max-20261121T210021-resume.jsonl"
+    }
+  ],
   "gate": {
     "eligible": true,
     "pass": true,
-    "p99": 0.977800000000002
+    "p99": 1.36160000000001
   },
   "baseline": {
     "matches": 20,
-    "wins": 19,
+    "wins": 20,
     "draws": 0,
-    "losses": 1,
-    "score": 0.95
+    "losses": 0,
+    "score": 1
   },
-  "codeSha256": "30d0d7c632a7702eb1bf4cc2e1dbab14cecf0493dc82a45b07d2c09f7eac01a5",
-  "transcript": "artifacts/generations/fable-5-2-max-20261121T150059.jsonl"
+  "codeSha256": "2f96e834dc853258f1c23a6af574c91a01f1aab3dc81ff5b59651e580b86c422",
+  "transcript": "artifacts/generations/fable-5-2-max-20261121T210021-resume.jsonl"
 }
