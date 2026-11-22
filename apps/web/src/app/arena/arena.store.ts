@@ -24,6 +24,7 @@ import {
 } from '../../../../../packages/viewer/challenge-link.js';
 import { matchOutcome } from '../../../../../packages/renderer/recorder.js';
 import { track } from '../../../../../packages/viewer/analytics.js';
+import { OPENING } from '../../../../../packages/viewer/opening.js';
 import { BotsStore, type Bot } from '../core/bots.store';
 import { WorkerService } from '../core/worker.service';
 import { ToastService } from '../core/toast.service';
@@ -150,7 +151,7 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
     effect(() => {
       if (this.worker.operation() === null && this.pendingOpening) {
         this.pendingOpening = false;
-        this.simulate();
+        if (!this.replay()) this.simulate();
       }
     });
   }
@@ -164,8 +165,8 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
     return {
       a: 0,
       b: 1,
-      seed: 4,
-      mirrored: true,
+      seed: OPENING.seed,
+      mirrored: OPENING.mirrored,
       loading: {
         title: 'Preparing replay',
         detail: 'Simulation comes before every frame.',
@@ -194,9 +195,48 @@ export class ArenaStore extends NgSimpleStateBaseSignalStore<ArenaState> {
       });
     else {
       this.applyMatchSettings();
-      if (this.worker.busy) this.pendingOpening = true;
-      else this.simulate();
+      const s = this.getCurrentState();
+      const home =
+        s.a === 0 && s.b === 1 && s.seed === OPENING.seed && s.mirrored === OPENING.mirrored;
+      if (home) void this.loadOpening();
+      else this.startOpening();
     }
+  }
+  /** Simulates the opening match now, or as soon as the worker is free. */
+  private startOpening(): void {
+    if (this.worker.busy) this.pendingOpening = true;
+    else this.simulate();
+  }
+  /**
+   * The home match comes simulated with the site. It is simulated here only if
+   * the file is missing or was built from other controllers.
+   */
+  private async loadOpening(): Promise<void> {
+    let replay: Replay | null = null;
+    try {
+      const response = await fetch(siteUrl(OPENING.replay));
+      if (response.ok) replay = parseReplay(await response.text());
+    } catch {
+      replay = null;
+    }
+    // The visitor may have started a match meanwhile.
+    const operation = this.worker.operation();
+    if (
+      this.replay() ||
+      operation === 'match' ||
+      operation === 'live' ||
+      operation === 'resimulate'
+    )
+      return;
+    const pair = this.bots.builtins.slice(0, 2);
+    const current =
+      replay?.engineVersion === ENGINE_VERSION &&
+      replay.seed === OPENING.seed &&
+      replay.mirrored === OPENING.mirrored &&
+      replay.bots.length === 2 &&
+      replay.bots.every((bot, i) => bot.codeSha256 === digest(pair[i]?.source ?? ''));
+    if (replay && current) this.loadReplay(replay, true);
+    else this.startOpening();
   }
   /** Reads the controllers, seed and spawn from the query string. */
   applyMatchSettings(): void {

@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ENGINE_VERSION } from '../../../../../packages/sim/spec.js';
 import { digest } from '../../../../../packages/sim/index.js';
 import { SHA_PREFIX, encodeChallenge } from '../../../../../packages/viewer/challenge-link.js';
+import { OPENING } from '../../../../../packages/viewer/opening.js';
 import {
   FakeViewerService,
   FakeWorkerService,
@@ -266,9 +267,70 @@ describe('ArenaStore', () => {
   });
 
   describe('opening match', () => {
-    it('starts when the arena is shown and waits for a busy worker', () => {
+    // A minimal one-tick replay of the first two controllers, as the build writes it.
+    const openingReplay = (sources: string[]): string =>
+      JSON.stringify({
+        specVersion: '0.2.2-draft',
+        engineVersion: ENGINE_VERSION,
+        mode: 'exhibition',
+        seed: OPENING.seed,
+        mirrored: OPENING.mirrored,
+        bots: sources.map((source, i) => ({
+          id: `bot-${String(i)}`,
+          model: 'Model',
+          codeSha256: digest(source),
+        })),
+        dt: 1 / 60,
+        energyMax: 300,
+        arenaCells: [],
+        floorLoads: [-1, -1],
+        initialFrame: new Array(12).fill(0),
+        frames: new Array(12).fill(0),
+        arenaExtents: [7],
+        events: [],
+        stateHashes: [],
+        result: { winner: 0, reason: 'ring-out', ticks: 1 },
+        finalStates: [{}, {}],
+        violations: [0, 0],
+      });
+    const serve = (body: string, status = 200) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(new Response(body, { status }))),
+      );
+    };
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('plays the home match built with the site without simulating it', async () => {
+      serve(openingReplay([bots.builtins[0]!.source, bots.builtins[1]!.source]));
+      store.arm();
+      await vi.waitFor(() => {
+        expect(store.replay()?.seed).toBe(OPENING.seed);
+      });
+      expect(worker.started).toHaveLength(0);
+      expect(viewer.loaded[0]?.autoplay).toBe(true);
+      expect(store.loading()).toBeNull();
+    });
+
+    it('simulates the home match when the built one is stale or missing', async () => {
+      serve(openingReplay([bots.builtins[1]!.source, bots.builtins[0]!.source]));
+      store.arm();
+      await vi.waitFor(() => {
+        expect(worker.last.type).toBe('match');
+      });
+      expect(store.replay()).toBeNull();
+    });
+
+    it('waits for a busy worker', async () => {
+      serve('', 404);
       worker.start('gate', {}, { onMessage: () => undefined });
       store.arm();
+      await vi.waitFor(() => {
+        expect(vi.mocked(fetch)).toHaveBeenCalled();
+      });
+      await Promise.resolve();
       expect(worker.started.map((s) => s.type)).toEqual(['gate']);
       worker.finish();
       TestBed.tick();

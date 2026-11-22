@@ -9,6 +9,11 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { loadBots } from "../packages/bot-catalog-node.js";
 import { renderSite } from "../packages/site/prerender.js";
+import { Worker } from "node:worker_threads";
+import { BotClient } from "../packages/runtime/client.js";
+import { runMatch } from "../packages/runtime/match.js";
+import { stringifyReplay } from "../packages/sim/replay.js";
+import { OPENING } from "../packages/viewer/opening.js";
 
 const bots = await loadBots();
 const root = await realpath(fileURLToPath(new URL("../", import.meta.url)));
@@ -52,6 +57,12 @@ await build({
 });
 await cp(resolve(root, "packages/viewer/public"), pub, { recursive: true, filter: (src) => !src.endsWith("style.css") });
 await writeFile(resolve(pub, "replays.json"), "[]\n");
+// The home match, simulated here once: the page loads it instead of waiting for the worker.
+const opening = await runMatch({
+  bots: bots.slice(0, 2), seed: OPENING.seed, mirrored: OPENING.mirrored,
+  createClient: () => new BotClient(new Worker(new URL("../packages/runtime/node-worker.js", import.meta.url))),
+});
+await writeFile(resolve(pub, OPENING.replay), stringifyReplay(opening));
 if (process.argv.includes("--prepare")) {
   console.log("apps/web ready: npm run dev serves it with hot reload.");
   process.exit(0);
