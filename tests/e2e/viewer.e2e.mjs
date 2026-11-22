@@ -31,11 +31,11 @@ const ended = async (page, timeout = SIMULATION) => {
 };
 const clean = (page) => assert.deepEqual(page.logs, [], "no page errors");
 
-test("the opening match simulates, plays to a verdict, exports and imports its replay", async () => {
+test("the opening match comes built with the site, plays to a verdict, exports and imports its replay", async () => {
   const page = await browser.page();
   await page.goto(site.url + "/");
   await loaded(page);
-  assert.equal(await page.eval("location.search"), "?a=gpt-6-astra-ultra&b=fable-5-1-max&seed=0&spawn=normal");
+  assert.equal(await page.eval("location.search"), "", "the built opening match is not simulated, so the address stays clean");
   assert.equal(await page.text("#current-mode"), "Local exhibition");
   assert.equal(await page.eval("document.querySelectorAll('.robot-card').length"), 2);
   await ended(page);
@@ -153,7 +153,9 @@ test("on a phone the manual match shows touch buttons that drive the robot", asy
   }
 });
 
-test("an assistant pushes a controller over MCP and the visitor accepts it into the arena", async () => {
+// The assistant card can be switched off while its server is down.
+const assistantOn = /assistant:s*true/.test(await readFile(new URL("../../apps/web/src/app/core/features.ts", import.meta.url), "utf8"));
+test("an assistant pushes a controller over MCP and the visitor accepts it into the arena", { skip: !assistantOn && "the assistant card is off in features.ts" }, async () => {
   const live = await createApp({ origins: [site.url] });
   const port = await live.listen(0);
   const client = new Client({ name: "e2e", version: "1" });

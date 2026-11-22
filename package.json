@@ -20,6 +20,7 @@
     "start": "npm run build && node packages/viewer/serve.js",
     "dev": "node scripts/build.mjs --prepare && npm run start --prefix apps/web",
     "viewer": "node packages/viewer/serve.js",
+    "readme-gif": "node scripts/readme-gif.mjs",
     "live": "node scripts/live.mjs",
     "test": "node --test tests/*.test.js",
     "e2e": "node --test --test-concurrency=1 tests/e2e/*.e2e.mjs",
