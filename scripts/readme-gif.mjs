@@ -1,4 +1,4 @@
-// npm run readme-gif [-- --seconds 10]
+// npm run readme-gif [-- --seconds 10] [--mp4 clip.mp4]
 // The README animation: the home match exported as a clip by the built site
 // in headless Chrome, then the last seconds of play (without the verdict card)
 // turned into a small GIF by ffmpeg.
@@ -11,7 +11,7 @@ import { parseArgs, promisify } from "node:util";
 import { OUTRO_SECONDS } from "../packages/renderer/recorder.js";
 import { launchBrowser, startSite } from "../tests/e2e/driver.mjs";
 
-const { values } = parseArgs({ options: { seconds: { type: "string", default: "10" }, out: { type: "string", default: "video.gif" } } });
+const { values } = parseArgs({ options: { seconds: { type: "string", default: "10" }, out: { type: "string", default: "video.gif" }, mp4: { type: "string" } } });
 const seconds = Number(values.seconds);
 if (!(seconds > 0)) throw Error("--seconds must be a positive number.");
 const out = resolve(fileURLToPath(new URL("../", import.meta.url)), values.out);
@@ -41,6 +41,15 @@ try {
     "-loop", "0", out,
   ]);
   console.log(`${out}: the last ${seconds} s of the home match.`);
+  // The same seconds as a full quality video, for sites that take one.
+  if (values.mp4) {
+    const mp4 = resolve(values.mp4);
+    await promisify(execFile)("ffmpeg", [
+      "-y", "-sseof", `-${seconds + OUTRO_SECONDS}`, "-t", String(seconds), "-i", clip,
+      "-an", "-c:v", "libx264", "-crf", "18", "-preset", "slow", "-pix_fmt", "yuv420p", "-movflags", "+faststart", mp4,
+    ]);
+    console.log(`${mp4}: the same seconds at 1080p60.`);
+  }
 } finally {
   await browser.close();
   await site.close();
